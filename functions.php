@@ -236,6 +236,15 @@ add_action( 'wp_enqueue_scripts', 'itsi_scripts' );
 require_once get_template_directory() . '/inc/widgets.php';
 
 /**
+ * REST API enhancement untuk CPT Hibah LP2M.
+ *
+ * Register custom fields (timeline_items, file_panduan, file_template, etc.)
+ * so the Vue frontend at lp2m.bagistudio.com can fetch event data directly
+ * from /wp-json/wp/v2/hibah.
+ */
+require_once get_template_directory() . '/inc/rest-api-hibah.php';
+
+/**
  * Register widget areas for single post / page.
  *
  * All five are scoped to the single-post / single-page layout — they only
@@ -409,6 +418,26 @@ add_action( 'typerocket_loaded', function () {
 	$permohonan->setArgument( 'exclude_from_search', true );
 	$permohonan->setArgument( 'show_in_rest', false );
 	$permohonan->setArchivePostsPerPage( 20 );
+
+	// ═══ HIBAH LP2M ════════════════════════════════════════════
+	$hibah = tr_post_type( 'Hibah LP2M', 'Hibah LP2M' );
+	$hibah->setId( 'hibah' );
+	$hibah->setSlug( 'lp2m-hibah' );
+	$hibah->setIcon( 'dashicons-awards' );
+	$hibah->setPosition( 10 );
+	$hibah->setSupports( array( 'title', 'editor', 'excerpt', 'thumbnail' ) );
+	$hibah->setRest( 'hibah' );
+	$hibah->setTitlePlaceholder( 'Tulis judul event hibah...' );
+	$hibah->setArchivePostsPerPage( 12 );
+
+	// Force classic editor for hibah so the TypeRocket 'Detail Hibah'
+	// meta box renders properly. Gutenberg hides all classic meta boxes.
+	add_filter( 'use_block_editor_for_post', function ( $use, $post ) {
+		if ( $post instanceof \WP_Post && isset( $post->post_type ) && 'hibah' === $post->post_type ) {
+			return false;
+		}
+		return $use;
+	}, 10, 2 );
 
 	// ═══ TAXONOMIES ════════════════════════════════════════════
 	// (Kategori Pengumuman uses the standard `category` taxonomy.
@@ -679,6 +708,86 @@ add_action( 'typerocket_loaded', function () {
 				echo '<div><label style="display:block;font-weight:600;margin-bottom:.4rem">Cara Penerimaan</label>' . $form->select( 'cara_penerimaan' )->setOptions( array( 'email' => 'Email', 'pos' => 'Pos', 'langsung' => 'Diambil Langsung' ) ) . '</div>';
 				echo '</div>';
 				echo '<div style="margin-top:.8rem"><label style="display:block;font-weight:600;margin-bottom:.4rem">Tujuan Permohonan Informasi</label>' . $form->textarea( 'tujuan' ) . '</div>';
+			}
+		);
+
+	// ═══ META BOX — Detail Hibah ════════════════════════════
+	tr_meta_box( 'Detail Hibah' )
+		->addPostType( 'hibah' )
+		->setCallback(
+			function () {
+				$form = \TypeRocket\Utility\Helper::form();
+				$tabs = \TypeRocket\Elements\Tabs::new();
+
+				/* ─── TAB 1: Info Dasar ─── */
+				$tabs->tab( 'Info Dasar', 'dashicons-info', array(
+					'<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">'
+					. '<div>' . $form->select( 'jenis_hibah' )->setLabel( 'Jenis Hibah' )
+						->setOptions( array(
+							'internal'  => 'Internal (LP2M ITSI)',
+							'eksternal' => 'Eksternal (DRTPM / BRIN / Mitra)',
+						) )->setAttribute( 'style', 'width:100%' ) . '</div>'
+					. '<div>' . $form->select( 'status_hibah' )->setLabel( 'Status Event' )
+						->setOptions( array(
+							'aktif'   => 'Aktif (sedang dibuka)',
+							'ditutup' => 'Ditutup',
+							'arsip'   => 'Arsip',
+						) )->setAttribute( 'style', 'width:100%' ) . '</div>'
+					. '<div>' . $form->text( 'kategori_hibah' )->setLabel( 'Kategori' )
+						->setAttribute( 'placeholder', 'mis. Penelitian Dasar, Pengabdian, Kewirausahaan' ) . '</div>'
+					. '<div>' . $form->text( 'deadline' )->setLabel( 'Deadline (ISO datetime)' )
+						->setAttribute( 'placeholder', '2026-09-15T23:59:59' ) . '</div>'
+					. '<div>' . $form->text( 'deadline_label' )->setLabel( 'Label Deadline (human)' )
+						->setAttribute( 'placeholder', '15 September 2026' ) . '</div>'
+					. '<div>' . $form->text( 'skema' )->setLabel( 'Skema Hibah' )
+						->setAttribute( 'placeholder', 'mis. Hibah Kompetitif Riset Hilirisasi Sawit' ) . '</div>'
+					. '<div>' . $form->text( 'event_eyebrow' )->setLabel( 'Eyebrow Banner' )
+						->setAttribute( 'placeholder', 'mis. Event Aktif · Tahun Anggaran 2026/2027' ) . '</div>'
+					. '</div>'
+					. '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem">'
+					. '<div>' . $form->text( 'dana_maks' )->setLabel( 'Dana Maksimal' )
+						->setAttribute( 'placeholder', 'mis. Rp 35.000.000' ) . '</div>'
+					. '<div>' . $form->text( 'jumlah_tim_maks' )->setLabel( 'Jumlah Tim Maksimal' )
+						->setAttribute( 'placeholder', 'mis. 3 orang' ) . '</div>'
+					. '</div>'
+					. '<div style="margin-top:1rem">'
+					. $form->textarea( 'info_tambahan' )->setLabel( 'Info Tambahan (satu per baris)' )
+						->setAttribute( 'rows', 4 )->setAttribute( 'placeholder', "Maks. 3 anggota tim per usulan\nDana s.d. Rp 35 juta / skema penelitian" )
+					. '</div>'
+				) );
+
+				/* ─── TAB 2: Timeline ─── */
+				$timeline_rpt = $form->repeater( 'timeline_items' )->setFields(
+					array(
+						$form->text( 'Tanggal' )->setAttribute( 'placeholder', '01 Agu 2026' ),
+						$form->textarea( 'Deskripsi' )->setAttribute( 'rows', 2 )
+							->setAttribute( 'placeholder', 'Sosialisasi & pembukaan pendaftaran usulan' ),
+					)
+				);
+				$tabs->tab( 'Timeline', 'dashicons-backup', array(
+					'<h4 style="margin:.4rem 0 .5rem">⏳ Timeline Event</h4>' . $timeline_rpt
+				) );
+
+				/* ─── TAB 3: Panduan & Template ─── */
+				$tabs->tab( 'Panduan & Template', 'dashicons-media-document', array(
+					'<div style="margin-bottom:1rem">'
+					. '<h4 style="margin:.4rem 0 .5rem">📘 Panduan Penulisan (DOCX/PDF)</h4>'
+					. $form->image( 'file_panduan' )->setLabel( 'Upload File Panduan' )
+						->setHelp( 'File panduan penulisan proposal (DOCX/PDF). Bisa upload beberapa file.' )
+					. '</div>'
+					. '<div style="margin-bottom:1rem">'
+					. '<h4 style="margin:.4rem 0 .5rem">📝 Template Dokumen (DOCX/XLSX)</h4>'
+					. $form->image( 'file_template' )->setLabel( 'Upload File Template' )
+						->setHelp( 'File template proposal/laporan yang siap diisi.' )
+					. '</div>'
+					. '<div style="margin-top:1rem">'
+					. '<h4 style="margin:.4rem 0 .5rem">⬇️ Link Download Alternatif</h4>'
+					. $form->text( 'link_panduan' )->setLabel( 'URL Panduan (opsional)' )
+						->setAttribute( 'placeholder', 'https://drive.google.com/...' )
+					. '</div>'
+				) );
+
+				$tabs->layoutLeftEnclosed()->render();
 			}
 		);
 } );
