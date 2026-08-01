@@ -245,6 +245,17 @@ require_once get_template_directory() . '/inc/widgets.php';
 require_once get_template_directory() . '/inc/rest-api-hibah.php';
 
 /**
+ * LP2M Hibah Receiver — form submission, sanitization, REST endpoints.
+ *
+ * Handles POST/GET /lp2m/v1/hibah with:
+ *   - Strict input sanitization (whitelist, regex, HTML strip)
+ *   - Rate limiting (5 per 15 min per IP)
+ *   - CPT pendaftaran_hibah + custom table storage
+ *   - hibah_id foreign-key linking to CPT hibah
+ */
+require_once get_template_directory() . '/inc/lp2m/class-hibah-receiver.php';
+
+/**
  * Register widget areas for single post / page.
  *
  * All five are scoped to the single-post / single-page layout — they only
