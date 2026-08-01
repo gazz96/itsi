@@ -1,0 +1,834 @@
+/* ═══════════════════════════════════════════
+   THEME BUILDER ADMIN PAGE — Crocoblock JetThemeCore-style
+   Loaded only on wp-admin/admin.php?page=itsi-theme-builder
+   Scope: .itsi-tb-wrap
+   Prefix: tb- (= Theme Builder)
+═══════════════════════════════════════════ */
+
+.itsi-tb-wrap {
+	/* Local tokens */
+	--tb-bg:           #ffffff;
+	--tb-bg-soft:      #f6f7f7;
+	--tb-bg-mute:      #f0f0f1;
+	--tb-border:       #e2e4e7;
+	--tb-border-strong:#c3c4c7;
+	--tb-text:         #1d2327;
+	--tb-text-mute:    #50575e;
+	--tb-text-dim:     #8c8f94;
+	--tb-accent:       #2271b1;
+
+	/* Crocoblock-style scope colors */
+	--tb-green:        #46b450;
+	--tb-green-soft:   #e9f7ea;
+	--tb-orange:       #f56e28;
+	--tb-orange-soft:  #fdf0e8;
+	--tb-blue:         #0073aa;
+	--tb-blue-soft:    #e8f4fa;
+	--tb-gray:         #8c8f94;
+
+	color: var(--tb-text);
+}
+
+/* ─── Header (matches Crocoblock) ─────────────────────────────────── */
+.itsi-tb-header {
+	position: relative;
+	margin: 0.5rem 0 1.25rem;
+}
+.itsi-tb-h1 {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: 1.85rem;
+	font-weight: 600;
+	margin: 0 0 0.3rem;
+	color: var(--tb-text);
+}
+.itsi-tb-h1 .dashicons {
+	font-size: 1.8rem;
+	width: 1.8rem;
+	height: 1.8rem;
+	color: var(--tb-accent);
+}
+.itsi-tb-sub {
+	color: var(--tb-text-mute);
+	margin: 0 0 1rem;
+	font-size: 0.92rem;
+	max-width: 720px;
+}
+.itsi-tb-import-btn {
+	position: absolute;
+	top: 0.5rem;
+	right: 0;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	color: var(--tb-accent);
+	border: 1px solid var(--tb-accent);
+	background: #fff;
+	padding: 4px 12px;
+	border-radius: 4px;
+	text-decoration: none;
+	font-weight: 500;
+}
+.itsi-tb-import-btn:hover {
+	background: var(--tb-bg-soft);
+	color: var(--tb-accent);
+}
+.itsi-tb-import-btn .dashicons {
+	font-size: 1rem;
+	width: 1rem;
+	height: 1rem;
+	line-height: 1;
+}
+
+/* ─── Tabs ────────────────────────────────────────────────────────── */
+.itsi-tb-tabs {
+	margin-bottom: 1.25rem;
+	border-bottom: 1px solid var(--tb-border);
+}
+.itsi-tb-tabs .nav-tab {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.55rem;
+	font-weight: 500;
+	padding: 8px 14px;
+}
+.itsi-tb-tabs .nav-tab .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+	min-width: 16px;
+	min-height: 16px;
+	flex-shrink: 0;
+	line-height: 16px;
+	vertical-align: middle;
+	/* Defensive: ensure icon doesn't bleed into text even if font
+	   advances wider than container (some WOFF2 glyphs do). */
+	display: inline-block;
+	text-align: center;
+	overflow: hidden;
+}
+.itsi-tb-badge {
+	display: inline-block;
+	background: var(--tb-bg-mute);
+	color: var(--tb-text-mute);
+	font-size: 0.7rem;
+	padding: 1px 8px;
+	border-radius: 10px;
+	font-weight: 600;
+	margin-left: 0.3rem;
+	min-width: 1.4rem;
+	text-align: center;
+}
+.itsi-tb-badge-warn {
+	background: var(--tb-orange);
+	color: #fff;
+}
+
+/* ─── Controls bar (filter + size + view toggle) ──────────────────── */
+.itsi-tb-controls {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	margin-bottom: 1.5rem;
+	padding: 0.75rem 1rem;
+	background: var(--tb-bg);
+	border: 1px solid var(--tb-border);
+	border-radius: 4px;
+	flex-wrap: wrap;
+}
+.itsi-tb-control-group {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+.itsi-tb-control-right {
+	gap: 1rem;
+}
+.itsi-tb-control-label {
+	font-size: 0.85rem;
+	color: var(--tb-text-mute);
+	margin-right: 0.25rem;
+}
+.itsi-tb-level-filter {
+	min-width: 220px;
+	padding: 4px 8px;
+}
+
+/* View size toggle (Large / Medium / Small) */
+.itsi-tb-size-toggle {
+	display: inline-flex;
+	gap: 0;
+	border: 1px solid var(--tb-border);
+	border-radius: 4px;
+	overflow: hidden;
+}
+.itsi-tb-size-btn {
+	padding: 5px 14px;
+	background: #fff;
+	color: var(--tb-text-mute);
+	font-size: 0.82rem;
+	font-weight: 500;
+	text-decoration: none;
+	border-right: 1px solid var(--tb-border);
+	transition: background 0.15s;
+}
+.itsi-tb-size-btn:last-child {
+	border-right: none;
+}
+.itsi-tb-size-btn:hover {
+	background: var(--tb-bg-soft);
+	color: var(--tb-text);
+}
+.itsi-tb-size-btn.is-active {
+	background: var(--tb-accent);
+	color: #fff;
+}
+
+/* View toggle (Tree / Grid) */
+.itsi-tb-view-toggle {
+	display: inline-flex;
+	gap: 0;
+	border: 1px solid var(--tb-border);
+	border-radius: 4px;
+	overflow: hidden;
+}
+.itsi-tb-view-btn {
+	padding: 5px 12px;
+	background: #fff;
+	color: var(--tb-text-mute);
+	font-size: 0.82rem;
+	font-weight: 500;
+	text-decoration: none;
+	border-right: 1px solid var(--tb-border);
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	transition: background 0.15s;
+}
+.itsi-tb-view-btn:last-child {
+	border-right: none;
+}
+.itsi-tb-view-btn:hover {
+	background: var(--tb-bg-soft);
+	color: var(--tb-text);
+}
+.itsi-tb-view-btn.is-active {
+	background: var(--tb-accent);
+	color: #fff;
+}
+.itsi-tb-view-btn .dashicons {
+	font-size: 1rem;
+	width: 1rem;
+	height: 1rem;
+	line-height: 1;
+}
+
+/* ═══════════════════════════════════════════
+   TREE CANVAS — Crocoblock JetThemeCore-style hierarchy
+   - .itsi-tb-spine: horizontal flex of scope columns
+   - .itsi-tb-branch: second row hanging below Entire Site
+   - .itsi-tb-scope: vertical column with items stacked
+   - .itsi-tb-item: single template card (vertical orientation)
+═══════════════════════════════════════════ */
+
+.itsi-tb-tree-canvas {
+	background: var(--tb-bg);
+	border: 1px solid var(--tb-border);
+	border-radius: 6px;
+	padding: 1.5rem 1.25rem 1.25rem;
+	overflow-x: auto;
+	overflow-y: visible;
+	min-height: 200px;
+}
+
+/* ─── Spine row (5+ columns side-by-side) ─────────────────────────── */
+.itsi-tb-spine {
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+	gap: 0;
+	min-width: max-content;
+}
+
+/* FIX #3: Uniform column width — semua scope column sama lebar.
+   Long content names auto-scroll dengan overflow-x di parent canvas.
+   Use 200px (was 180px) supaya longer names fit without truncation. */
+.itsi-tb-spine .itsi-tb-scope,
+.itsi-tb-branch .itsi-tb-scope {
+	flex: 0 0 200px;
+	min-width: 200px;
+	max-width: 200px;
+}
+
+/* ─── Branch row (Singular Page hangs below) ──────────────────────── */
+/* FIX #2: Drop-line presisi — align dengan item center column 1 (Entire Site). */
+.itsi-tb-branch {
+	display: flex;
+	flex-direction: row;
+	margin-top: 2rem;
+	padding-left: 0;
+	position: relative;
+}
+.itsi-tb-branch::before {
+	/* Vertical connector line — turun dari Entire Site ke Singular Page.
+	   x: tengah dari card pertama di Entire Site (24px dari column left edge
+	   = 12px card padding-left + 12px half of card = ~24px dari column).
+	   y: turun dari bottom Entire Site column ke top Singular Page banner. */
+	content: '';
+	position: absolute;
+	top: -2rem;
+	left: 28px;
+	width: 2px;
+	height: 2rem;
+	background: var(--tb-green, #46b450);
+	opacity: 0.85;
+}
+/* Branch column 1 — letakkan persis di bawah Entire Site column 1 */
+.itsi-tb-branch > .itsi-tb-scope:first-child {
+	margin-left: 0;
+}
+
+/* ─── Scope column (vertical) ──────────────────────────────────────── */
+.itsi-tb-scope {
+	position: relative;
+	padding: 0 0.5rem 0 0.5rem;
+}
+.itsi-tb-scope-hdr {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-bottom: 0.85rem;
+	min-height: 24px;
+	padding-right: 0;
+}
+.itsi-tb-scope-banner {
+	display: inline-block;
+	color: #fff;
+	font-size: 0.72rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	padding: 4px 10px;
+	border-radius: 3px;
+	line-height: 1.2;
+	white-space: nowrap;
+}
+.itsi-tb-scope-count {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 22px;
+	height: 22px;
+	padding: 0 7px;
+	background: var(--tb-bg-mute);
+	color: var(--tb-text-mute);
+	font-size: 0.72rem;
+	font-weight: 600;
+	border-radius: 11px;
+}
+.itsi-tb-scope-items {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+}
+
+/* ─── Inter-column connector (horizontal line + circle) ───────────── */
+/* FIX #6: Connector circle prominent, line connects scope banners precisely. */
+.itsi-tb-scope-connector {
+	position: absolute;
+	top: 12px; /* align dengan center of scope banner (24px height / 2 = 12) */
+	right: -10px;
+	width: 20px;
+	height: 2px;
+	background: currentColor;
+	opacity: 0.7;
+	z-index: 2;
+	pointer-events: none;
+}
+.itsi-tb-connector-circle {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: #fff;
+	border: 2px solid currentColor;
+	box-sizing: border-box;
+}
+
+/* ─── Item (single template card in vertical column) ──────────────── */
+/* FIX #4: Vertical gap antar card — diperbesar dari 0.5rem (8px) ke 1.25rem (20px)
+   supaya ada breathing room + space untuk connector line + junction circle. */
+.itsi-tb-item {
+	position: relative;
+	margin-bottom: 1.25rem;
+	padding-top: 0;
+	padding-bottom: 0;
+}
+.itsi-tb-item:last-child {
+	margin-bottom: 0;
+}
+.itsi-tb-item-row {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 4px;
+	position: relative;
+}
+.itsi-tb-item-card {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 8px 10px;
+	min-height: 36px;
+	width: 100%;
+	background: #fff;
+	color: var(--tb-text);
+	border: 1.5px dashed var(--tb-node-color, var(--tb-gray));
+	border-radius: 5px;
+	text-decoration: none;
+	font-size: 0.78rem;
+	font-weight: 500;
+	text-align: center;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	transition: all 0.15s;
+	cursor: pointer;
+	box-sizing: border-box;
+}
+.itsi-tb-item-card:hover {
+	background: var(--tb-bg-soft);
+	border-style: solid;
+	color: var(--tb-text);
+}
+.itsi-tb-item-name {
+	font-family: Consolas, Monaco, monospace;
+	font-size: 0.76rem;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
+}
+.itsi-tb-item-placeholder .itsi-tb-item-card {
+	border-style: dotted;
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+/* Depth chain — child items indent to show hierarchy */
+.itsi-tb-item.is-child {
+	padding-left: 20px;
+}
+.itsi-tb-item.is-child .itsi-tb-item-card {
+	background: var(--tb-bg-soft);
+	border-style: dotted;
+	font-size: 0.74rem;
+}
+.itsi-tb-item.depth-2 {
+	padding-left: 40px;
+}
+
+/* ─── Item-to-item connector (vertical line between cards in column) ─ */
+/* FIX #5: Connector circles diperbesar dari 10px ke 12px (lebih prominent).
+   Line lebih panjang (18px instead of 10px) untuk clear visual separation. */
+.itsi-tb-item-connector {
+	position: absolute;
+	left: 50%; /* center horizontally within card width */
+	bottom: -1.25rem; /* extend dari bottom card edge ke top of next card (margin-bottom offset) */
+	width: 2px;
+	height: 1.25rem; /* matches item margin-bottom so line touches next card */
+	background: currentColor;
+	opacity: 0.6;
+	z-index: 2;
+	pointer-events: none;
+	transform: translateX(-50%);
+}
+.itsi-tb-item-connector .itsi-tb-connector-circle {
+	top: 0;
+	left: 50%;
+	transform: translate(-50%, -50%);
+}
+
+/* Per-scope color theming — applied via .itsi-tb-color-* on item */
+.itsi-tb-color-green  { --tb-node-color: var(--tb-green);  color: var(--tb-green);  }
+.itsi-tb-color-orange { --tb-node-color: var(--tb-orange); color: var(--tb-orange); }
+.itsi-tb-color-blue   { --tb-node-color: var(--tb-blue);   color: var(--tb-blue);   }
+
+/* Scope banner colors */
+.itsi-tb-scope-green  .itsi-tb-scope-banner { background: var(--tb-green); }
+.itsi-tb-scope-orange .itsi-tb-scope-banner { background: var(--tb-orange); }
+.itsi-tb-scope-blue   .itsi-tb-scope-banner { background: var(--tb-blue); }
+
+/* Per-scope connector colors (for inter-column horizontal line) */
+.itsi-tb-scope-green  .itsi-tb-scope-connector,
+.itsi-tb-scope-green  .itsi-tb-item-connector { background: var(--tb-green); border-color: var(--tb-green); }
+.itsi-tb-scope-green  .itsi-tb-connector-circle { border-color: var(--tb-green); }
+.itsi-tb-scope-orange .itsi-tb-scope-connector,
+.itsi-tb-scope-orange .itsi-tb-item-connector { background: var(--tb-orange); border-color: var(--tb-orange); }
+.itsi-tb-scope-orange .itsi-tb-connector-circle { border-color: var(--tb-orange); }
+.itsi-tb-scope-blue   .itsi-tb-scope-connector,
+.itsi-tb-scope-blue   .itsi-tb-item-connector { background: var(--tb-blue); border-color: var(--tb-blue); }
+.itsi-tb-scope-blue   .itsi-tb-connector-circle { border-color: var(--tb-blue); }
+
+/* ─── Add (+) button (vertical card variant) ──────────────────────── */
+/* FIX #1: Use explicit background (not currentColor) supaya GAK inherit dari parent
+   text color. Use --tb-node-color (set by parent .itsi-tb-color-* class).
+   Position: row layout has it stacked below card; flex-direction column on
+   .itsi-tb-item-row puts it under the card naturally. */
+.itsi-tb-add-btn {
+	align-self: center;
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	margin-top: 2px;
+	border-radius: 50%;
+	background: var(--tb-node-color, var(--tb-gray));
+	color: #fff !important;
+	text-decoration: none;
+	transition: transform 0.15s, box-shadow 0.15s;
+	box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+	position: relative;
+}
+.itsi-tb-add-btn .dashicons {
+	font-size: 0.78rem;
+	width: 0.78rem;
+	height: 0.78rem;
+	line-height: 1;
+	color: #fff !important;
+}
+.itsi-tb-add-btn:hover {
+	transform: scale(1.12);
+	box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+	color: #fff !important;
+}
+.itsi-tb-add-btn:hover .dashicons {
+	color: #fff !important;
+}
+
+/* Defensive: ensure + glyph always visible regardless of font load state */
+.itsi-tb-add-btn::before {
+	content: '+';
+	color: #fff !important;
+	font-size: 16px;
+	font-weight: 700;
+	line-height: 1;
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	pointer-events: none;
+}
+.itsi-tb-add-btn .dashicons {
+	position: relative;
+	z-index: 1;
+	opacity: 0; /* hide dashicons, fallback + via ::before */
+}
+
+/* ─── Size variants (Large / Medium / Small) ──────────────────────── */
+.itsi-tb-size-large  .itsi-tb-item-card { font-size: 0.85rem; min-height: 40px; padding: 10px 14px; }
+.itsi-tb-size-medium .itsi-tb-item-card { font-size: 0.78rem; min-height: 36px; padding: 8px 12px; }
+.itsi-tb-size-small  .itsi-tb-item-card { font-size: 0.72rem; min-height: 28px; padding: 5px 10px; }
+
+.itsi-tb-size-large  .itsi-tb-add-btn { width: 28px; height: 28px; }
+.itsi-tb-size-medium .itsi-tb-add-btn { width: 24px; height: 24px; }
+.itsi-tb-size-small  .itsi-tb-add-btn { width: 20px; height: 20px; }
+
+/* ─── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+	.itsi-tb-spine,
+	.itsi-tb-branch {
+		flex-wrap: nowrap;
+	}
+}
+
+/* ─── Grid view (alternative layout) ──────────────────────────────── */
+.itsi-tb-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+.itsi-tb-grid-section-title {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 0 0 0.75rem;
+	font-size: 0.95rem;
+}
+.itsi-tb-scope-pill {
+	display: inline-block;
+	color: #fff;
+	font-size: 0.72rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	padding: 3px 10px;
+	border-radius: 3px;
+}
+.itsi-tb-scope-pill-green  { background: var(--tb-green); }
+.itsi-tb-scope-pill-orange { background: var(--tb-orange); }
+.itsi-tb-scope-pill-blue   { background: var(--tb-blue); }
+.itsi-tb-grid-section-count {
+	color: var(--tb-text-mute);
+	font-size: 0.8rem;
+	font-weight: 500;
+}
+.itsi-tb-grid-cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+	gap: 0.75rem;
+}
+.itsi-tb-grid-card {
+	background: var(--tb-bg);
+	border: 1px solid var(--tb-border);
+	border-radius: 6px;
+	padding: 0.85rem 1rem;
+	border-top: 3px solid var(--tb-node-color, var(--tb-gray));
+}
+.itsi-tb-grid-card-hdr {
+	margin-bottom: 0.4rem;
+}
+.itsi-tb-grid-card-file {
+	font-family: Consolas, Monaco, monospace;
+	font-size: 0.78rem;
+	background: var(--tb-bg-soft);
+	padding: 1px 6px;
+	border-radius: 3px;
+	color: var(--tb-text-mute);
+}
+.itsi-tb-grid-card-name {
+	margin: 0.2rem 0 0.5rem;
+	font-size: 1rem;
+	font-weight: 600;
+}
+.itsi-tb-grid-card-conds {
+	list-style: none;
+	margin: 0 0 0.6rem;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+}
+.itsi-tb-grid-card-conds li {
+	font-size: 0.78rem;
+	color: var(--tb-text-mute);
+	padding-left: 0.9rem;
+	position: relative;
+}
+.itsi-tb-grid-card-conds li::before {
+	content: '•';
+	position: absolute;
+	left: 0;
+	color: var(--tb-node-color, var(--tb-gray));
+}
+.itsi-tb-grid-card-ftr {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-top: 0.5rem;
+	padding-top: 0.5rem;
+	border-top: 1px solid var(--tb-bg-mute);
+}
+.itsi-tb-grid-card-size {
+	font-size: 0.75rem;
+	color: var(--tb-text-mute);
+}
+
+/* ─── Empty state ─────────────────────────────────────────────────── */
+.itsi-tb-empty-itsi {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 2rem;
+	background: var(--tb-bg-soft);
+	border: 1px dashed var(--tb-border-strong);
+	border-radius: 6px;
+	color: var(--tb-text-mute);
+	justify-content: center;
+}
+.itsi-tb-empty-itsi .dashicons {
+	font-size: 1.4rem;
+	width: 1.4rem;
+	height: 1.4rem;
+	color: var(--tb-text-dim);
+}
+.itsi-tb-empty-itsi p {
+	margin: 0;
+	font-size: 0.9rem;
+}
+
+/* ─── TAB 2: Conditions Matrix (kept from previous design) ───────── */
+.itsi-tb-matrix {
+	margin-top: 1rem;
+}
+.itsi-tb-matrix code {
+	font-family: Consolas, Monaco, monospace;
+	font-size: 0.78rem;
+	background: var(--tb-bg-soft);
+	padding: 1px 5px;
+	border-radius: 3px;
+}
+.itsi-tb-tag {
+	display: inline-block;
+	margin: 1px 3px 1px 0;
+}
+.itsi-tb-type-pill {
+	display: inline-block;
+	font-size: 0.7rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	padding: 2px 8px;
+	border-radius: 3px;
+	background: var(--tb-bg-mute);
+	color: var(--tb-text-mute);
+}
+.itsi-tb-conds-cell { max-width: 480px; }
+.itsi-tb-cond-pill {
+	display: inline-block;
+	font-size: 0.72rem;
+	padding: 2px 8px;
+	margin: 1px 3px 1px 0;
+	background: var(--tb-bg-soft);
+	color: var(--tb-accent);
+	border-radius: 10px;
+}
+.itsi-tb-dim { color: var(--tb-text-dim); }
+.itsi-tb-link-count {
+	color: var(--tb-accent);
+	text-decoration: none;
+	font-weight: 500;
+}
+.itsi-tb-link-count:hover { text-decoration: underline; }
+
+/* ─── TAB 3: Missing Templates ────────────────────────────────────── */
+.itsi-tb-empty {
+	text-align: center;
+	padding: 3rem 1rem;
+	background: #edfaef;
+	border: 1px solid #00a32a;
+	border-radius: 6px;
+	margin: 1rem 0;
+}
+.itsi-tb-empty .dashicons {
+	font-size: 3rem;
+	width: 3rem;
+	height: 3rem;
+	color: #00a32a;
+}
+.itsi-tb-empty h2 { color: #005c12; margin: 0.5rem 0 0.25rem; font-weight: 600; }
+.itsi-tb-empty p { color: #005c12; margin: 0; }
+
+.itsi-tb-missing-list {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+	gap: 1rem;
+	margin-bottom: 2rem;
+}
+.itsi-tb-missing-card {
+	background: #fcf9e8;
+	border: 1px solid #dba617;
+	border-radius: 6px;
+	padding: 1rem;
+}
+.itsi-tb-missing-hdr {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-bottom: 0.5rem;
+}
+.itsi-tb-missing-hdr .dashicons {
+	color: #dba617;
+	font-size: 1.2rem;
+	width: 1.2rem;
+	height: 1.2rem;
+}
+.itsi-tb-missing-hdr h3 { margin: 0; font-size: 0.95rem; color: #6e5500; }
+.itsi-tb-missing-reason { margin: 0 0 0.6rem; font-size: 0.85rem; }
+.itsi-tb-missing-expected,
+.itsi-tb-missing-fix {
+	margin: 0 0 0.4rem;
+	font-size: 0.8rem;
+	color: var(--tb-text-mute);
+}
+.itsi-tb-missing-expected code {
+	background: rgba(0,0,0,0.06);
+	padding: 1px 6px;
+	border-radius: 3px;
+	font-family: Consolas, Monaco, monospace;
+}
+.itsi-tb-existing {
+	background: var(--tb-bg);
+	border: 1px solid var(--tb-border);
+	border-radius: 6px;
+	padding: 1rem 1.25rem;
+}
+.itsi-tb-existing-title {
+	margin: 0 0 0.4rem;
+	font-size: 1rem;
+	font-weight: 600;
+}
+
+/* ─── TAB 4: Assignments (kept from previous design) ──────────────── */
+.itsi-tb-form .description {
+	color: var(--tb-text-mute);
+	font-size: 0.85rem;
+	margin-bottom: 1.25rem;
+}
+.itsi-tb-fset {
+	background: var(--tb-bg);
+	border: 1px solid var(--tb-border);
+	border-radius: 6px;
+	padding: 1rem 1.25rem 1.25rem;
+	margin-bottom: 1.5rem;
+}
+.itsi-tb-fset legend {
+	padding: 0 0.5rem;
+	font-weight: 600;
+	color: var(--tb-text);
+	font-size: 0.95rem;
+}
+.itsi-tb-assign-tbl {
+	margin-top: 0.75rem;
+}
+.itsi-tb-assign-tbl th {
+	font-size: 0.78rem;
+	font-weight: 600;
+	color: var(--tb-text-mute);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+.itsi-tb-assign-tbl code {
+	font-family: Consolas, Monaco, monospace;
+	font-size: 0.78rem;
+	background: var(--tb-bg-soft);
+	padding: 1px 6px;
+	border-radius: 3px;
+	margin-right: 0.4rem;
+}
+.itsi-tb-muted { color: var(--tb-text-mute); font-size: 0.82rem; }
+.itsi-tb-assign-tbl select { min-width: 280px; }
+
+/* ─── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 782px) {
+	.itsi-tb-controls {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+	.itsi-tb-control-right {
+		width: 100%;
+		justify-content: space-between;
+	}
+	.itsi-tb-import-btn {
+		position: static;
+		margin-top: 0.5rem;
+	}
+	.itsi-tb-grid-cards { grid-template-columns: 1fr; }
+	.itsi-tb-assign-tbl select { min-width: 100%; }
+}

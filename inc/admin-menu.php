@@ -1,0 +1,546 @@
+<?php
+/**
+ * Admin sidebar menu: ITSI
+ *
+ * Top-level admin menu "ITSI" with six flat TypeRocket tabs:
+ *   - Top Bar – Kiri     → email/tel/alamat
+ *   - Top Bar – Kanan    → language switcher + PMB pill
+ *   - Brand Bar          → short/full label
+ *   - Brand Colors       → topbar/navbar bg + PMB gradient
+ *   - Footer             → copyright + social URLs
+ *   - Posts              → per-page, excerpt length, featured-in-archive
+ *
+ * Storage: theme_mods (so values are read by header.php / footer.php via
+ * get_theme_mod). Fields are rendered with TypeRocket field classes for UI
+ * consistency; submission is handled manually via admin-post.php so we can
+ * call set_theme_mod() instead of the Form's auto-save to the Option model.
+ *
+ * @package itsi
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/**
+ * Register the "ITSI" top-level admin menu.
+ *
+ * @return void
+ */
+function itsi_register_admin_menu() {
+	add_menu_page(
+		__( 'ITSI', 'itsi' ),
+		__( 'ITSI', 'itsi' ),
+		'manage_options',
+		'itsi-settings',
+		'itsi_render_settings_page',
+		'dashicons-admin-customizer',
+		61
+	);
+}
+add_action( 'admin_menu', 'itsi_register_admin_menu' );
+
+/**
+ * Handle POST save for ITSI settings page.
+ *
+ * Saves every whitelisted key via set_theme_mod() so existing header.php /
+ * footer.php get_theme_mod() calls pick up the new values without code changes.
+ *
+ * Hook: admin_post_itsi_settings_save
+ *
+ * @return void
+ */
+function itsi_handle_settings_save() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'Anda tidak memiliki akses untuk menyimpan pengaturan ini.', 'itsi' ) );
+	}
+	check_admin_referer( 'itsi_settings_save', '_itsi_nonce' );
+
+	// TypeRocket field inputs render with a `tr[...]` prefix, so the posted
+	// payload is $_POST['tr']['itsi_*'] not $_POST['itsi_*'].
+	$posted = isset( $_POST['tr'] ) && is_array( $_POST['tr'] )
+		? wp_unslash( $_POST['tr'] )
+		: array();
+
+	// Map: posted field name → sanitizer callback.
+	$fields = array(
+		// Header → top bar HTML (free-form, supports shortcode like [gtranslate]).
+		'itsi_tb_left_html'  => 'wp_kses_post',
+		'itsi_tb_right_html' => 'wp_kses_post',
+
+		// Header → brand bar.
+		'itsi_brand_short' => 'sanitize_text_field',
+		'itsi_brand_full'  => 'sanitize_text_field',
+
+		// Header → brand colors.
+		'itsi_color_topbar_bg'    => 'sanitize_hex_color',
+		'itsi_color_navbar_bg'    => 'sanitize_hex_color',
+		'itsi_color_navbar_alpha' => 'itsi_sanitize_opacity',
+		'itsi_color_pmb_from'     => 'sanitize_hex_color',
+		'itsi_color_pmb_to'       => 'sanitize_hex_color',
+
+		// Footer.
+		'itsi_footer_copyright'       => 'sanitize_text_field',
+		'itsi_footer_social_facebook' => 'esc_url_raw',
+		'itsi_footer_social_instagram'=> 'esc_url_raw',
+		'itsi_footer_social_youtube'  => 'esc_url_raw',
+		'itsi_footer_social_x'        => 'esc_url_raw',
+		// 2026-07-08: Tambah 3 social lain agar konsisten dengan schema set
+		// (inc/schema.php line 110-127 itsi_schema_same_as baca tiktok/twitter/linkedin).
+		'itsi_footer_social_tiktok'   => 'esc_url_raw',
+		'itsi_footer_social_twitter'  => 'esc_url_raw',   // twitter.com klasik (X = rebrand, field terpisah)
+		'itsi_footer_social_linkedin' => 'esc_url_raw',
+		// 2026-07-08: Footer static content (alamat, telp, email, jam) — independent
+		// dari itsi_schema_* (schema JSON-LD) agar admin bisa beda display vs structured data.
+		'itsi_footer_address'         => 'sanitize_text_field',
+		'itsi_footer_phone'           => 'sanitize_text_field',
+		'itsi_footer_phone_link'      => 'sanitize_text_field',   // E.164 (mis: +6261****4567)
+		'itsi_footer_email'           => 'sanitize_email',
+		'itsi_footer_hours'           => 'sanitize_text_field',
+		// 2026-07-08: Footer legal/nav links.
+		'itsi_footer_privacy_url'     => 'esc_url_raw',
+		'itsi_footer_terms_url'       => 'esc_url_raw',
+		'itsi_footer_sitemap_url'     => 'esc_url_raw',
+
+		// Posts.
+		'itsi_posts_per_page'         => 'absint',
+		'itsi_posts_excerpt_length'   => 'absint',
+		'itsi_posts_show_featured'    => 'rest_sanitize_boolean',
+		'itsi_posts_default_category' => 'absint',
+
+		// Schema / SEO (EducationalOrganization JSON-LD).
+		'itsi_schema_org_name'           => 'sanitize_text_field',
+		'itsi_schema_org_alt_name'       => 'sanitize_text_field',
+		'itsi_schema_street'             => 'sanitize_text_field',
+		'itsi_schema_city'               => 'sanitize_text_field',
+		'itsi_schema_region'             => 'sanitize_text_field',
+		'itsi_schema_postal'             => 'sanitize_text_field',
+		'itsi_schema_country'            => 'sanitize_text_field',
+		'itsi_schema_lat'                => 'sanitize_text_field',
+		'itsi_schema_lng'                => 'sanitize_text_field',
+		'itsi_schema_phone'              => 'sanitize_text_field',
+		'itsi_schema_email'              => 'sanitize_email',
+		'itsi_schema_founded'            => 'sanitize_text_field',
+		'itsi_schema_social_facebook'    => 'esc_url_raw',
+		'itsi_schema_social_instagram'   => 'esc_url_raw',
+		'itsi_schema_social_youtube'     => 'esc_url_raw',
+		'itsi_schema_social_tiktok'      => 'esc_url_raw',
+		'itsi_schema_social_twitter'     => 'esc_url_raw',
+		'itsi_schema_social_linkedin'    => 'esc_url_raw',
+	);
+
+	// WP native theme_mod keys for logo + favicon — TR Image field posts
+	// an attachment ID (scalar) under these names.
+	$native_image_keys = array( 'custom_logo', 'site_icon' );
+
+	foreach ( $fields as $key => $sanitizer ) {
+		if ( isset( $posted[ $key ] ) ) {
+			$val = call_user_func( $sanitizer, $posted[ $key ] );
+			// sanitize_hex_color returns null/empty for invalid hex — skip rather
+			// than storing a falsy value that would clobber a previously valid hex.
+			if ( 'sanitize_hex_color' === $sanitizer && empty( $val ) ) {
+				continue;
+			}
+			set_theme_mod( $key, $val );
+		} elseif ( 'rest_sanitize_boolean' === $sanitizer ) {
+			// Unchecked checkbox: store false rather than leaving stale true.
+			set_theme_mod( $key, false );
+		}
+	}
+
+	// Image fields: if a non-zero attachment ID was posted, set_theme_mod.
+	// If absent or zero/empty (admin cleared the picker), remove_theme_mod so
+	// header.php falls back to the bundled SVG (logo) or no favicon (site_icon).
+	foreach ( $native_image_keys as $img_key ) {
+		if ( isset( $posted[ $img_key ] ) && is_numeric( $posted[ $img_key ] ) && (int) $posted[ $img_key ] > 0 ) {
+			$att_id = (int) $posted[ $img_key ];
+			set_theme_mod( $img_key, $att_id );
+
+			// WP core has_site_icon() + get_site_icon_url() read from the
+			// `site_icon` OPTION, NOT the theme_mod — and emits <link rel="icon">
+			// only when option is non-zero. Sync both stores so the favicon
+			// actually shows in <head>. Without this, theme_mod has ID 5621 but
+			// option is stuck at '0' → has_site_icon() = false → no favicon.
+			if ( 'site_icon' === $img_key ) {
+				update_option( 'site_icon', $att_id );
+			}
+		} else {
+			remove_theme_mod( $img_key );
+
+			// Same dual-store sync — when admin clears the picker, wipe both so
+			// a stale option value can't resurrect a removed favicon.
+			if ( 'site_icon' === $img_key ) {
+				delete_option( 'site_icon' );
+			}
+		}
+	}
+
+	wp_safe_redirect(
+		add_query_arg(
+			array( 'page' => 'itsi-settings', 'itsi_saved' => '1' ),
+			admin_url( 'admin.php' )
+		)
+	);
+	exit;
+}
+add_action( 'admin_post_itsi_settings_save', 'itsi_handle_settings_save' );
+
+/**
+ * Sanitize a numeric opacity value into 0.0–1.0 range.
+ *
+ * @param mixed $value Raw input.
+ * @return float
+ */
+function itsi_sanitize_opacity( $value ) {
+	$f = is_numeric( $value ) ? (float) $value : 0.88;
+	if ( $f < 0 ) {
+		return 0.0;
+	}
+	if ( $f > 1 ) {
+		return 1.0;
+	}
+	return $f;
+}
+
+/**
+ * Render the ITSI settings page with TypeRocket tabs.
+ *
+ * @return void
+ */
+function itsi_render_settings_page() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'Anda tidak memiliki akses ke halaman ini.', 'itsi' ) );
+	}
+
+	$saved = isset( $_GET['itsi_saved'] ) && '1' === $_GET['itsi_saved']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flag.
+
+	$tabs = new \TypeRocket\Elements\Tabs();
+
+	$tabs->tab( __( 'Header', 'itsi' ), 'dashicons-admin-generic', array(
+		// Logo + Favicon (WP native theme_mod keys).
+		\TypeRocket\Utility\Helper::form()
+			->image( 'custom_logo' )
+			->setLabel( __( 'Site Logo', 'itsi' ) )
+			->setHelp( __( 'Logo utama situs. Dipakai di navbar dan footer. Pilih dari Media Library. Kosongkan untuk pakai logo default.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->image( 'site_icon' )
+			->setLabel( __( 'Site Favicon', 'itsi' ) )
+			->setHelp( __( 'Ikon kecil di tab browser (favicon). Ukuran ideal 512×512 px. Format yang disarankan: PNG (transparan OK), ICO, atau SVG square. JPEG TIDAK disarankan — akan distretch & Google SERP abaikan. PNG/ICO/SVG akan otomatis generate ke /favicon.ico, /favicon-32x32.png, /apple-touch-icon.png, dan /site.webmanifest saat disimpan. CATATAN: jika upload image baru via Media Library dan Site Favicon di atas masih kosong, image terbaru akan otomatis dipromosikan jadi favicon.', 'itsi' ) ),
+
+		// Brand Bar.
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_brand_short' )
+			->setLabel( __( 'Site Short Label', 'itsi' ) )
+			->setHelp( __( 'Label pendek di navbar, mis. ITSI.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_brand_full' )
+			->setLabel( __( 'Site Full Label', 'itsi' ) )
+			->setHelp( __( 'Label panjang di navbar.', 'itsi' ) ),
+
+		// Brand Colors.
+		\TypeRocket\Utility\Helper::form()
+			->color( 'itsi_color_topbar_bg' )
+			->setLabel( __( 'Topbar BG', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->color( 'itsi_color_navbar_bg' )
+			->setLabel( __( 'Navbar BG (warna dasar)', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->number( 'itsi_color_navbar_alpha' )
+			->setLabel( __( 'Navbar BG opacity (0.0–1.0)', 'itsi' ) )
+			->setAttribute( 'step', '0.01' )
+			->setAttribute( 'min', '0' )
+			->setAttribute( 'max', '1' ),
+		\TypeRocket\Utility\Helper::form()
+			->color( 'itsi_color_pmb_from' )
+			->setLabel( __( 'PMB Pill – gradient kiri', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->color( 'itsi_color_pmb_to' )
+			->setLabel( __( 'PMB Pill – gradient kanan', 'itsi' ) ),
+
+		// Top Bar – Kiri (free HTML, supports shortcode).
+		\TypeRocket\Utility\Helper::form()
+			->wpEditor( 'itsi_tb_left_html' )
+			->setLabel( __( 'Top Bar – Kiri (HTML)', 'itsi' ) )
+			->setHelp( __( 'Konten HTML bebas untuk sisi kiri top bar. Mendukung shortcode (mis. [gtranslate]). Kosongkan jika tidak dipakai.', 'itsi' ) )
+			->setSetting( 'options', array(
+				'textarea_rows' => 4,
+				'teeny'         => true,
+			) ),
+
+		// Top Bar – Kanan (free HTML, supports shortcode).
+		\TypeRocket\Utility\Helper::form()
+			->wpEditor( 'itsi_tb_right_html' )
+			->setLabel( __( 'Top Bar – Kanan (HTML)', 'itsi' ) )
+			->setHelp( __( 'Konten HTML bebas untuk sisi kanan top bar. Mendukung shortcode (mis. [gtranslate] untuk language switcher).', 'itsi' ) )
+			->setSetting( 'options', array(
+				'textarea_rows' => 4,
+				'teeny'         => true,
+			) ),
+	) );
+
+	$tabs->tab( __( 'Schema / SEO', 'itsi' ), 'dashicons-chart-line', array(
+		// Org identity.
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_org_name' )
+			->setLabel( __( 'Nama resmi institusi', 'itsi' ) )
+			->setHelp( __( 'Dipakai sebagai EducationalOrganization.name di schema. Default: Site Title.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_org_alt_name' )
+			->setLabel( __( 'Nama pendek / akronim', 'itsi' ) )
+			->setHelp( __( 'Mis. ITSI untuk Institut Teknologi Sawit Indonesia. Dipakai sebagai alternateName.', 'itsi' ) ),
+
+		// Postal address.
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_street' )
+			->setLabel( __( 'Alamat jalan', 'itsi' ) )
+			->setHelp( __( 'Jalan, nomor, kompleks. Mis: Jl. Rumah Sakit Haji (Jl. Willem Iskandar) Komplek PT LPP Agro Nusantara', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_city' )
+			->setLabel( __( 'Kota', 'itsi' ) )
+			->setHelp( __( 'Mis: Medan Estate', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_region' )
+			->setLabel( __( 'Provinsi', 'itsi' ) )
+			->setHelp( __( 'Mis: Sumatera Utara', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_postal' )
+			->setLabel( __( 'Kode pos', 'itsi' ) )
+			->setHelp( __( 'Mis: 20371', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_country' )
+			->setLabel( __( 'Kode negara (ISO-3166-1 alpha-2)', 'itsi' ) )
+			->setHelp( __( 'Default: ID. Mis: ID untuk Indonesia.', 'itsi' ) ),
+
+		// Geo.
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_lat' )
+			->setLabel( __( 'Latitude', 'itsi' ) )
+			->setHelp( __( 'Dari Google Maps share. Mis: 3.5952', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_lng' )
+			->setLabel( __( 'Longitude', 'itsi' ) )
+			->setHelp( __( 'Dari Google Maps share. Mis: 98.7331', 'itsi' ) ),
+
+		// Contact.
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_phone' )
+			->setLabel( __( 'Telepon', 'itsi' ) )
+			->setHelp( __( 'Format bebas. Mis: (061) 6637060', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_email' )
+			->setLabel( __( 'Email kontak', 'itsi' ) )
+			->setHelp( __( 'Mis: medan@itsi.ac.id', 'itsi' ) ),
+
+		// Founded.
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_founded' )
+			->setLabel( __( 'Tahun berdiri', 'itsi' ) )
+			->setHelp( __( 'Format YYYY atau YYYY-MM-DD. Mis: 2017', 'itsi' ) ),
+
+		// Social.
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_social_facebook' )
+			->setLabel( __( 'Facebook URL', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_social_instagram' )
+			->setLabel( __( 'Instagram URL', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_social_youtube' )
+			->setLabel( __( 'YouTube URL', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_social_tiktok' )
+			->setLabel( __( 'TikTok URL', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_social_twitter' )
+			->setLabel( __( 'X / Twitter URL', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_schema_social_linkedin' )
+			->setLabel( __( 'LinkedIn URL', 'itsi' ) ),
+	) );
+
+	$tabs->tab( __( 'Footer', 'itsi' ), 'dashicons-share', array(
+		// === Copyright + contact (konten statis) ===
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_copyright' )
+			->setLabel( __( 'Teks copyright', 'itsi' ) )
+			->setHelp( __( 'Ditampilkan di bagian bawah footer. Tahun otomatis ditambah di depan.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_address' )
+			->setLabel( __( 'Alamat', 'itsi' ) )
+			->setHelp( __( 'Alamat lengkap untuk kolom Kontak. Mis: Jl. Willem Iskandar, Medan.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_phone' )
+			->setLabel( __( 'Telepon (display)', 'itsi' ) )
+			->setHelp( __( 'Teks yang ditampilkan. Mis: (061) 6637060', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_phone_link' )
+			->setLabel( __( 'Telepon (link, E.164)', 'itsi' ) )
+			->setHelp( __( 'Format E.164 untuk tel: href. Mis: +6261****4567', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_email' )
+			->setLabel( __( 'Email kontak', 'itsi' ) )
+			->setHelp( __( 'Mis: info@itsi.ac.id', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_hours' )
+			->setLabel( __( 'Jam operasional', 'itsi' ) )
+			->setHelp( __( 'Mis: Senin–Jumat: 08.00–16.00 WIB', 'itsi' ) ),
+
+		// === Social media URLs (independen dari schema set) ===
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_social_facebook' )
+			->setLabel( __( 'Facebook URL', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_social_instagram' )
+			->setLabel( __( 'Instagram URL', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_social_youtube' )
+			->setLabel( __( 'YouTube URL', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_social_tiktok' )
+			->setLabel( __( 'TikTok URL', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_social_twitter' )
+			->setLabel( __( 'Twitter URL (twitter.com klasik)', 'itsi' ) )
+			->setHelp( __( 'Pisahkan dengan X (kolom di bawah) — twitter.com vs x.com adalah platform berbeda sejak rebrand 2023.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_social_x' )
+			->setLabel( __( 'X URL (x.com, rebrand Twitter)', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_social_linkedin' )
+			->setLabel( __( 'LinkedIn URL', 'itsi' ) ),
+
+		// === Legal / nav links ===
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_privacy_url' )
+			->setLabel( __( 'Kebijakan Privasi (URL)', 'itsi' ) )
+			->setHelp( __( 'URL halaman Privacy Policy. Kosongkan untuk sembunyikan link.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_terms_url' )
+			->setLabel( __( 'Syarat Penggunaan (URL)', 'itsi' ) )
+			->setHelp( __( 'URL halaman Terms of Service. Kosongkan untuk sembunyikan link.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_footer_sitemap_url' )
+			->setLabel( __( 'Sitemap (URL)', 'itsi' ) )
+			->setHelp( __( 'Biasanya /sitemap.xml. Kosongkan untuk sembunyikan link.', 'itsi' ) ),
+	) );
+
+	$tabs->tab( __( 'Posts', 'itsi' ), 'dashicons-admin-post', array(
+		\TypeRocket\Utility\Helper::form()
+			->number( 'itsi_posts_per_page' )
+			->setLabel( __( 'Posts per page', 'itsi' ) )
+			->setHelp( __( 'Jumlah pos per halaman pada arsip (default WP: 10).', 'itsi' ) )
+			->setAttribute( 'min', '1' )
+			->setAttribute( 'max', '100' ),
+		\TypeRocket\Utility\Helper::form()
+			->number( 'itsi_posts_excerpt_length' )
+			->setLabel( __( 'Excerpt length (kata)', 'itsi' ) )
+			->setHelp( __( 'Panjang kutipan pos di arsip (default WP: 55).', 'itsi' ) )
+			->setAttribute( 'min', '10' )
+			->setAttribute( 'max', '500' ),
+		\TypeRocket\Utility\Helper::form()
+			->checkbox( 'itsi_posts_show_featured' )
+			->setLabel( __( 'Tampilkan featured image di arsip pos', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->number( 'itsi_posts_default_category' )
+			->setLabel( __( 'Default category ID', 'itsi' ) )
+			->setHelp( __( 'Opsional. Kosongkan jika tidak dipakai.', 'itsi' ) )
+			->setAttribute( 'min', '0' ),
+	) );
+
+	$tabs->setTitle( __( 'ITSI Theme Settings', 'itsi' ) )
+		->layoutTopEnclosed();
+
+	// Pre-populate field values from theme_mod so the rendered inputs show the
+	// current state. Without this, every input would render empty because
+	// Helper::form() has no Model attached on a custom admin page.
+	itsi_populate_tabs_from_theme_mods( $tabs );
+
+	?>
+	<div class="wrap">
+		<h1><?php esc_html_e( 'ITSI Theme Settings', 'itsi' ); ?></h1>
+		<?php if ( $saved ) : ?>
+			<div class="notice notice-success is-dismissible">
+				<p><?php esc_html_e( 'Pengaturan tersimpan.', 'itsi' ); ?></p>
+			</div>
+		<?php endif; ?>
+
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<input type="hidden" name="action" value="itsi_settings_save">
+			<?php wp_nonce_field( 'itsi_settings_save', '_itsi_nonce' ); ?>
+
+			<?php $tabs->render(); ?>
+
+			<p class="submit" style="margin-top:1rem">
+				<button type="submit" class="button button-primary">
+					<?php esc_html_e( 'Simpan Perubahan', 'itsi' ); ?>
+				</button>
+			</p>
+		</form>
+	</div>
+	<?php
+}
+
+/**
+ * Walk a Tabs/Tab tree and pre-populate every Field's value from theme_mod.
+ *
+ * TypeRocket fields render content via getValue() (model-backed) rather than
+ * reading the `value` HTML attribute. For Text/Number/Color/Html::input fields
+ * the attribute fallback happens to work, but for WordPressEditor and Image
+ * the value must come from the attached Model — otherwise the rendered
+ * <textarea> is empty and the image picker shows no preview.
+ *
+ * Strategy: for each leaf field, if a matching theme_mod exists, attach a
+ * fresh DataCollection with the stored value via setModel(). For boolean
+ * checkbox values, set the `checked` attribute directly.
+ *
+ * @param \TypeRocket\Elements\Tabs|\TypeRocket\Elements\Components\Tab $node
+ * @return void
+ */
+function itsi_populate_tabs_from_theme_mods( $node ) {
+	if ( method_exists( $node, 'getTabs' ) ) {
+		foreach ( $node->getTabs() as $child ) {
+			itsi_populate_tabs_from_theme_mods( $child );
+		}
+		return;
+	}
+	// Leaf: a Tab.
+	if ( method_exists( $node, 'getFields' ) ) {
+		foreach ( $node->getFields() as $field ) {
+			if ( ! is_object( $field ) || ! method_exists( $field, 'getName' ) ) {
+				continue;
+			}
+			$name = $field->getName();
+			if ( '' === $name || null === $name ) {
+				continue;
+			}
+			$key = preg_replace( '/\[([^\]]+)\]/', '.$1', $name );
+			$mod = get_theme_mod( $key, null );
+			if ( null === $mod ) {
+				continue;
+			}
+
+			// Checkbox: model value would be truthy/falsy, but the render path
+			// checks the `checked` attribute. Set it explicitly.
+			if ( is_bool( $mod ) ) {
+				if ( $mod && method_exists( $field, 'setAttribute' ) ) {
+					$field->setAttribute( 'checked', 'checked' );
+				}
+				continue;
+			}
+
+			// Scalar value (string, int, hex, attachment id, html content):
+			// inject into a DataCollection so getValue() resolves correctly for
+			// WP Editor, Image, Color, Text, Number — all field types that read
+			// via $this->getValue() at render time.
+			if ( method_exists( $field, 'setModel' ) ) {
+				$field->setModel( array( $key => $mod ) );
+			}
+
+			// Belt-and-braces: also set `value` attribute so Html::input-style
+			// fields keep their attribute fallback path.
+			if ( method_exists( $field, 'setAttribute' ) && is_scalar( $mod ) ) {
+				$field->setAttribute( 'value', (string) $mod );
+			}
+		}
+	}
+}
