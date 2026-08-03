@@ -806,29 +806,6 @@ add_action( 'typerocket_loaded', function () {
 					. '</div>'
 				) );
 
-				/* ─── TAB 4: Form Builder ─── */
-				$form_fields_rpt = $form->repeater( 'form_fields' )->setFields(
-					array(
-						$form->text( 'Label' )->setAttribute( 'placeholder', 'Link Google Drive Proposal' ),
-						$form->text( 'Key' )->setAttribute( 'placeholder', 'link_drive' )->setHelp( 'Nama field internal (lowercase, underscore). Jangan pakai key reserved: nama, nip, jenis, prodi, skema, judul, ringkasan, jml_tim, anggota, email, hp.' ),
-						$form->select( 'Tipe' )->setOptions( array(
-							'text'   => 'Text',
-							'url'    => 'URL',
-							'email'  => 'Email',
-							'number' => 'Number',
-						) )->setAttribute( 'style', 'width:100%' ),
-						$form->checkbox( 'Wajib' )->setLabel( 'Wajib diisi' )->setAttribute( 'style', 'width:auto' ),
-					)
-				);
-				$tabs->tab( 'Form Builder', 'dashicons-feedback', array(
-					'<p style="color:#666;margin-top:0">Setiap event hibah bisa punya form pendaftaran kustom. Fields di bawah akan ditambahkan ke form pendaftaran setelah fields standar (nama, nip, jenis, prodi, skema, judul, ringkasan, email, hp).</p>'
-					. '<div style="padding:1rem;background:#fff8e1;border-radius:8px;border-left:3px solid #f0b429;margin-bottom:1rem">'
-					. '<strong>Fields standar yang selalu ada:</strong><br>'
-					. '<span style="font-size:.82em;color:#666">Nama Lengkap, NIDN/NIM, Jenis Pengusul, Prodi/Unit Kerja, Skema Hibah, Judul Usulan, Ringkasan, Jumlah Tim, Anggota, Email, WhatsApp — <em>semua wajib kecuali Tim & Anggota</em>.</span>'
-					. '</div>'
-					. '<h4 style="margin:.4rem 0 .5rem">Custom Fields Tambahan</h4>' . $form_fields_rpt
-				) );
-
 				$tabs->layoutLeftEnclosed()->render();
 			}
 		);
