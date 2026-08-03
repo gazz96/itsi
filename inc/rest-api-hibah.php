@@ -13,11 +13,8 @@ defined( 'ABSPATH' ) || exit;
 function itsi_hibah_register_rest_fields() {
 	$meta_fields = array(
 		'jenis_hibah',
-		'status_hibah',
-		'kategori_hibah',
 		'deadline',
 		'deadline_label',
-		'skema',
 		'event_eyebrow',
 		'dana_maks',
 		'jumlah_tim_maks',

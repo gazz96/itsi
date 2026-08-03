@@ -477,6 +477,13 @@ add_action( 'typerocket_loaded', function () {
 	$kat_hibah->setRest( 'kategori_hibah' );
 	$kat_hibah->addPostType( 'hibah' );
 
+	$skema_hibah = tr_taxonomy( 'Skema Hibah', 'Skema Hibah' );
+	$skema_hibah->setId( 'skema_hibah' );
+	$skema_hibah->setSlug( 'skema-hibah' );
+	$skema_hibah->setHierarchical( true );
+	$skema_hibah->setRest( 'skema_hibah' );
+	$skema_hibah->addPostType( 'hibah' );
+
 	// ═══ META BOXES ════════════════════════════════════════════
 	tr_meta_box( 'Prioritas Pengumuman' )
 		->addPostType( 'post' )
