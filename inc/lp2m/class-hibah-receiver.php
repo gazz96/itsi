@@ -2,13 +2,8 @@
 /**
  * LP2M Hibah Receiver — Form pendaftaran + REST API
  *
- * Semua logic di dalam theme (bukan plugin).
- *
- * Supports dynamic form builder per hibah event:
- *  - Standard fields: nama, nip, jenis, prodi, skema, judul, ringkasan, jml_tim, anggota, email, hp
- *  - Custom fields from post_meta `form_fields` (TypeRocket repeater)
- *  - Sanitization per field type (text, url, email, number)
- *  - Validation: required check, email format, URL prefix
+ * Semua data disimpan sebagai CPT `pendaftaran_hibah` + post meta.
+ * Tidak ada custom table.
  *
  * @package itsi
  */
@@ -17,20 +12,9 @@ defined( 'ABSPATH' ) || exit;
 
 class ITSI_LP2M_Hibah_Receiver {
 
-	private string $table;
-
-	public function __construct() {
-		global $wpdb;
-		$this->table = $wpdb->prefix . 'lp2m_hibah';
-	}
-
 	public function init(): void {
 		add_action( 'init', [ $this, 'register_cpt' ] );
 		add_action( 'rest_api_init', [ $this, 'register_routes' ] );
-		add_action( 'after_switch_theme', [ $this, 'create_table' ] );
-		add_action( 'admin_menu', [ $this, 'maybe_insert_admin_menu' ] );
-		// Ensure table exists on first theme load (idempotent dbDelta).
-		add_action( 'init', [ $this, 'create_table' ], 1 );
 	}
 
 	/* ────────────────────────────────────────────────────────────
@@ -58,66 +42,22 @@ class ITSI_LP2M_Hibah_Receiver {
 	}
 
 	/* ────────────────────────────────────────────────────────────
-	 *  TABLE — custom table for submissions (backward compat)
-	 * ──────────────────────────────────────────────────────────── */
-
-	public function create_table(): void {
-		global $wpdb;
-		$charset = $wpdb->get_charset_collate();
-		$sql     = "CREATE TABLE IF NOT EXISTS {$this->table} (
-			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-			reg_no VARCHAR(20) NOT NULL UNIQUE,
-			hibah_id BIGINT UNSIGNED DEFAULT NULL,
-			nama VARCHAR(255) NOT NULL,
-			nip VARCHAR(30) NOT NULL,
-			jenis VARCHAR(30) NOT NULL,
-			prodi VARCHAR(255) NOT NULL,
-			skema VARCHAR(255) NOT NULL,
-			judul TEXT NOT NULL,
-			ringkasan TEXT NOT NULL,
-			jml_tim VARCHAR(5) DEFAULT '',
-			anggota TEXT DEFAULT '',
-			email VARCHAR(255) NOT NULL,
-			hp VARCHAR(30) NOT NULL,
-			custom_data LONGTEXT DEFAULT NULL,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			INDEX idx_reg_no (reg_no),
-			INDEX idx_skema (skema),
-			INDEX idx_hibah_id (hibah_id)
-		) $charset;";
-		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-		dbDelta( $sql );
-	}
-
-	/**
-	 * Show "Pendaftaran Hibah" under "Hibah" for better grouping.
-	 */
-	public function maybe_insert_admin_menu(): void {
-		global $menu, $submenu;
-		// If CPT was already registered, move it under Hibah.
-		// Simple approach: let the CPT show at its own position; admin can use.
-	}
-
-	/* ────────────────────────────────────────────────────────────
 	 *  REST ROUTES
 	 * ──────────────────────────────────────────────────────────── */
 
 	public function register_routes(): void {
-		// POST — submit pendaftaran.
 		register_rest_route( 'lp2m/v1', '/hibah', [
 			'methods'             => 'POST',
 			'callback'            => [ $this, 'handle_submit' ],
 			'permission_callback' => [ $this, 'check_rate_limit' ],
 		] );
 
-		// GET — list semua pendaftaran.
 		register_rest_route( 'lp2m/v1', '/hibah', [
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'handle_list' ],
 			'permission_callback' => '__return_true',
 		] );
 
-		// GET — detail satu pendaftaran.
 		register_rest_route( 'lp2m/v1', '/hibah/(?P<id>\d+)', [
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'handle_detail' ],
@@ -178,39 +118,29 @@ class ITSI_LP2M_Hibah_Receiver {
 			$clean[ $field ] = is_string( $val ) ? trim( $val ) : (string) $val;
 		}
 
-		// hibah_id: integer only.
 		$clean['hibah_id'] = (string) absint( $clean['hibah_id'] );
 
-		// Strict whitelist for `jenis`.
 		$jenis_whitelist = [ 'Dosen', 'Mahasiswa', 'Tenaga Kependidikan' ];
 		if ( ! in_array( $clean['jenis'], $jenis_whitelist, true ) ) {
 			$clean['jenis'] = '';
 		}
 
-		// jml_tim: integer only.
 		if ( $clean['jml_tim'] !== '' ) {
 			$clean['jml_tim'] = (string) absint( $clean['jml_tim'] );
 		}
 
-		// NIP: alphanumeric + dash + dot.
-		$clean['nip'] = preg_replace( '/[^a-zA-Z0-9\-\\.]/', '', $clean['nip'] );
-
-		// HP: digits + plus + dash.
-		$clean['hp'] = preg_replace( '/[^0-9\+\-]/', '', $clean['hp'] );
-
-		// Email: WP sanitize.
+		$clean['nip']   = preg_replace( '/[^a-zA-Z0-9\-\\.]/', '', $clean['nip'] );
+		$clean['hp']    = preg_replace( '/[^0-9\+\-]/', '', $clean['hp'] );
 		$clean['email'] = sanitize_email( $clean['email'] );
 
-		// Text fields: strip HTML.
 		$text_fields = [ 'nama', 'prodi', 'skema', 'judul', 'ringkasan', 'anggota' ];
 		foreach ( $text_fields as $f ) {
 			$clean[ $f ] = wp_strip_all_tags( $clean[ $f ], true );
 		}
 
-		// anggota: cap 500 chars.
 		$clean['anggota'] = mb_substr( $clean['anggota'], 0, 500 );
 
-		// ── Custom fields (from form builder) ──
+		// ── Custom fields ──
 		$custom      = [];
 		$form_config = $this->get_form_fields_config( (int) $clean['hibah_id'] );
 		foreach ( $form_config as $field ) {
@@ -223,27 +153,17 @@ class ITSI_LP2M_Hibah_Receiver {
 			$val = is_string( $raw ) ? trim( $raw ) : (string) $raw;
 
 			switch ( $type ) {
-				case 'url':
-					$val = esc_url_raw( $val );
-					break;
-				case 'email':
-					$val = sanitize_email( $val );
-					break;
-				case 'number':
-					$val = (string) absint( $val );
-					break;
-				default: // text
-					$val = wp_strip_all_tags( $val, true );
+				case 'url':   $val = esc_url_raw( $val ); break;
+				case 'email': $val = sanitize_email( $val ); break;
+				case 'number': $val = (string) absint( $val ); break;
+				default:      $val = wp_strip_all_tags( $val, true );
 			}
 
-			// Cap at 1000 chars per custom field.
-			$val = mb_substr( $val, 0, 1000 );
-
+			$val           = mb_substr( $val, 0, 1000 );
 			$custom[ $key ] = $val;
 		}
 
 		$clean['custom_data'] = $custom;
-
 		return $clean;
 	}
 
@@ -255,21 +175,25 @@ class ITSI_LP2M_Hibah_Receiver {
 		$errors = [];
 
 		$labels = [
-			'nama'      => 'Nama Lengkap & Gelar',
-			'nip'       => 'NIDN / NIDK / NIM',
-			'jenis'     => 'Jenis Pengusul',
-			'prodi'     => 'Program Studi / Unit Kerja',
-			'skema'     => 'Skema Hibah',
-			'judul'     => 'Judul Usulan',
-			'ringkasan' => 'Ringkasan Usulan',
-			'email'     => 'Email Aktif',
-			'hp'        => 'Nomor WhatsApp',
+			'nama' => 'Nama Lengkap & Gelar', 'nip' => 'NIDN / NIDK / NIM',
+			'judul' => 'Judul Usulan', 'ringkasan' => 'Ringkasan Usulan',
+			'email' => 'Email Aktif', 'hp' => 'Nomor WhatsApp',
 		];
 
 		foreach ( $labels as $field => $label ) {
 			if ( '' === trim( $params[ $field ] ) ) {
 				$errors[ $field ] = $label . ' wajib diisi.';
 			}
+		}
+
+		if ( '' === trim( $params['jenis'] ) ) {
+			$errors['jenis'] = 'Jenis Pengusul wajib dipilih.';
+		}
+		if ( '' === trim( $params['prodi'] ) ) {
+			$errors['prodi'] = 'Program Studi / Unit Kerja wajib dipilih.';
+		}
+		if ( '' === trim( $params['skema'] ) ) {
+			$errors['skema'] = 'Skema Hibah wajib dipilih.';
 		}
 
 		if ( '' !== $params['email'] && ! is_email( $params['email'] ) ) {
@@ -281,7 +205,6 @@ class ITSI_LP2M_Hibah_Receiver {
 			$errors['hp'] = 'Nomor WhatsApp minimal 10 digit.';
 		}
 
-		// Validate hibah_id — must be a published CPT hibah.
 		$hibah_id = (int) $params['hibah_id'];
 		if ( $hibah_id > 0 ) {
 			$hibah_post = get_post( $hibah_id );
@@ -290,7 +213,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			}
 		}
 
-		// ── Validate custom fields ──
+		// ── Custom fields ──
 		$form_config = $this->get_form_fields_config( $hibah_id );
 		$custom_data = $params['custom_data'] ?? [];
 		foreach ( $form_config as $field ) {
@@ -321,15 +244,6 @@ class ITSI_LP2M_Hibah_Receiver {
 	 *  FORM FIELDS CONFIG
 	 * ──────────────────────────────────────────────────────────── */
 
-	/**
-	 * Get form fields config from the hibah CPT meta.
-	 *
-	 * Reads the TypeRocket repeater meta `form_fields` and returns
-	 * a normalized array of {key, label, type, required}.
-	 *
-	 * @param int $hibah_id
-	 * @return array
-	 */
 	private function get_form_fields_config( int $hibah_id ): array {
 		if ( $hibah_id <= 0 ) {
 			return [];
@@ -338,11 +252,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		if ( ! is_array( $raw ) ) {
 			if ( is_string( $raw ) && '' !== $raw ) {
 				$decoded = json_decode( $raw, true );
-				if ( is_array( $decoded ) ) {
-					$raw = $decoded;
-				} else {
-					return [];
-				}
+				$raw     = is_array( $decoded ) ? $decoded : [];
 			} else {
 				return [];
 			}
@@ -379,13 +289,9 @@ class ITSI_LP2M_Hibah_Receiver {
 	 *  HANDLERS
 	 * ──────────────────────────────────────────────────────────── */
 
-	/**
-	 * POST: Submit pendaftaran hibah.
-	 */
 	public function handle_submit( \WP_REST_Request $request ): \WP_REST_Response {
 		$params = $this->sanitize_input( $request->get_params() );
 
-		// Auto-detect hibah_id from latest active event if empty.
 		if ( empty( $params['hibah_id'] ) || '0' === $params['hibah_id'] ) {
 			$fallback = $this->get_latest_active_hibah_id();
 			if ( $fallback ) {
@@ -396,25 +302,17 @@ class ITSI_LP2M_Hibah_Receiver {
 		$errors = $this->validate( $params );
 		if ( ! empty( $errors ) ) {
 			return new \WP_REST_Response(
-				[ 'success' => false, 'errors' => $errors ],
-				400
+				[ 'success' => false, 'errors' => $errors ], 400
 			);
 		}
 
-		$hibah_id   = (int) $params['hibah_id'];
-		$reg_no     = $this->generate_reg_no();
+		$hibah_id = (int) $params['hibah_id'];
+		$reg_no   = $this->generate_reg_no();
+		$post_id  = $this->save_submission( $params, $reg_no, $hibah_id );
 
-		// --- Save to custom table ---
-		global $wpdb;
-		$inserted = $this->save_to_table( $params, $reg_no, $hibah_id );
-
-		// --- Also save as CPT for admin visibility ---
-		$this->save_as_cpt( $params, $reg_no, $hibah_id );
-
-		if ( false === $inserted ) {
+		if ( is_wp_error( $post_id ) || ! $post_id ) {
 			return new \WP_REST_Response(
-				[ 'success' => false, 'message' => 'Gagal menyimpan data. Silakan coba lagi.' ],
-				500
+				[ 'success' => false, 'message' => 'Gagal menyimpan data. Silakan coba lagi.' ], 500
 			);
 		}
 
@@ -427,84 +325,82 @@ class ITSI_LP2M_Hibah_Receiver {
 		], 201 );
 	}
 
-	/**
-	 * GET: List pendaftaran (paginated).
-	 */
 	public function handle_list( \WP_REST_Request $request ): \WP_REST_Response {
-		global $wpdb;
-
-		$per_page = (int) ( $request->get_param( 'per_page' ) ?? 20 );
-		$per_page = max( 1, min( $per_page, 100 ) );
+		$per_page = max( 1, min( (int) ( $request->get_param( 'per_page' ) ?? 20 ), 100 ) );
 		$page     = max( 1, (int) ( $request->get_param( 'page' ) ?? 1 ) );
-		$offset   = ( $page - 1 ) * $per_page;
 
-		// Optional filter by hibah_id.
-		$hibah_filter = '';
-		$hibah_id     = (int) ( $request->get_param( 'hibah_id' ) ?? 0 );
+		$args = [
+			'post_type'      => 'pendaftaran_hibah',
+			'post_status'    => 'private',
+			'posts_per_page' => $per_page,
+			'paged'          => $page,
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+		];
+
+		$hibah_id = (int) ( $request->get_param( 'hibah_id' ) ?? 0 );
 		if ( $hibah_id > 0 ) {
-			$hibah_filter = $wpdb->prepare( ' WHERE hibah_id = %d', $hibah_id );
+			$args['post_parent'] = $hibah_id;
 		}
 
-		// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$total = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$this->table}{$hibah_filter}" );
-		$items = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT id, reg_no, hibah_id, nama, jenis, prodi, skema, judul, email, hp, custom_data, created_at
-				 FROM {$this->table}{$hibah_filter}
-				 ORDER BY created_at DESC
-				 LIMIT %d OFFSET %d",
-				$per_page,
-				$offset
-			),
-			ARRAY_A
-		);
-		// phpcs:enable
+		$query = new \WP_Query( $args );
+		$items = [];
 
-		// Decode custom_data JSON for each item.
-		$data = array_map( function ( $item ) {
-			if ( isset( $item['custom_data'] ) && is_string( $item['custom_data'] ) && '' !== $item['custom_data'] ) {
-				$decoded = json_decode( $item['custom_data'], true );
-				$item['custom_data'] = is_array( $decoded ) ? $decoded : null;
-			}
-			return $item;
-		}, $items ?: [] );
+		foreach ( $query->posts as $post ) {
+			$items[] = [
+				'id'          => $post->ID,
+				'reg_no'      => get_post_meta( $post->ID, '_reg_no', true ),
+				'hibah_id'    => get_post_meta( $post->ID, '_hibah_id', true ),
+				'nama'        => get_post_meta( $post->ID, '_nama', true ),
+				'jenis'       => get_post_meta( $post->ID, '_jenis', true ),
+				'prodi'       => get_post_meta( $post->ID, '_prodi', true ),
+				'skema'       => get_post_meta( $post->ID, '_skema', true ),
+				'judul'       => get_post_meta( $post->ID, '_judul', true ),
+				'email'       => get_post_meta( $post->ID, '_email', true ),
+				'hp'          => get_post_meta( $post->ID, '_hp', true ),
+				'custom_data' => get_post_meta( $post->ID, '_custom_data', true ),
+				'created_at'  => $post->post_date,
+			];
+		}
 
 		return new \WP_REST_Response( [
 			'success'     => true,
-			'data'        => $data,
-			'total'       => $total,
+			'data'        => $items,
+			'total'       => (int) $query->found_posts,
 			'page'        => $page,
 			'per_page'    => $per_page,
-			'total_pages' => (int) ceil( $total / $per_page ),
+			'total_pages' => (int) ceil( $query->found_posts / $per_page ),
 		], 200 );
 	}
 
-	/**
-	 * GET: Detail satu pendaftaran.
-	 */
 	public function handle_detail( \WP_REST_Request $request ): \WP_REST_Response {
-		global $wpdb;
-
 		$id   = (int) $request->get_param( 'id' );
-		$item = $wpdb->get_row(
-			$wpdb->prepare( "SELECT * FROM {$this->table} WHERE id = %d", $id ),
-			ARRAY_A
-		);
+		$post = get_post( $id );
 
-		if ( ! $item ) {
+		if ( ! $post || 'pendaftaran_hibah' !== $post->post_type ) {
 			return new \WP_REST_Response(
-				[ 'success' => false, 'message' => 'Data tidak ditemukan.' ],
-				404
+				[ 'success' => false, 'message' => 'Data tidak ditemukan.' ], 404
 			);
 		}
 
-		// Decode custom_data JSON.
-		if ( isset( $item['custom_data'] ) && is_string( $item['custom_data'] ) && '' !== $item['custom_data'] ) {
-			$decoded = json_decode( $item['custom_data'], true );
-			$item['custom_data'] = is_array( $decoded ) ? $decoded : null;
-		}
-
-		return new \WP_REST_Response( [ 'success' => true, 'data' => $item ], 200 );
+		return new \WP_REST_Response( [ 'success' => true, 'data' => [
+			'id'          => $post->ID,
+			'reg_no'      => get_post_meta( $post->ID, '_reg_no', true ),
+			'hibah_id'    => get_post_meta( $post->ID, '_hibah_id', true ),
+			'nama'        => get_post_meta( $post->ID, '_nama', true ),
+			'nip'         => get_post_meta( $post->ID, '_nip', true ),
+			'jenis'       => get_post_meta( $post->ID, '_jenis', true ),
+			'prodi'       => get_post_meta( $post->ID, '_prodi', true ),
+			'skema'       => get_post_meta( $post->ID, '_skema', true ),
+			'judul'       => get_post_meta( $post->ID, '_judul', true ),
+			'ringkasan'   => get_post_meta( $post->ID, '_ringkasan', true ),
+			'jml_tim'     => get_post_meta( $post->ID, '_jml_tim', true ),
+			'anggota'     => get_post_meta( $post->ID, '_anggota', true ),
+			'email'       => get_post_meta( $post->ID, '_email', true ),
+			'hp'          => get_post_meta( $post->ID, '_hp', true ),
+			'custom_data' => get_post_meta( $post->ID, '_custom_data', true ),
+			'created_at'  => $post->post_date,
+		] ], 200 );
 	}
 
 	/* ────────────────────────────────────────────────────────────
@@ -521,15 +417,9 @@ class ITSI_LP2M_Hibah_Receiver {
 			'meta_key'       => 'status_hibah',
 			'meta_value'     => 'aktif',
 		] );
-
 		if ( $q->have_posts() ) {
-			$q->the_post();
-			$id = get_the_ID();
-			wp_reset_postdata();
-			return $id;
+			return $q->posts[0]->ID;
 		}
-
-		// Fallback: just get the latest published hibah.
 		$q2 = new \WP_Query( [
 			'post_type'      => 'hibah',
 			'post_status'    => 'publish',
@@ -537,75 +427,50 @@ class ITSI_LP2M_Hibah_Receiver {
 			'orderby'        => 'date',
 			'order'          => 'DESC',
 		] );
-
-		if ( $q2->have_posts() ) {
-			$q2->the_post();
-			$id = get_the_ID();
-			wp_reset_postdata();
-			return $id;
-		}
-
-		return 0;
+		return $q2->have_posts() ? $q2->posts[0]->ID : 0;
 	}
 
 	private function generate_reg_no(): string {
-		global $wpdb;
 		$year = date( 'Y' );
-		$last = $wpdb->get_var( $wpdb->prepare(
-			"SELECT reg_no FROM {$this->table} WHERE reg_no LIKE %s ORDER BY id DESC LIMIT 1",
-			$year . '-%'
-		) );
-		$seq = $last ? ( (int) substr( $last, -5 ) + 1 ) : 1;
+		$q    = new \WP_Query( [
+			'post_type'      => 'pendaftaran_hibah',
+			'post_status'    => 'private',
+			'posts_per_page' => 1,
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+			'meta_query'     => [ [
+				'key'     => '_reg_no',
+				'value'   => $year . '-',
+				'compare' => 'LIKE',
+			] ],
+		] );
+		if ( $q->have_posts() ) {
+			$last_reg = get_post_meta( $q->posts[0]->ID, '_reg_no', true );
+			$seq      = (int) substr( $last_reg, -5 ) + 1;
+		} else {
+			$seq = 1;
+		}
 		return sprintf( '%s-%05d', $year, $seq );
 	}
 
-	private function save_to_table( array $params, string $reg_no, int $hibah_id ): int|false {
-		global $wpdb;
-
-		$custom_data = $params['custom_data'] ?? [];
-		$custom_json = ! empty( $custom_data ) ? wp_json_encode( $custom_data ) : null;
-
-		return $wpdb->insert( $this->table, [
-			'reg_no'      => $reg_no,
-			'hibah_id'    => $hibah_id > 0 ? $hibah_id : null,
-			'nama'        => $params['nama'],
-			'nip'         => $params['nip'],
-			'jenis'       => $params['jenis'],
-			'prodi'       => $params['prodi'],
-			'skema'       => $params['skema'],
-			'judul'       => $params['judul'],
-			'ringkasan'   => $params['ringkasan'],
-			'jml_tim'     => $params['jml_tim'],
-			'anggota'     => $params['anggota'],
-			'email'       => $params['email'],
-			'hp'          => $params['hp'],
-			'custom_data' => $custom_json,
-		] );
-	}
-
-	private function save_as_cpt( array $params, string $reg_no, int $hibah_id ): void {
-		$event_title = '';
-		if ( $hibah_id > 0 ) {
-			$event_title = get_the_title( $hibah_id );
-		}
+	private function save_submission( array $params, string $reg_no, int $hibah_id ): int|\WP_Error {
+		$event_title = $hibah_id > 0 ? get_the_title( $hibah_id ) : '';
 
 		$title = sprintf( '[%s] %s — %s', $reg_no, $params['nama'], $params['judul'] );
 
-		// Build custom fields display.
 		$custom_html = '';
 		$custom_data = $params['custom_data'] ?? [];
-		if ( ! empty( $custom_data ) && is_array( $custom_data ) ) {
-			$form_config = $this->get_form_fields_config( $hibah_id );
+		if ( ! empty( $custom_data ) ) {
+			$config       = $this->get_form_fields_config( $hibah_id );
 			$key_to_label = [];
-			foreach ( $form_config as $f ) {
+			foreach ( $config as $f ) {
 				$key_to_label[ $f['key'] ] = $f['label'];
 			}
 			foreach ( $custom_data as $ck => $cv ) {
-				$label = $key_to_label[ $ck ] ?? $ck;
+				$label        = $key_to_label[ $ck ] ?? $ck;
 				$custom_html .= sprintf(
 					"<p><strong>%s:</strong> %s</p>\n",
-					esc_html( $label ),
-					esc_html( $cv )
+					esc_html( $label ), esc_html( $cv )
 				);
 			}
 		}
@@ -624,34 +489,51 @@ class ITSI_LP2M_Hibah_Receiver {
 			"<p><strong>Email:</strong> %s | <strong>WhatsApp:</strong> %s</p>\n" .
 			"%s",
 			esc_html( $event_title ?: '—' ),
-			esc_html( $params['nama'] ),
-			esc_html( $params['nip'] ),
-			esc_html( $params['jenis'] ),
-			esc_html( $params['prodi'] ),
-			esc_html( $params['skema'] ),
-			esc_html( $params['judul'] ),
+			esc_html( $params['nama'] ), esc_html( $params['nip'] ),
+			esc_html( $params['jenis'] ), esc_html( $params['prodi'] ),
+			esc_html( $params['skema'] ), esc_html( $params['judul'] ),
 			esc_html( $params['ringkasan'] ),
 			esc_html( $params['jml_tim'] ?: '—' ),
 			esc_html( $params['anggota'] ?: '—' ),
-			esc_html( $params['email'] ),
-			esc_html( $params['hp'] ),
+			esc_html( $params['email'] ), esc_html( $params['hp'] ),
 			$custom_html
 		);
 
-		$post_args = [
+		$post_id = wp_insert_post( [
 			'post_type'    => 'pendaftaran_hibah',
 			'post_status'  => 'private',
 			'post_title'   => $title,
 			'post_content' => $content,
 			'post_parent'  => $hibah_id > 0 ? $hibah_id : 0,
+		], true );
+
+		if ( is_wp_error( $post_id ) ) {
+			return $post_id;
+		}
+
+		// Store all fields as post meta.
+		$meta_fields = [
+			'_reg_no'    => $reg_no,
+			'_hibah_id'  => $hibah_id,
+			'_nama'      => $params['nama'],
+			'_nip'       => $params['nip'],
+			'_jenis'     => $params['jenis'],
+			'_prodi'     => $params['prodi'],
+			'_skema'     => $params['skema'],
+			'_judul'     => $params['judul'],
+			'_ringkasan' => $params['ringkasan'],
+			'_jml_tim'   => $params['jml_tim'],
+			'_anggota'   => $params['anggota'],
+			'_email'     => $params['email'],
+			'_hp'        => $params['hp'],
+			'_custom_data' => $custom_data,
 		];
 
-		$post_id = wp_insert_post( $post_args, true );
-
-		if ( ! is_wp_error( $post_id ) ) {
-			update_post_meta( $post_id, '_reg_no', $reg_no );
-			update_post_meta( $post_id, '_hibah_id', $hibah_id > 0 ? $hibah_id : 0 );
+		foreach ( $meta_fields as $mk => $mv ) {
+			update_post_meta( $post_id, $mk, $mv );
 		}
+
+		return $post_id;
 	}
 
 	private function send_admin_email( array $params, string $reg_no, int $hibah_id ): void {
@@ -659,33 +541,19 @@ class ITSI_LP2M_Hibah_Receiver {
 		if ( empty( $admin_email ) ) {
 			return;
 		}
-
-		$event_name = '';
-		if ( $hibah_id > 0 ) {
-			$event_name = get_the_title( $hibah_id );
-		}
-
-		$body = sprintf(
-			"Event Hibah: %s\nNomor Registrasi: %s\nNama: %s\nNIP/NIDN: %s\nJenis: %s\nSkema: %s\nJudul: %s\nEmail: %s\nWhatsApp: %s\n\nCek dashboard: %s/wp-admin/",
-			$event_name ?: '—',
-			$reg_no,
-			$params['nama'],
-			$params['nip'],
-			$params['jenis'],
-			$params['skema'],
-			$params['judul'],
-			$params['email'],
-			$params['hp'],
-			get_site_url()
-		);
-
-		wp_mail(
-			$admin_email,
+		$event_name = $hibah_id > 0 ? get_the_title( $hibah_id ) : '';
+		wp_mail( $admin_email,
 			sprintf( '[LP2M] Pendaftaran Hibah Baru — %s', $reg_no ),
-			$body
+			sprintf(
+				"Event Hibah: %s\nNomor Registrasi: %s\nNama: %s\nNIP/NIDN: %s\nJenis: %s\nSkema: %s\nJudul: %s\nEmail: %s\nWhatsApp: %s\n\nCek dashboard: %s/wp-admin/",
+				$event_name ?: '—', $reg_no,
+				$params['nama'], $params['nip'], $params['jenis'],
+				$params['skema'], $params['judul'],
+				$params['email'], $params['hp'],
+				get_site_url()
+			)
 		);
 	}
 }
 
-// Bootstrap.
 ( new ITSI_LP2M_Hibah_Receiver() )->init();

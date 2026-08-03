@@ -250,8 +250,9 @@ require_once get_template_directory() . '/inc/rest-api-hibah.php';
  * Handles POST/GET /lp2m/v1/hibah with:
  *   - Strict input sanitization (whitelist, regex, HTML strip)
  *   - Rate limiting (5 per 15 min per IP)
- *   - CPT pendaftaran_hibah + custom table storage
+ *   - CPT pendaftaran_hibah + post meta storage
  *   - hibah_id foreign-key linking to CPT hibah
+ *   - Dynamic form builder (custom fields per event)
  */
 require_once get_template_directory() . '/inc/lp2m/class-hibah-receiver.php';
 
