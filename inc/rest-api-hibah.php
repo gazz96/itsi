@@ -1,9 +1,11 @@
 <?php
 /**
- * REST API enhancement untuk CPT Hibah LP2M.
+ * REST API enhancement untuk CPT Hibah.
  *
  * Menambahkan custom fields ke response REST API
  * GET /wp-json/wp/v2/hibah dan GET /wp-json/wp/v2/hibah/{id}
+ *
+ * Juga: form-config endpoint untuk dynamic form rendering.
  *
  * @package itsi
  */
@@ -108,8 +110,139 @@ function itsi_hibah_register_rest_fields() {
 			'context'     => array( 'view' ),
 		),
 	) );
+
+	// ── Form Fields (custom form builder per hibah) ──
+	register_rest_field( 'hibah', 'form_fields', array(
+		'get_callback' => function ( $post ) {
+			$raw = get_post_meta( $post['id'], 'form_fields', true );
+			if ( is_array( $raw ) ) {
+				$out = array();
+				foreach ( $raw as $item ) {
+					if ( ! is_array( $item ) ) {
+						continue;
+					}
+					$key   = itsi_hibah_field( $item, 'Key' );
+					// eslint-disable-next-line no-empty
+					if ( '' === $key ) { continue; }
+					$type  = itsi_hibah_field( $item, 'Tipe', 'type' );
+					if ( ! in_array( $type, array( 'text', 'url', 'email', 'number' ), true ) ) {
+						$type = 'text';
+					}
+					$wajib = itsi_hibah_field( $item, 'Wajib', 'required', 'wajib' );
+					$out[] = array(
+						'label'    => itsi_hibah_field( $item, 'Label' ),
+						'key'      => $key,
+						'type'     => $type,
+						'required' => '1' === $wajib || 'true' === strtolower( $wajib ),
+					);
+				}
+				return array_values( $out );
+			}
+			if ( is_string( $raw ) && '' !== $raw ) {
+				$decoded = json_decode( $raw, true );
+				return is_array( $decoded ) ? $decoded : array();
+			}
+			return array();
+		},
+		'schema' => array(
+			'type'        => 'array',
+			'description' => 'Custom form fields (form builder)',
+			'context'     => array( 'view', 'edit' ),
+		),
+	) );
 }
 add_action( 'rest_api_init', 'itsi_hibah_register_rest_fields' );
+
+/**
+ * REST endpoint: form config per hibah (for dynamic form rendering).
+ *
+ * GET /lp2m/v1/hibah/{id}/form-config
+ * Returns all fields (standard + custom) for the LP2M Vue form.
+ */
+function itsi_hibah_form_config_endpoint( $request ) {
+	$hibah_id = (int) $request->get_param( 'id' );
+	$post     = get_post( $hibah_id );
+
+	if ( ! $post || 'hibah' !== $post->post_type || 'publish' !== $post->post_status ) {
+		return new WP_REST_Response(
+			array( 'success' => false, 'message' => 'Event hibah tidak ditemukan.' ),
+			404
+		);
+	}
+
+	// Standard fields (always present).
+	$standard = array(
+		array( 'key' => 'nama',      'label' => 'Nama Lengkap & Gelar',           'type' => 'text',     'required' => true ),
+		array( 'key' => 'nip',       'label' => 'NIDN / NIDK / NIM',              'type' => 'text',     'required' => true ),
+		array( 'key' => 'jenis',     'label' => 'Jenis Pengusul',                 'type' => 'radio',    'required' => true,  'options' => array( 'Dosen', 'Mahasiswa', 'Tenaga Kependidikan' ) ),
+		array( 'key' => 'prodi',     'label' => 'Program Studi / Unit Kerja',     'type' => 'select',   'required' => true ),
+		array( 'key' => 'skema',     'label' => 'Skema Hibah',                    'type' => 'select',   'required' => true ),
+		array( 'key' => 'judul',     'label' => 'Judul Usulan',                   'type' => 'text',     'required' => true ),
+		array( 'key' => 'ringkasan', 'label' => 'Ringkasan Usulan',               'type' => 'textarea', 'required' => true ),
+		array( 'key' => 'jml_tim',   'label' => 'Jumlah Anggota Tim',             'type' => 'number',   'required' => false ),
+		array( 'key' => 'anggota',   'label' => 'Nama Anggota Tim',               'type' => 'text',     'required' => false ),
+		array( 'key' => 'email',     'label' => 'Email Aktif',                    'type' => 'email',    'required' => true ),
+		array( 'key' => 'hp',        'label' => 'Nomor WhatsApp Aktif',           'type' => 'tel',      'required' => true ),
+	);
+
+	// Custom fields from meta.
+	$custom_raw = get_post_meta( $hibah_id, 'form_fields', true );
+	$custom     = array();
+
+	if ( is_array( $custom_raw ) ) {
+		$reserved = array( 'nama', 'nip', 'jenis', 'prodi', 'skema', 'judul', 'ringkasan', 'jml_tim', 'anggota', 'email', 'hp', 'hibah_id', 'pernyataan' );
+		foreach ( $custom_raw as $item ) {
+			if ( ! is_array( $item ) ) {
+				continue;
+			}
+			$key = trim( itsi_hibah_field( $item, 'Key' ) );
+			if ( '' === $key || in_array( $key, $reserved, true ) ) {
+				continue;
+			}
+			$type = trim( itsi_hibah_field( $item, 'Tipe', 'type' ) );
+			if ( ! in_array( $type, array( 'text', 'url', 'email', 'number' ), true ) ) {
+				$type = 'text';
+			}
+			$wajib    = itsi_hibah_field( $item, 'Wajib', 'required', 'wajib' );
+			$custom[] = array(
+				'key'      => $key,
+				'label'    => trim( itsi_hibah_field( $item, 'Label' ) ),
+				'type'     => $type,
+				'required' => '1' === $wajib || 'true' === strtolower( $wajib ),
+			);
+		}
+	}
+
+	return new WP_REST_Response( array(
+		'success'       => true,
+		'hibah_id'      => $hibah_id,
+		'title'         => get_the_title( $hibah_id ),
+		'standard'      => $standard,
+		'custom'        => $custom,
+		'total_fields'  => count( $standard ) + count( $custom ),
+	), 200 );
+}
+
+/**
+ * Register form-config REST route.
+ */
+function itsi_hibah_register_form_config_route() {
+	register_rest_route( 'lp2m/v1', '/hibah/(?P<id>\d+)/form-config', array(
+		'methods'             => 'GET',
+		'callback'            => 'itsi_hibah_form_config_endpoint',
+		'permission_callback' => '__return_true',
+		'args'                => array(
+			'id' => array(
+				'required'          => true,
+				'validate_callback' => function ( $param ) {
+					return is_numeric( $param ) && (int) $param > 0;
+				},
+				'sanitize_callback' => 'absint',
+			),
+		),
+	) );
+}
+add_action( 'rest_api_init', 'itsi_hibah_register_form_config_route' );
 
 /**
  * Helper: resolve TR image field (single ID or comma-separated IDs) to URL array.
