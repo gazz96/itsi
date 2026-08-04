@@ -18,7 +18,7 @@ add_action('admin_menu', function() {
 
 add_action('admin_init', function() {
     $keys = [
-        'site_logo_id','site_favicon_id','site_nama','site_nama_panjang','site_email','site_telepon','site_alamat',
+        'site_logo_id','site_favicon_id','site_nama','site_nama_panjang','site_email','site_telepon','site_alamat','siteAdminEmail',
         'dok_panduan_id','dok_template_id',
         'hero_headline','hero_title','hero_caption','hero_btn_primary_text','hero_btn_primary_url','hero_btn_secondary_text','hero_btn_secondary_url','hero_infografis',
         'about_eyebrow','about_title','about_desc','about_quote','about_quote_body','about_pillars','about_leadership',

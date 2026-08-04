@@ -243,6 +243,7 @@ require_once get_template_directory() . '/inc/widgets.php';
  * from /wp-json/wp/v2/hibah.
  */
 require_once get_template_directory() . '/inc/rest-api-hibah.php';
+require_once get_template_directory() . '/inc/lp2m-settings.php';
 require_once get_template_directory() . '/inc/lp2m-pendaftaran.php';
 
 /**
