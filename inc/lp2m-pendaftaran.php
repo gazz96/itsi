@@ -1,6 +1,14 @@
-// =================================================================
-// 6. PENDAFTARAN HIBAH — REST API + EMAIL NOTIFIKASI
-// =================================================================
+<?php
+/**
+ * LP2M Pendaftaran Hibah — REST API + Email Notifikasi
+ */
+
+defined('ABSPATH') || exit;
+
+// Fallback if lp2m-settings.php not loaded
+if (!function_exists('lp2m_opt')) {
+    function lp2m_opt($k) { return get_option('lp2m_'.$k, ''); }
+}
 add_action('rest_api_init', function() {
     register_rest_route('lp2m/v1', '/pendaftaran', [
         'methods'               => 'POST',
