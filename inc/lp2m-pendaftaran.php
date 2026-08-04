@@ -78,7 +78,7 @@ function lp2m_pendaftaran_submit(WP_REST_Request $request) {
     // ————————————————————————————————————————
     // kirim email notifikasi
     // ————————————————————————————————————————
-    $admin_email = lp2m_opt('siteAdminEmail') ?: get_option('admin_email');
+    $admin_email = lp2m_opt('site_admin_email') ?: lp2m_opt('siteAdminEmail') ?: get_option('admin_email');
     $from_name   = get_bloginfo('name');
 
     // 1) Notif admin

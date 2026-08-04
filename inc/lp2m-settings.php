@@ -18,7 +18,7 @@ add_action('admin_menu', function() {
 
 add_action('admin_init', function() {
     $keys = [
-        'site_logo_id','site_favicon_id','site_nama','site_nama_panjang','site_email','site_telepon','site_alamat','siteAdminEmail',
+        'site_logo_id','site_favicon_id','site_nama','site_nama_panjang','site_email','site_telepon','site_alamat','site_admin_email','siteAdminEmail',
         'dok_panduan_id','dok_template_id',
         'hero_headline','hero_title','hero_caption','hero_btn_primary_text','hero_btn_primary_url','hero_btn_secondary_text','hero_btn_secondary_url','hero_infografis',
         'about_eyebrow','about_title','about_desc','about_quote','about_quote_body','about_pillars','about_leadership',
@@ -51,6 +51,7 @@ function lp2m_render() {
                         <?php lp2m_row('lp2m_site_email','Email','lp2m@itsi.ac.id'); ?>
                         <?php lp2m_row('lp2m_site_telepon','Telepon'); ?>
                         <?php lp2m_row('lp2m_site_alamat','Alamat','','textarea'); ?>
+                        <?php lp2m_row('lp2m_site_admin_email','Email Admin (Terima Notif)','Email yang terima notifikasi pendaftaran hibah'); ?>
                     </table>
                 </div>
             </div>
