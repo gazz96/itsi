@@ -27,7 +27,7 @@ function lp2m_tr_register_page()
 // =================================================================
 function lp2m_tr_render()
 {
-    $form = tr_form('options', 'update');
+    $form = tr_form('option', 'update');
     ?>
     <div class="wrap">
         <h1>LP2M Settings</h1>
