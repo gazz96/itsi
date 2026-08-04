@@ -37,17 +37,23 @@ function lp2m_register_settings()
         'alamat'              => 'Alamat',
         'panduan_penulisan_id'=> 'Panduan Penulisan (PDF ID)',
         'template_dokumen_id' => 'Template Dokumen (PDF ID)',
-        'hero_headline'       => 'Hero Headline',
-        'hero_lead'           => 'Hero Lead',
-        'hero_event_title'    => 'Hero Event Title',
+        // HERO
+        'hero_headline'       => 'Hero: Headline',
+        'hero_title'          => 'Hero: Judul',
+        'hero_caption'        => 'Hero: Caption',
+        'hero_btn_primary_text'=> 'Hero: Button Primary Text',
+        'hero_btn_primary_url' => 'Hero: Button Primary URL',
+        'hero_btn_secondary_text'=> 'Hero: Button Secondary Text',
+        'hero_btn_secondary_url' => 'Hero: Button Secondary URL',
+        // Infografis (JSON)
+        'hero_infografis'     => 'Hero: Infografis (JSON)',
+        // Lainnya
         'tentang_title'       => 'Tentang: Judul',
         'tentang_desc'        => 'Tentang: Deskripsi',
         'tentang_quote'       => 'Tentang: Kutipan',
         'tentang_quote_body'  => 'Tentang: Body Kutipan',
         'bidang_title'        => 'Bidang: Judul',
         'bidang_desc'         => 'Bidang: Deskripsi',
-        'infografis_title'    => 'Infografis: Judul',
-        'infografis_desc'     => 'Infografis: Deskripsi',
         'mitra_title'         => 'Mitra: Judul',
         'cta_title'           => 'CTA: Judul',
         'cta_desc'            => 'CTA: Deskripsi',
@@ -87,10 +93,17 @@ function lp2m_render_admin_page()
                 <?php lp2m_media_field('lp2m_panduan_penulisan_id', 'Panduan Penulisan (PDF)'); ?>
                 <?php lp2m_media_field('lp2m_template_dokumen_id', 'Template Dokumen (PDF)'); ?>
 
-                <tr><th colspan="2"><h2>Homepage — Hero</h2></th></tr>
+                <tr><th colspan="2"><h2>HERO — Homepage Section</h2></th></tr>
                 <?php lp2m_textarea_field('lp2m_hero_headline', 'Headline (HTML allowed)', ''); ?>
-                <?php lp2m_textarea_field('lp2m_hero_lead', 'Lead', ''); ?>
-                <?php lp2m_text_field('lp2m_hero_event_title', 'Event Title', ''); ?>
+                <?php lp2m_text_field('lp2m_hero_title', 'Judul', ''); ?>
+                <?php lp2m_textarea_field('lp2m_hero_caption', 'Caption', ''); ?>
+                <?php lp2m_text_field('lp2m_hero_btn_primary_text', 'Button Primary — Text', 'Lihat Event'); ?>
+                <?php lp2m_text_field('lp2m_hero_btn_primary_url', 'Button Primary — URL', ''); ?>
+                <?php lp2m_text_field('lp2m_hero_btn_secondary_text', 'Button Secondary — Text', 'Panduan'); ?>
+                <?php lp2m_text_field('lp2m_hero_btn_secondary_url', 'Button Secondary — URL', ''); ?>
+
+                <tr><th colspan="2"><h2>HERO — Infografis (Repeater)</h2></th></tr>
+                <tr><td colspan="2"><?php lp2m_infografis_repeater(); ?></td></tr>
 
                 <tr><th colspan="2"><h2>Homepage — Tentang</h2></th></tr>
                 <?php lp2m_text_field('lp2m_tentang_title', 'Judul', ''); ?>
@@ -179,10 +192,12 @@ function lp2m_get_settings()
         'logo_id', 'favicon_id', 'nama_lembaga', 'nama_panjang',
         'email', 'telepon', 'alamat',
         'panduan_penulisan_id', 'template_dokumen_id',
-        'hero_headline', 'hero_lead', 'hero_event_title',
+        'hero_headline', 'hero_title', 'hero_caption',
+        'hero_btn_primary_text', 'hero_btn_primary_url',
+        'hero_btn_secondary_text', 'hero_btn_secondary_url',
+        'hero_infografis',
         'tentang_title', 'tentang_desc', 'tentang_quote', 'tentang_quote_body',
         'bidang_title', 'bidang_desc',
-        'infografis_title', 'infografis_desc',
         'mitra_title', 'cta_title', 'cta_desc', 'footer_tagline',
     ];
 
@@ -196,6 +211,9 @@ function lp2m_get_settings()
     $data['favicon_url'] = lp2m_get_attachment_url($data['favicon_id']);
     $data['panduan_penulisan_url'] = lp2m_get_attachment_url($data['panduan_penulisan_id']);
     $data['template_dokumen_url'] = lp2m_get_attachment_url($data['template_dokumen_id']);
+
+    // Parse infografis JSON
+    $data['hero_infografis_parsed'] = json_decode($data['hero_infografis'], true) ?: [];
 
     return rest_ensure_response($data);
 }
@@ -246,6 +264,72 @@ function lp2m_media_js()
             $('.lp2m-preview[data-target="' + target + '"]').text('Belum dipilih');
             $(this).hide();
         });
+    });
+    </script>
+    <?php
+}
+
+// =================================================================
+// INFOGRAFIS REPEATER
+// =================================================================
+function lp2m_infografis_repeater()
+{
+    $json = get_option('lp2m_hero_infografis', '[]');
+    $items = json_decode($json, true) ?: [];
+    ?>
+    <div class="lp2m-repeater" id="lp2m-infografis">
+        <table class="widefat striped" style="margin-bottom:8px">
+            <thead><tr><th>Label</th><th>Angka</th><th style="width:60px"></th></tr></thead>
+            <tbody id="lp2m-infografis-rows">
+                <?php if (empty($items)): ?>
+                <tr class="no-items"><td colspan="3" style="text-align:center;padding:20px;color:#999">Belum ada item infografis. Klik "Tambah" di bawah.</td></tr>
+                <?php else: ?>
+                <?php foreach ($items as $i => $item): ?>
+                <tr>
+                    <td><input type="text" name="lp2m_ig_label[]" value="<?php echo esc_attr($item['label'] ?? ''); ?>" class="regular-text" placeholder="cth. Dosen Aktif" /></td>
+                    <td><input type="text" name="lp2m_ig_angka[]" value="<?php echo esc_attr($item['angka'] ?? ''); ?>" class="small-text" placeholder="cth. 58" /></td>
+                    <td><button type="button" class="button lp2m-remove-row">✕</button></td>
+                </tr>
+                <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+        <button type="button" class="button lp2m-add-row">+ Tambah Item</button>
+        <input type="hidden" name="lp2m_hero_infografis" id="lp2m_hero_infografis" value="<?php echo esc_attr($json); ?>" />
+    </div>
+    <script>
+    jQuery(function($) {
+        function rebuildJson() {
+            var items = [];
+            $('#lp2m-infografis-rows tr').not('.no-items').each(function() {
+                var label = $(this).find('input[name="lp2m_ig_label[]"]').val();
+                var angka = $(this).find('input[name="lp2m_ig_angka[]"]').val();
+                if (label) items.push({label: label, angka: angka});
+            });
+            $('#lp2m_hero_infografis').val(JSON.stringify(items));
+        }
+
+        $('.lp2m-add-row').on('click', function(e) {
+            e.preventDefault();
+            $('.no-items').remove();
+            $('#lp2m-infografis-rows').append(
+                '<tr>' +
+                '<td><input type="text" name="lp2m_ig_label[]" class="regular-text" placeholder="cth. Dosen Aktif" /></td>' +
+                '<td><input type="text" name="lp2m_ig_angka[]" class="small-text" placeholder="cth. 58" /></td>' +
+                '<td><button type="button" class="button lp2m-remove-row">✕</button></td>' +
+                '</tr>'
+            );
+        });
+
+        $(document).on('click', '.lp2m-remove-row', function() {
+            $(this).closest('tr').remove();
+            if ($('#lp2m-infografis-rows tr').length === 0) {
+                $('#lp2m-infografis-rows').append('<tr class="no-items"><td colspan="3" style="text-align:center;padding:20px;color:#999">Belum ada item infografis.</td></tr>');
+            }
+            rebuildJson();
+        });
+
+        $(document).on('change input', '#lp2m-infografis input[type="text"]', rebuildJson);
     });
     </script>
     <?php
