@@ -12,7 +12,6 @@ defined( 'ABSPATH' ) || exit;
 
 function itsi_hibah_register_rest_fields() {
 	$meta_fields = array(
-		'jenis_hibah',
 		'deadline',
 		'deadline_label',
 		'event_eyebrow',
@@ -106,6 +105,18 @@ function itsi_hibah_register_rest_fields() {
 			return is_array( $cats ) ? $cats : array();
 		},
 		'schema' => array( 'type' => 'array', 'description' => 'Category names', 'context' => array( 'view' ) ),
+	) );
+
+	// ── Jenis Hibah (taxonomy) → expose string 'internal'|'eksternal' agar
+	//    frontend lp2m (dashboard Hibah/Form.vue, KelolaHibah.vue) tetap jalan.
+	register_rest_field( 'hibah', 'jenis_hibah', array(
+		'get_callback' => function ( $post ) {
+			$terms = get_the_terms( $post['id'], 'jenis_hibah' );
+			if ( ! is_array( $terms ) || empty( $terms ) ) { return ''; }
+			$slugs = wp_list_pluck( $terms, 'slug' );
+			return in_array( 'internal', $slugs, true ) ? 'internal' : ( in_array( 'eksternal', $slugs, true ) ? 'eksternal' : '' );
+		},
+		'schema' => array( 'type' => 'string', 'description' => 'Jenis hibah (dari taxonomy)', 'context' => array( 'view', 'edit' ) ),
 	) );
 }
 add_action( 'rest_api_init', 'itsi_hibah_register_rest_fields' );
@@ -207,13 +218,18 @@ function itsi_hibah_get_nearest_deadline( WP_REST_Request $request ) {
 
 	$cats = wp_get_post_categories( $id, array( 'fields' => 'names' ) );
 
+	// Jenis hibah dari taxonomy (bukan meta lagi).
+	$jenis_terms = get_the_terms( $id, 'jenis_hibah' );
+	$jenis_slugs  = is_array( $jenis_terms ) ? wp_list_pluck( $jenis_terms, 'slug' ) : array();
+	$jenis        = in_array( 'internal', $jenis_slugs, true ) ? 'internal' : ( in_array( 'eksternal', $jenis_slugs, true ) ? 'eksternal' : '' );
+
 	$data = array(
 		'id'             => $id,
 		'slug'           => $post->post_name,
 		'title'          => get_the_title( $post ),
 		'excerpt'        => get_the_excerpt( $post ),
 		'permalink'      => get_permalink( $post ),
-		'jenis_hibah'    => get_post_meta( $id, 'jenis_hibah', true ),
+		'jenis_hibah'    => $jenis,
 		'deadline'       => get_post_meta( $id, 'deadline', true ),
 		'deadline_label' => get_post_meta( $id, 'deadline_label', true ),
 		'event_eyebrow'  => get_post_meta( $id, 'event_eyebrow', true ),

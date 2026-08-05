@@ -486,6 +486,27 @@ add_action( 'typerocket_loaded', function () {
 	$skema_hibah->setRest( 'skema_hibah' );
 	$skema_hibah->addPostType( 'hibah' );
 
+	// Jenis Hibah — taxonomy (internal/eksternal), bukan meta. Admin pilih lewat
+	// sidebar taxonomy (checkbox). REST tetap expose string 'internal'|'eksternal'
+	// via register_rest_field (lihat inc/rest-api-hibah.php) agar frontend lama
+	// (lp2m dashboard) tetap jalan tanpa perubahan.
+	$jenis_hibah = tr_taxonomy( 'Jenis Hibah', 'Jenis Hibah' );
+	$jenis_hibah->setId( 'jenis_hibah' );
+	$jenis_hibah->setSlug( 'jenis-hibah' );
+	$jenis_hibah->setHierarchical( true );
+	$jenis_hibah->setRest( 'jenis_hibah' );
+	$jenis_hibah->addPostType( 'hibah' );
+
+	// Program Studi — taxonomy pada hibah (prodi mana saja yang bisa ikut).
+	// ID pakai program_studi_hibah karena CPT program_studi sudah ada & rest-enabled
+	// (kalau sama, route /wp/v2/program_studi bentrok antara posts vs terms).
+	$program_studi_hibah = tr_taxonomy( 'Program Studi', 'Program Studi' );
+	$program_studi_hibah->setId( 'program_studi_hibah' );
+	$program_studi_hibah->setSlug( 'program-studi-hibah' );
+	$program_studi_hibah->setHierarchical( true );
+	$program_studi_hibah->setRest( 'program_studi_hibah' );
+	$program_studi_hibah->addPostType( 'hibah' );
+
 	// ═══ META BOXES ════════════════════════════════════════════
 	tr_meta_box( 'Prioritas Pengumuman' )
 		->addPostType( 'post' )
@@ -750,11 +771,6 @@ add_action( 'typerocket_loaded', function () {
 				/* ─── TAB 1: Info Dasar ─── */
 				$tabs->tab( 'Info Dasar', 'dashicons-info', array(
 					'<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">'
-					. '<div>' . $form->select( 'jenis_hibah' )->setLabel( 'Jenis Hibah' )
-						->setOptions( array(
-							'internal'  => 'Internal (LP2M ITSI)',
-							'eksternal' => 'Eksternal (DRTPM / BRIN / Mitra)',
-						) )->setAttribute( 'style', 'width:100%' ) . '</div>'
 					. '<div>' . $form->select( 'status_hibah' )->setLabel( 'Status Event' )
 						->setOptions( array(
 							'aktif'   => 'Aktif (sedang dibuka)',
