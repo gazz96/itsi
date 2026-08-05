@@ -778,6 +778,9 @@ add_action( 'typerocket_loaded', function () {
 						->setAttribute( 'placeholder', 'mis. 35000000' ) . '</div>'
 					. '<div>' . $form->text( 'jumlah_tim_maks' )->setLabel( 'Jumlah Tim Maksimal' )
 						->setAttribute( 'placeholder', 'mis. 3' ) . '</div>'
+					. '<div>' . $form->search( 'program_studi_id' )->setPostTypeOptions( 'program_studi' )
+						->setLabel( 'Program Studi Terkait' )
+						->setHelp( 'Cari & pilih program studi (CPT). Simpan ID post.' ) . '</div>'
 					. '</div>'
 					. '<div style="margin-top:1rem">'
 					. $form->textarea( 'info_tambahan' )->setLabel( 'Info Tambahan (satu per baris)' )
