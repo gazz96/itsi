@@ -497,16 +497,6 @@ add_action( 'typerocket_loaded', function () {
 	$jenis_hibah->setRest( 'jenis_hibah' );
 	$jenis_hibah->addPostType( 'hibah' );
 
-	// Program Studi — taxonomy pada hibah (prodi mana saja yang bisa ikut).
-	// ID pakai program_studi_hibah karena CPT program_studi sudah ada & rest-enabled
-	// (kalau sama, route /wp/v2/program_studi bentrok antara posts vs terms).
-	$program_studi_hibah = tr_taxonomy( 'Program Studi', 'Program Studi' );
-	$program_studi_hibah->setId( 'program_studi_hibah' );
-	$program_studi_hibah->setSlug( 'program-studi-hibah' );
-	$program_studi_hibah->setHierarchical( true );
-	$program_studi_hibah->setRest( 'program_studi_hibah' );
-	$program_studi_hibah->addPostType( 'hibah' );
-
 	// ═══ META BOXES ════════════════════════════════════════════
 	tr_meta_box( 'Prioritas Pengumuman' )
 		->addPostType( 'post' )
