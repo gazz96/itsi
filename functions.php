@@ -777,22 +777,14 @@ add_action( 'typerocket_loaded', function () {
 							'ditutup' => 'Ditutup',
 							'arsip'   => 'Arsip',
 						) )->setAttribute( 'style', 'width:100%' ) . '</div>'
-					. '<div>' . $form->text( 'kategori_hibah' )->setLabel( 'Kategori' )
-						->setAttribute( 'placeholder', 'mis. Penelitian Dasar, Pengabdian, Kewirausahaan' ) . '</div>'
-					. '<div>' . $form->text( 'deadline' )->setLabel( 'Deadline (ISO datetime)' )
-						->setAttribute( 'placeholder', '2026-09-15T23:59:59' ) . '</div>'
-					. '<div>' . $form->text( 'deadline_label' )->setLabel( 'Label Deadline (human)' )
-						->setAttribute( 'placeholder', '15 September 2026' ) . '</div>'
-					. '<div>' . $form->text( 'skema' )->setLabel( 'Skema Hibah' )
-						->setAttribute( 'placeholder', 'mis. Hibah Kompetitif Riset Hilirisasi Sawit' ) . '</div>'
-					. '<div>' . $form->text( 'event_eyebrow' )->setLabel( 'Eyebrow Banner' )
-						->setAttribute( 'placeholder', 'mis. Event Aktif · Tahun Anggaran 2026/2027' ) . '</div>'
-					. '</div>'
-					. '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem">'
+					. '<div>' . $form->date( 'deadline' )->setLabel( 'Deadline Pendaftaran' )
+						->setHelp( 'Tanggal terakhir pendaftaran. Label otomatis dibuat dari tanggal ini.' ) . '</div>'
+					. '<div>' . $form->text( 'event_eyebrow' )->setLabel( 'Tahun Akademik' )
+						->setAttribute( 'placeholder', 'mis. TA 2026/2027' ) . '</div>'
 					. '<div>' . $form->text( 'dana_maks' )->setLabel( 'Dana Maksimal' )
-						->setAttribute( 'placeholder', 'mis. Rp 35.000.000' ) . '</div>'
+						->setAttribute( 'placeholder', 'mis. 35000000' ) . '</div>'
 					. '<div>' . $form->text( 'jumlah_tim_maks' )->setLabel( 'Jumlah Tim Maksimal' )
-						->setAttribute( 'placeholder', 'mis. 3 orang' ) . '</div>'
+						->setAttribute( 'placeholder', 'mis. 3' ) . '</div>'
 					. '</div>'
 					. '<div style="margin-top:1rem">'
 					. $form->textarea( 'info_tambahan' )->setLabel( 'Info Tambahan (satu per baris)' )

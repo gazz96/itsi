@@ -12,8 +12,7 @@ defined( 'ABSPATH' ) || exit;
 
 function itsi_hibah_register_rest_fields() {
 	$meta_fields = array(
-		'deadline',
-		'deadline_label',
+		'status_hibah',
 		'event_eyebrow',
 		'dana_maks',
 		'jumlah_tim_maks',
@@ -44,6 +43,37 @@ function itsi_hibah_register_rest_fields() {
 			),
 		) );
 	}
+
+	// ── Deadline (1 input, auto-normalize + auto-label) ──
+	register_rest_field( 'hibah', 'deadline', array(
+		'get_callback' => function ( $post ) {
+			return get_post_meta( $post['id'], 'deadline', true );
+		},
+		'update_callback' => function ( $value, $post ) {
+			if ( ! current_user_can( 'edit_post', $post->ID ) ) { return false; }
+			$raw = is_string( $value ) ? trim( $value ) : '';
+			if ( '' === $raw ) { delete_post_meta( $post->ID, 'deadline' ); delete_post_meta( $post->ID, 'deadline_label' ); return true; }
+			// Normalisasi: YYYY-MM-DD → YYYY-MM-DDT23:59:59 (akhir hari).
+			if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $raw ) ) { $raw .= 'T23:59:59'; }
+			update_post_meta( $post->ID, 'deadline', $raw );
+			// Auto-set label human (id-ID).
+			$ts = strtotime( $raw );
+			if ( $ts ) { update_post_meta( $post->ID, 'deadline_label', date_i18n( 'j F Y', $ts ) ); }
+			return true;
+		},
+		'schema' => array( 'type' => 'string', 'description' => 'Deadline (ISO datetime)', 'context' => array( 'view', 'edit' ) ),
+	) );
+
+	// ── Deadline label (derived dari deadline kalau kosong) ──
+	register_rest_field( 'hibah', 'deadline_label', array(
+		'get_callback' => function ( $post ) {
+			$label = get_post_meta( $post['id'], 'deadline_label', true );
+			if ( $label ) { return $label; }
+			$dl = get_post_meta( $post['id'], 'deadline', true );
+			return $dl ? date_i18n( 'j F Y', strtotime( $dl ) ) : '';
+		},
+		'schema' => array( 'type' => 'string', 'description' => 'Deadline label (human, derived)', 'context' => array( 'view' ) ),
+	) );
 
 	// ── Timeline (repeater) ──
 	register_rest_field( 'hibah', 'timeline_items', array(
