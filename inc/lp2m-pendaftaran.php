@@ -83,7 +83,7 @@ function lp2m_pendaftaran_submit(WP_REST_Request $request) {
     // ————————————————————————————————————————
     // kirim email notifikasi
     // ————————————————————————————————————————
-    $admin_email = lp2m_opt('site_admin_email') ?: lp2m_opt('siteAdminEmail') ?: get_option('admin_email');
+    $admin_email = lp2m_opt('site_admin_email') ?: get_option('admin_email');
     $from_name   = get_bloginfo('name');
 
     // 1) Notif admin
@@ -139,7 +139,7 @@ function lp2m_pendaftaran_status(WP_REST_Request $request) {
 
 function lp2m_pendaftaran_test_email(WP_REST_Request $request) {
     $to = sanitize_text_field(
-        $request->get_param('to') ?: lp2m_opt('siteAdminEmail') ?: get_option('admin_email')
+        $request->get_param('to') ?: lp2m_opt('site_admin_email') ?: get_option('admin_email')
     );
     wp_mail($to, 'LP2M Test Email', 'Ini email test dari LP2M settings.', 'From: LP2M ITSI <noreply@' . $_SERVER['SERVER_NAME'] . '>');
     return rest_ensure_response(['success' => true, 'to' => $to, 'message' => 'Email test terkirim']);
