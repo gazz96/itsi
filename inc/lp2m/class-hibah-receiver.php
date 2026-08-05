@@ -63,6 +63,85 @@ class ITSI_LP2M_Hibah_Receiver {
 				],
 			],
 		] );
+
+		// Konfigurasi form publik: program studi (CPT) + skema (taxonomy hierarchical).
+		register_rest_route( 'lp2m/v1', '/hibah/(?P<id>\d+)/form-config', [
+			'methods'             => 'GET',
+			'callback'            => [ $this, 'handle_form_config' ],
+			'permission_callback' => '__return_true',
+			'args'                => [
+				'id' => [
+					'required'          => true,
+					'validate_callback' => function ( $param ) {
+						return is_numeric( $param ) && (int) $param > 0;
+					},
+					'sanitize_callback' => 'absint',
+				],
+			],
+		] );
+	}
+
+	/**
+	 * Form config: daftar program studi (CPT) + skema (taxonomy, parent-child+desc).
+	 *
+	 * @param \WP_REST_Request $request
+	 * @return \WP_REST_Response
+	 */
+	public function handle_form_config( \WP_REST_Request $request ): \WP_REST_Response {
+		$id = (int) $request->get_param( 'id' );
+		if ( ! get_post( $id ) || 'hibah' !== get_post_type( $id ) ) {
+			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Hibah tidak ditemukan.' ], 404 );
+		}
+
+		// Program studi: CPT program_studi → id + nama.
+		$prodi_posts = get_posts( [
+			'post_type'      => 'program_studi',
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'orderby'        => 'title',
+			'order'          => 'ASC',
+		] );
+		$prodi_options = [];
+		foreach ( $prodi_posts as $p ) {
+			$prodi_options[] = [ 'id' => $p->ID, 'name' => get_the_title( $p ) ];
+		}
+
+		// Skema: taxonomy skema_hibah hierarchical → flatten parent-child + desc.
+		$skema_terms = get_terms( [
+			'taxonomy'   => 'skema_hibah',
+			'hide_empty' => false,
+			'orderby'    => 'name',
+			'order'      => 'ASC',
+		] );
+		$skema_options = [];
+		if ( ! is_wp_error( $skema_terms ) ) {
+			$by_id = [];
+			foreach ( $skema_terms as $t ) {
+				$by_id[ $t->term_id ] = $t;
+			}
+			foreach ( $skema_terms as $t ) {
+				$label = $t->name;
+				$parent = '';
+				if ( $t->parent && isset( $by_id[ $t->parent ] ) ) {
+					$label  = $by_id[ $t->parent ]->name . ' — ' . $t->name;
+					$parent = $by_id[ $t->parent ]->name;
+				}
+				$skema_options[] = [
+					'id'     => $t->term_id,
+					'label'  => $label,
+					'name'   => $t->name,
+					'parent' => $parent,
+					'desc'   => $t->description,
+				];
+			}
+		}
+
+		return new \WP_REST_Response( [
+			'success'       => true,
+			'hibah_id'      => $id,
+			'prodi_options' => $prodi_options,
+			'skema_options' => $skema_options,
+		], 200 );
 	}
 
 	/* ────────────────────────────────────────────────────────────
@@ -98,6 +177,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		$allowed = [
 			'hibah_id', 'nama', 'nip', 'jenis', 'prodi', 'skema', 'judul',
 			'ringkasan', 'jml_tim', 'anggota', 'email', 'hp',
+			'skema_id', 'prodi_id',
 		];
 
 		$clean = [];
@@ -108,6 +188,8 @@ class ITSI_LP2M_Hibah_Receiver {
 		}
 
 		$clean['hibah_id'] = (string) absint( $clean['hibah_id'] );
+		$clean['skema_id'] = (string) absint( $clean['skema_id'] );
+		$clean['prodi_id'] = (string) absint( $clean['prodi_id'] );
 
 		$jenis_whitelist = [ 'Dosen', 'Mahasiswa', 'Tenaga Kependidikan' ];
 		if ( ! in_array( $clean['jenis'], $jenis_whitelist, true ) ) {
@@ -353,7 +435,9 @@ class ITSI_LP2M_Hibah_Receiver {
 			'_reg_no'    => $reg_no, '_hibah_id' => $hibah_id,
 			'_nama'      => $params['nama'], '_nip' => $params['nip'],
 			'_jenis'     => $params['jenis'], '_prodi' => $params['prodi'],
-			'_skema'     => $params['skema'], '_judul' => $params['judul'],
+			'_prodi_id'  => $params['prodi_id'],
+			'_skema'     => $params['skema'], '_skema_id' => $params['skema_id'],
+			'_judul'     => $params['judul'],
 			'_ringkasan' => $params['ringkasan'], '_jml_tim' => $params['jml_tim'],
 			'_anggota'   => $params['anggota'], '_email' => $params['email'],
 			'_hp'        => $params['hp'],

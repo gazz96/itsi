@@ -18,6 +18,7 @@ function itsi_hibah_register_rest_fields() {
 		'jumlah_tim_maks',
 		'info_tambahan',
 		'link_panduan',
+		'program_studi_id',
 	);
 
 	foreach ( $meta_fields as $field ) {
@@ -285,3 +286,24 @@ function itsi_hibah_get_nearest_deadline( WP_REST_Request $request ) {
 		'data'  => $data,
 	), 200 );
 }
+
+/* ────────────────────────────────────────────────────────────
+ *  QUERY FILTER — dukung ?status_hibah=aktif & ?program_studi_id=
+ * ──────────────────────────────────────────────────────────── */
+add_filter( 'rest_hibah_query', function ( $args, $request ) {
+	$status = $request->get_param( 'status_hibah' );
+	if ( ! empty( $status ) ) {
+		$args['meta_query'][] = array(
+			'key'   => 'status_hibah',
+			'value' => sanitize_text_field( $status ),
+		);
+	}
+	$prodi = $request->get_param( 'program_studi_id' );
+	if ( ! empty( $prodi ) && is_numeric( $prodi ) ) {
+		$args['meta_query'][] = array(
+			'key'   => 'program_studi_id',
+			'value' => (int) $prodi,
+		);
+	}
+	return $args;
+}, 10, 2 );
