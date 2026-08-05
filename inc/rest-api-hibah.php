@@ -44,7 +44,7 @@ function itsi_hibah_register_rest_fields() {
 		) );
 	}
 
-	// ── Deadline (1 input, auto-normalize + auto-label) ──
+	// ── Deadline (tanggal + jam opsional; auto-normalize + auto-label) ──
 	register_rest_field( 'hibah', 'deadline', array(
 		'get_callback' => function ( $post ) {
 			return get_post_meta( $post['id'], 'deadline', true );
@@ -53,15 +53,40 @@ function itsi_hibah_register_rest_fields() {
 			if ( ! current_user_can( 'edit_post', $post->ID ) ) { return false; }
 			$raw = is_string( $value ) ? trim( $value ) : '';
 			if ( '' === $raw ) { delete_post_meta( $post->ID, 'deadline' ); delete_post_meta( $post->ID, 'deadline_label' ); return true; }
-			// Normalisasi: YYYY-MM-DD → YYYY-MM-DDT23:59:59 (akhir hari).
-			if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $raw ) ) { $raw .= 'T23:59:59'; }
+			// Normalisasi tanggal: YYYY-MM-DD → gabung jam dari deadline_time (atau 23:59:59).
+			if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $raw ) ) {
+				$time = sanitize_text_field( get_post_meta( $post->ID, 'deadline_time', true ) );
+				$raw .= preg_match( '/^([01]\d|2[0-3]):[0-5]\d$/', $time ) ? 'T' . $time . ':00' : 'T23:59:59';
+			}
 			update_post_meta( $post->ID, 'deadline', $raw );
-			// Auto-set label human (id-ID).
 			$ts = strtotime( $raw );
 			if ( $ts ) { update_post_meta( $post->ID, 'deadline_label', date_i18n( 'j F Y', $ts ) ); }
 			return true;
 		},
 		'schema' => array( 'type' => 'string', 'description' => 'Deadline (ISO datetime)', 'context' => array( 'view', 'edit' ) ),
+	) );
+
+	// ── Deadline time (HH:MM opsional, dibaca metabox) ──
+	register_rest_field( 'hibah', 'deadline_time', array(
+		'get_callback' => function ( $post ) {
+			return get_post_meta( $post['id'], 'deadline_time', true );
+		},
+		'update_callback' => function ( $value, $post ) {
+			if ( ! current_user_can( 'edit_post', $post->ID ) ) { return false; }
+			$t = is_string( $value ) ? sanitize_text_field( $value ) : '';
+			if ( '' !== $t && ! preg_match( '/^([01]\d|2[0-3]):[0-5]\d$/', $t ) ) { return false; }
+			update_post_meta( $post->ID, 'deadline_time', $t );
+			// Sinkronkan jam ke deadline tersimpan (kalau ada).
+			$dl = get_post_meta( $post->ID, 'deadline', true );
+			if ( $dl && preg_match( '/^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}$/', $dl, $m ) ) {
+				$new = $t ? $m[1] . 'T' . $t . ':00' : $m[1] . 'T23:59:59';
+				update_post_meta( $post->ID, 'deadline', $new );
+				$ts = strtotime( $new );
+				if ( $ts ) { update_post_meta( $post->ID, 'deadline_label', date_i18n( 'j F Y', $ts ) ); }
+			}
+			return true;
+		},
+		'schema' => array( 'type' => 'string', 'description' => 'Deadline time (HH:MM)', 'context' => array( 'view', 'edit' ) ),
 	) );
 
 	// ── Deadline label (derived dari deadline kalau kosong) ──

@@ -777,8 +777,11 @@ add_action( 'typerocket_loaded', function () {
 							'ditutup' => 'Ditutup',
 							'arsip'   => 'Arsip',
 						) )->setAttribute( 'style', 'width:100%' ) . '</div>'
-					. '<div>' . $form->date( 'deadline' )->setLabel( 'Deadline Pendaftaran' )
-						->setHelp( 'Tanggal terakhir pendaftaran. Label otomatis dibuat dari tanggal ini.' ) . '</div>'
+					. '<div>' . $form->date( 'deadline' )->setLabel( 'Deadline Tanggal' )
+						->setFormatYearMonthDay()
+						->setHelp( 'Tanggal terakhir pendaftaran.' ) . '</div>'
+					. '<div>' . $form->time( 'deadline_time' )->setLabel( 'Deadline Jam' )
+						->setHelp( 'Opsional. Kosongkan = 23:59:59.' ) . '</div>'
 					. '<div>' . $form->text( 'event_eyebrow' )->setLabel( 'Tahun Akademik' )
 						->setAttribute( 'placeholder', 'mis. TA 2026/2027' ) . '</div>'
 					. '<div>' . $form->text( 'dana_maks' )->setLabel( 'Dana Maksimal' )
@@ -795,7 +798,8 @@ add_action( 'typerocket_loaded', function () {
 				/* ─── TAB 2: Timeline ─── */
 				$timeline_rpt = $form->repeater( 'timeline_items' )->setFields(
 					array(
-						$form->text( 'Tanggal' )->setAttribute( 'placeholder', '01 Agu 2026' ),
+						$form->date( 'Tanggal' )->setLabel( 'Tanggal' )->setFormatYearMonthDay()
+							->setAttribute( 'placeholder', 'YYYY-MM-DD' ),
 						$form->textarea( 'Deskripsi' )->setAttribute( 'rows', 2 )
 							->setAttribute( 'placeholder', 'Sosialisasi & pembukaan pendaftaran usulan' ),
 					)
