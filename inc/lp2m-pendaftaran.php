@@ -20,6 +20,11 @@ add_action('rest_api_init', function() {
         'callback'              => 'lp2m_pendaftaran_status',
         'permission_callback'   => '__return_true',
     ]);
+    register_rest_route('lp2m/v1', '/pendaftaran/export', [
+        'methods'               => 'GET',
+        'callback'              => 'lp2m_pendaftaran_export',
+        'permission_callback'   => '__return_true',
+    ]);
     register_rest_route('lp2m/v1', '/pendaftaran/check-email', [
         'methods'               => 'GET',
         'callback'              => 'lp2m_pendaftaran_test_email',
@@ -138,6 +143,33 @@ function lp2m_pendaftaran_test_email(WP_REST_Request $request) {
     );
     wp_mail($to, 'LP2M Test Email', 'Ini email test dari LP2M settings.', 'From: LP2M ITSI <noreply@' . $_SERVER['SERVER_NAME'] . '>');
     return rest_ensure_response(['success' => true, 'to' => $to, 'message' => 'Email test terkirim']);
+}
+
+function lp2m_pendaftaran_export(WP_REST_Request $request) {
+    $dari    = sanitize_text_field($request->get_param('dari'))    ?: date('Y-m-d');
+    $sampai  = sanitize_text_field($request->get_param('sampai')) ?: date('Y-m-d');
+    $status  = sanitize_text_field($request->get_param('status'))  ?: '';
+    $perPage = absint($request->get_param('per_page'))             ?: 1000;
+    if ($perPage > 1000) $perPage = 1000;
+
+    $list   = get_option('lp2m_reg_list', []);
+    $dateFrom = substr(str_replace('-', '', $dari),   0, 8);
+    $dateTo   = substr(str_replace('-', '', $sampai),  0, 8);
+    $rows = [];
+
+    foreach ($list as $no) {
+        $d = get_option('lp2m_reg_' . $no);
+        if (!$d) continue;
+        $tgl = substr($d['tanggal']  ?? '', 0, 8);                          // YYYYMMDD
+        if (!$tgl) continue;
+        if ($tgl < $dateFrom || $tgl > $dateTo) continue;
+        if ($status && ($d['status'] ?? '') !== $status) continue;
+        $rows[] = array_merge(['reg_no' => $no], (array) $d);
+    }
+    usort($rows, fn($a, $b) => strcmp($b['reg_no'] ?? '', $a['reg_no'] ?? ''));
+    $rows = array_slice($rows, 0, $perPage);
+    header('X-Total-Count: ' . count($rows));
+    return rest_ensure_response($rows);
 }
 
 function lp2m_pendaftaran_list() {
