@@ -454,6 +454,38 @@ function lp2m_rest_mitra()   { return rest_ensure_response( lp2m_mitra_data() );
 function lp2m_rest_footer()  { return rest_ensure_response( lp2m_footer_data() ); }
 function lp2m_rest_homepage(){ return rest_ensure_response( lp2m_home_data() ); }
 
+// ── POST /settings/branding — set/clear override logo & favicon (admin) ──
+function lp2m_rest_branding_update( WP_REST_Request $request ) {
+	$logo_id    = (int) $request->get_param( 'logo_id' );
+	$favicon_id = (int) $request->get_param( 'favicon_id' );
+
+	// Kosong/0 → clear override (fallback ke itsi); >0 → set override.
+	if ( $logo_id > 0 ) {
+		update_option( 'lp2m_override_logo_id', $logo_id );
+	} else {
+		delete_option( 'lp2m_override_logo_id' );
+	}
+	if ( $favicon_id > 0 ) {
+		update_option( 'lp2m_override_favicon_id', $favicon_id );
+	} else {
+		delete_option( 'lp2m_override_favicon_id' );
+	}
+
+	return rest_ensure_response( array(
+		'success' => true,
+		'site'    => lp2m_site_data(),
+	) );
+}
+add_action( 'rest_api_init', function () {
+	register_rest_route( 'lp2m/v1', '/settings/branding', array(
+		'methods'             => 'POST',
+		'callback'            => 'lp2m_rest_branding_update',
+		'permission_callback' => function () {
+			return current_user_can( 'manage_options' );
+		},
+	) );
+} );
+
 function lp2m_opt( $k ) { return get_option( 'lp2m_' . $k, '' ); }
 function lp2m_url( $id ) { return $id ? wp_get_attachment_url( (int) $id ) : ''; }
 /** Decode option JSON — tahan string JSON maupun array mentah (migrasi data). */
@@ -465,16 +497,21 @@ function lp2m_json( $k ) {
 }
 
 function lp2m_site_data() {
+	// Override LP2M (opsional) menang; default ambil dari itsi.
+	$logo_id   = lp2m_opt( 'override_logo_id' ) ?: lp2m_opt( 'site_logo_id' );
+	$favicon_id = lp2m_opt( 'override_favicon_id' ) ?: lp2m_opt( 'site_favicon_id' );
 	return array(
-		'logo_id'     => lp2m_opt( 'site_logo_id' ),
-		'logo_url'    => lp2m_url( lp2m_opt( 'site_logo_id' ) ),
-		'favicon_id'  => lp2m_opt( 'site_favicon_id' ),
-		'favicon_url' => lp2m_url( lp2m_opt( 'site_favicon_id' ) ),
-		'nama'        => lp2m_opt( 'site_nama' ) ?: 'LP2M ITSI',
-		'nama_panjang'=> lp2m_opt( 'site_nama_panjang' ),
-		'email'       => lp2m_opt( 'site_email' ),
-		'telepon'     => lp2m_opt( 'site_telepon' ),
-		'alamat'      => lp2m_opt( 'site_alamat' ),
+		'logo_id'        => $logo_id,
+		'logo_url'       => lp2m_url( $logo_id ),
+		'favicon_id'     => $favicon_id,
+		'favicon_url'    => lp2m_url( $favicon_id ),
+		'logo_is_override'   => (bool) lp2m_opt( 'override_logo_id' ),
+		'favicon_is_override'=> (bool) lp2m_opt( 'override_favicon_id' ),
+		'nama'           => lp2m_opt( 'site_nama' ) ?: 'LP2M ITSI',
+		'nama_panjang'   => lp2m_opt( 'site_nama_panjang' ),
+		'email'          => lp2m_opt( 'site_email' ),
+		'telepon'        => lp2m_opt( 'site_telepon' ),
+		'alamat'         => lp2m_opt( 'site_alamat' ),
 	);
 }
 function lp2m_dok_data() {
