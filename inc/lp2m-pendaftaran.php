@@ -57,11 +57,11 @@ function lp2m_pendaftaran_submit(WP_REST_Request $request) {
         return new WP_Error('invalid', 'Nama, email, dan judul wajib diisi.', ['status' => 400]);
     }
 
-    // Generate No Registrasi: YYYYMMDDNNNN
+    // Generate No Registrasi: YYYYMMDDNNNN → contoh: 202608040001
     $date_prefix = date('Ymd');
     $seq_key     = 'lp2m_reg_seq_' . $date_prefix;
     $seq         = (int) get_option($seq_key, 0) + 1;
-    update_option($seq_key, $seq);
+    update_option($seq_key, $seq, '', 'no');
     $reg_no      = $date_prefix . str_pad($seq, 4, '0', STR_PAD_LEFT);
 
     // Simpan ke wp_options
