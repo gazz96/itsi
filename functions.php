@@ -486,17 +486,6 @@ add_action( 'typerocket_loaded', function () {
 	$skema_hibah->setRest( 'skema_hibah' );
 	$skema_hibah->addPostType( 'hibah' );
 
-	// Jenis Hibah — taxonomy (internal/eksternal), bukan meta. Admin pilih lewat
-	// sidebar taxonomy (checkbox). REST tetap expose string 'internal'|'eksternal'
-	// via register_rest_field (lihat inc/rest-api-hibah.php) agar frontend lama
-	// (lp2m dashboard) tetap jalan tanpa perubahan.
-	$jenis_hibah = tr_taxonomy( 'Jenis Hibah', 'Jenis Hibah' );
-	$jenis_hibah->setId( 'jenis_hibah' );
-	$jenis_hibah->setSlug( 'jenis-hibah' );
-	$jenis_hibah->setHierarchical( true );
-	$jenis_hibah->setRest( 'jenis_hibah' );
-	$jenis_hibah->addPostType( 'hibah' );
-
 	// ═══ META BOXES ════════════════════════════════════════════
 	tr_meta_box( 'Prioritas Pengumuman' )
 		->addPostType( 'post' )
