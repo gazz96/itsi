@@ -145,3 +145,90 @@ function itsi_hibah_field( $row, ...$keys ) {
 	}
 	return '';
 }
+
+/* ────────────────────────────────────────────────────────────
+ *  CUSTOM ENDPOINT: hibah dengan deadline terdekat
+ *  GET /wp-json/itsi/v1/hibah/nearest-deadline
+ * ──────────────────────────────────────────────────────────── */
+
+function itsi_hibah_register_routes() {
+	register_rest_route( 'itsi/v1', '/hibah/nearest-deadline', array(
+		'methods'             => WP_REST_Server::READABLE,
+		'callback'            => 'itsi_hibah_get_nearest_deadline',
+		'permission_callback' => '__return_true',
+	) );
+}
+add_action( 'rest_api_init', 'itsi_hibah_register_routes' );
+
+function itsi_hibah_get_nearest_deadline( WP_REST_Request $request ) {
+	$today = current_time( 'Y-m-d' );
+
+	$query = new WP_Query( array(
+		'post_type'      => 'hibah',
+		'post_status'    => 'publish',
+		'posts_per_page' => 1,
+		'meta_key'       => 'deadline',
+		'orderby'        => 'meta_value',
+		'order'          => 'ASC',
+		'meta_query'     => array(
+			array(
+				'key'     => 'deadline',
+				'value'   => $today,
+				'compare' => '>=',
+				'type'    => 'DATE',
+			),
+		),
+	) );
+
+	if ( ! $query->have_posts() ) {
+		return new WP_REST_Response( array(
+			'found' => false,
+			'data'  => null,
+		), 200 );
+	}
+
+	$post = $query->posts[0];
+	$id   = $post->ID;
+
+	// Timeline items
+	$raw_timeline = get_post_meta( $id, 'timeline_items', true );
+	$timeline     = array();
+	if ( is_array( $raw_timeline ) ) {
+		foreach ( $raw_timeline as $item ) {
+			if ( ! is_array( $item ) ) { continue; }
+			$timeline[] = array(
+				'date'  => itsi_hibah_field( $item, 'Tanggal', 'date' ),
+				'label' => itsi_hibah_field( $item, 'Deskripsi', 'label', 'desc' ),
+			);
+		}
+	} elseif ( is_string( $raw_timeline ) && '' !== $raw_timeline ) {
+		$timeline = itsi_hibah_json_decode( $raw_timeline );
+	}
+
+	$cats = wp_get_post_categories( $id, array( 'fields' => 'names' ) );
+
+	$data = array(
+		'id'             => $id,
+		'slug'           => $post->post_name,
+		'title'          => get_the_title( $post ),
+		'excerpt'        => get_the_excerpt( $post ),
+		'permalink'      => get_permalink( $post ),
+		'jenis_hibah'    => get_post_meta( $id, 'jenis_hibah', true ),
+		'deadline'       => get_post_meta( $id, 'deadline', true ),
+		'deadline_label' => get_post_meta( $id, 'deadline_label', true ),
+		'event_eyebrow'  => get_post_meta( $id, 'event_eyebrow', true ),
+		'dana_maks'      => get_post_meta( $id, 'dana_maks', true ),
+		'jumlah_tim_maks'=> get_post_meta( $id, 'jumlah_tim_maks', true ),
+		'info_tambahan'  => get_post_meta( $id, 'info_tambahan', true ),
+		'link_panduan'   => get_post_meta( $id, 'link_panduan', true ),
+		'file_panduan'   => itsi_hibah_attachment_urls( get_post_meta( $id, 'file_panduan', true ) ),
+		'file_template'  => itsi_hibah_attachment_urls( get_post_meta( $id, 'file_template', true ) ),
+		'timeline_items' => $timeline,
+		'category_names' => is_array( $cats ) ? $cats : array(),
+	);
+
+	return new WP_REST_Response( array(
+		'found' => true,
+		'data'  => $data,
+	), 200 );
+}
