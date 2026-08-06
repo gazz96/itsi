@@ -14,6 +14,9 @@ class ITSI_LP2M_Hibah_Receiver {
 	public function init(): void {
 		add_action( 'init', [ $this, 'register_cpt' ] );
 		add_action( 'rest_api_init', [ $this, 'register_routes' ] );
+		// Admin list columns — tampilkan meta yang disubmit di ?post_type=pendaftaran_hibah.
+		add_filter( 'manage_pendaftaran_hibah_posts_columns', [ $this, 'admin_columns' ] );
+		add_action( 'manage_pendaftaran_hibah_posts_custom_column', [ $this, 'admin_column_content' ], 10, 2 );
 	}
 
 	public function register_cpt(): void {
@@ -34,6 +37,96 @@ class ITSI_LP2M_Hibah_Receiver {
 			'show_in_rest'        => false,
 			'title_placeholder'   => 'Otomatis — jangan edit manual',
 		] );
+	}
+
+	/* ────────────────────────────────────────────────────────────
+	 *  ADMIN LIST COLUMNS (?post_type=pendaftaran_hibah)
+	 * ──────────────────────────────────────────────────────────── */
+
+	public function admin_columns( array $columns ): array {
+		$new = [];
+		foreach ( $columns as $key => $label ) {
+			if ( 'date' === $key ) {
+				$new['ph_reg_no']     = 'Reg No';
+				$new['ph_nama']       = 'Nama';
+				$new['ph_nip']        = 'NIDN/NIDK/NIM';
+				$new['ph_prodi']      = 'Prodi';
+				$new['ph_model']      = 'Model Hibah';
+				$new['ph_jenis_hibah'] = 'Jenis Hibah';
+				$new['ph_sdgs']       = 'SDGs';
+				$new['ph_kk']         = 'Kel. Keahlian';
+				$new['ph_anggota']    = 'Anggota Tim';
+				$new['ph_judul']      = 'Judul';
+				$new['ph_kontak']     = 'Kontak';
+			}
+			$new[ $key ] = $label;
+		}
+		return $new;
+	}
+
+	public function admin_column_content( string $column, int $post_id ): void {
+		$meta = function ( $key ) use ( $post_id ) {
+			return get_post_meta( $post_id, $key, true );
+		};
+
+		switch ( $column ) {
+			case 'ph_reg_no':
+				echo '<code>' . esc_html( (string) $meta( '_reg_no' ) ) . '</code>';
+				break;
+			case 'ph_nama':
+				$nama = (string) $meta( '_nama' );
+				$link = get_edit_post_link( $post_id );
+				if ( $nama && $link ) {
+					echo '<a href="' . esc_url( $link ) . '"><strong>' . esc_html( $nama ) . '</strong></a>';
+				} else {
+					echo esc_html( $nama );
+				}
+				break;
+			case 'ph_nip':
+				echo esc_html( (string) $meta( '_nip' ) );
+				break;
+			case 'ph_prodi':
+				echo esc_html( (string) $meta( '_prodi' ) );
+				break;
+			case 'ph_model':
+				echo esc_html( (string) $meta( '_skema' ) );
+				break;
+			case 'ph_jenis_hibah':
+				echo esc_html( (string) $meta( '_jenis_hibah' ) );
+				break;
+			case 'ph_sdgs':
+				echo esc_html( (string) $meta( '_sdgs' ) );
+				break;
+			case 'ph_kk':
+				echo esc_html( (string) $meta( '_kelompok_keahlian' ) );
+				break;
+			case 'ph_anggota':
+				$list = json_decode( (string) $meta( '_anggota_list' ), true );
+				if ( ! is_array( $list ) || empty( $list ) ) {
+					echo '—';
+					break;
+				}
+				$lines = [];
+				foreach ( $list as $m ) {
+					$t   = $m['tipe'] ?? '';
+					$nid = $m['nomor'] ?? '';
+					$nm  = $m['nama'] ?? '';
+					if ( 'mahasiswa' === $t ) {
+						$lines[] = sprintf( 'Mhs: %s (%s, %s)', $nm, $nid, $m['prodi'] ?? '—' );
+					} else {
+						$lines[] = sprintf( 'Dosen: %s (%s)', $nm, $nid );
+					}
+				}
+				$escaped = array_map( 'esc_html', $lines );
+				echo implode( '<br>', $escaped ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — sudah esc per-item
+				break;
+			case 'ph_judul':
+				echo esc_html( (string) $meta( '_judul' ) );
+				break;
+			case 'ph_kontak':
+				echo esc_html( (string) $meta( '_email' ) ) . '<br>' . esc_html( (string) $meta( '_hp' ) );
+				break;
+		}
 	}
 
 	public function register_routes(): void {
@@ -263,6 +356,27 @@ class ITSI_LP2M_Hibah_Receiver {
 
 		$clean['anggota'] = mb_substr( $clean['anggota'], 0, 500 );
 
+		// Anggota tim dinamis: array [{tipe, nomor, nama, prodi}] — max 2.
+		$clean['anggota_list'] = [];
+		$raw_list = $params['anggota_list'] ?? [];
+		if ( is_array( $raw_list ) ) {
+			foreach ( $raw_list as $m ) {
+				if ( count( $clean['anggota_list'] ) >= 2 ) { break; }
+				if ( ! is_array( $m ) ) { continue; }
+				$tipe = ( 'mahasiswa' === ( $m['tipe'] ?? '' ) ) ? 'mahasiswa' : 'dosen';
+				$nomor = wp_strip_all_tags( (string) ( $m['nomor'] ?? '' ), true );
+				$nama  = wp_strip_all_tags( (string) ( $m['nama'] ?? '' ), true );
+				$prodi = wp_strip_all_tags( (string) ( $m['prodi'] ?? '' ), true );
+				if ( '' === trim( $nomor ) && '' === trim( $nama ) ) { continue; }
+				$clean['anggota_list'][] = [
+					'tipe'  => $tipe,
+					'nomor' => mb_substr( preg_replace( '/[^a-zA-Z0-9\-\\.]/', '', $nomor ), 0, 40 ),
+					'nama'  => mb_substr( $nama, 0, 150 ),
+					'prodi' => mb_substr( $prodi, 0, 150 ),
+				];
+			}
+		}
+
 		return $clean;
 	}
 
@@ -296,6 +410,13 @@ class ITSI_LP2M_Hibah_Receiver {
 		$hp_digits = preg_replace( '/[^0-9]/', '', $params['hp'] );
 		if ( strlen( $hp_digits ) < 10 ) {
 			$errors['hp'] = 'Nomor WhatsApp minimal 10 digit.';
+		}
+
+		// Anggota tim dinamis (max 2): tiap entry butuh nomor + nama lengkap.
+		foreach ( $params['anggota_list'] as $i => $m ) {
+			if ( '' === trim( (string) $m['nomor'] ) || '' === trim( (string) $m['nama'] ) ) {
+				$errors[ 'anggota_list_' . $i ] = 'Nomor & nama anggota #' . ( $i + 1 ) . ' wajib diisi.';
+			}
 		}
 
 		$hibah_id = (int) $params['hibah_id'];
@@ -378,8 +499,7 @@ class ITSI_LP2M_Hibah_Receiver {
 				'kelompok_keahlian' => get_post_meta( $post->ID, '_kelompok_keahlian', true ),
 				'judul'      => get_post_meta( $post->ID, '_judul', true ),
 				'email'      => get_post_meta( $post->ID, '_email', true ),
-				'hp'         => get_post_meta( $post->ID, '_hp', true ),
-				'created_at' => $post->post_date,
+				'hp'         => get_post_meta( $post->ID, '_hp', true ),			'anggota_list' => json_decode( (string) get_post_meta( $post->ID, '_anggota_list', true ), true ) ?: [],				'created_at' => $post->post_date,
 			];
 		}
 
@@ -417,6 +537,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			'ringkasan'  => get_post_meta( $post->ID, '_ringkasan', true ),
 			'jml_tim'    => get_post_meta( $post->ID, '_jml_tim', true ),
 			'anggota'    => get_post_meta( $post->ID, '_anggota', true ),
+			'anggota_list' => json_decode( (string) get_post_meta( $post->ID, '_anggota_list', true ), true ) ?: [],
 			'email'      => get_post_meta( $post->ID, '_email', true ),
 			'hp'         => get_post_meta( $post->ID, '_hp', true ),
 			'created_at' => $post->post_date,
@@ -467,8 +588,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			"<p><strong>Kelompok Keahlian:</strong> %s</p>\n" .
 			"<p><strong>Judul Usulan:</strong> %s</p>\n" .
 			"<p><strong>Ringkasan:</strong> %s</p>\n" .
-			"<p><strong>Jumlah Tim:</strong> %s</p>\n" .
-			"<p><strong>Anggota:</strong> %s</p>\n" .
+			"<p><strong>Anggota Tim:</strong></p>\n%s\n" .
 			"<p><strong>Email:</strong> %s | <strong>WhatsApp:</strong> %s</p>",
 			esc_html( $event_title ?: '—' ),
 			esc_html( $params['nama'] ), esc_html( $params['nip'] ),
@@ -479,8 +599,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			esc_html( $params['kelompok_keahlian'] ?: '—' ),
 			esc_html( $params['judul'] ),
 			esc_html( $params['ringkasan'] ),
-			esc_html( $params['jml_tim'] ?: '—' ),
-			esc_html( $params['anggota'] ?: '—' ),
+			$this->format_anggota_html( $params['anggota_list'] ),
 			esc_html( $params['email'] ), esc_html( $params['hp'] )
 		);
 
@@ -510,6 +629,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			'_sdgs'             => $params['sdgs'], '_sdgs_id' => $params['sdgs_id'],
 			'_kelompok_keahlian' => $params['kelompok_keahlian'], '_kk_id' => $params['kk_id'],
 		];
+		$meta['_anggota_list'] = wp_json_encode( $params['anggota_list'] );
 
 		foreach ( $meta as $mk => $mv ) {
 			update_post_meta( $post_id, $mk, $mv );
@@ -525,13 +645,62 @@ class ITSI_LP2M_Hibah_Receiver {
 		wp_mail( $admin_email,
 			sprintf( '[LP2M] Pendaftaran Hibah Baru — %s', $reg_no ),
 			sprintf(
-				"Event Hibah: %s\nNo: %s\nNama: %s\nNIP: %s\nJenis: %s\nModel Hibah: %s\nJenis Hibah: %s\nSDGs: %s\nKel. Keahlian: %s\nJudul: %s\n\nCek: %s/wp-admin/",
+				"Event Hibah: %s\nNo: %s\nNama: %s\nNIP: %s\nJenis: %s\nModel Hibah: %s\nJenis Hibah: %s\nSDGs: %s\nKel. Keahlian: %s\nJudul: %s\nAnggota Tim:\n%s\n\nCek: %s/wp-admin/",
 				$event_name ?: '—', $reg_no, $params['nama'], $params['nip'],
 				$params['jenis'], $params['skema'],
 				$params['jenis_hibah'] ?: '—', $params['sdgs'] ?: '—', $params['kelompok_keahlian'] ?: '—',
-				$params['judul'], get_site_url()
+				$params['judul'], $this->format_anggota_text( $params['anggota_list'] ), get_site_url()
 			)
 		);
+	}
+
+	/**
+	 * Format daftar anggota tim dinamis → HTML (untuk konten CPT + email HTML).
+	 */
+	private function format_anggota_html( array $list ): string {
+		if ( empty( $list ) ) {
+			return '<p>—</p>';
+		}
+		$html = '<ul style="margin:4px 0 0 20px">';
+		foreach ( $list as $i => $m ) {
+			$no   = (int) $i + 1;
+			$tipe = ( 'mahasiswa' === ( $m['tipe'] ?? '' ) ) ? 'Mahasiswa' : 'Dosen';
+			if ( 'mahasiswa' === ( $m['tipe'] ?? '' ) ) {
+				$html .= sprintf(
+					'<li>%d. %s — %s (NIM: %s, Prodi: %s)</li>',
+					$no, esc_html( $m['nama'] ?? '' ), esc_html( $tipe ),
+					esc_html( $m['nomor'] ?? '' ), esc_html( $m['prodi'] ?? '—' )
+				);
+			} else {
+				$html .= sprintf(
+					'<li>%d. %s — %s (NIDN: %s)</li>',
+					$no, esc_html( $m['nama'] ?? '' ), esc_html( $tipe ),
+					esc_html( $m['nomor'] ?? '' )
+				);
+			}
+		}
+		$html .= '</ul>';
+		return $html;
+	}
+
+	/**
+	 * Format daftar anggota tim dinamis → plain text (untuk email admin).
+	 */
+	private function format_anggota_text( array $list ): string {
+		if ( empty( $list ) ) {
+			return '—';
+		}
+		$lines = [];
+		foreach ( $list as $i => $m ) {
+			$no   = (int) $i + 1;
+			$tipe = ( 'mahasiswa' === ( $m['tipe'] ?? '' ) ) ? 'Mahasiswa' : 'Dosen';
+			if ( 'mahasiswa' === ( $m['tipe'] ?? '' ) ) {
+				$lines[] = sprintf( '%d. %s (%s, NIM %s, Prodi %s)', $no, $m['nama'] ?? '', $tipe, $m['nomor'] ?? '', $m['prodi'] ?? '—' );
+			} else {
+				$lines[] = sprintf( '%d. %s (%s, NIDN %s)', $no, $m['nama'] ?? '', $tipe, $m['nomor'] ?? '' );
+			}
+		}
+		return implode( "\n", $lines );
 	}
 }
 
