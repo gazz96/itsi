@@ -479,12 +479,100 @@ add_action( 'typerocket_loaded', function () {
 	$kat_hibah->setRest( 'kategori_hibah' );
 	$kat_hibah->addPostType( 'hibah' );
 
-	$skema_hibah = tr_taxonomy( 'Skema Hibah', 'Skema Hibah' );
-	$skema_hibah->setId( 'skema_hibah' );
-	$skema_hibah->setSlug( 'skema-hibah' );
+	$skema_hibah = tr_taxonomy( 'Model Hibah', 'Model Hibah' );
+	$skema_hibah->setId( 'model_hibah' );
+	$skema_hibah->setSlug( 'model-hibah' );
 	$skema_hibah->setHierarchical( true );
-	$skema_hibah->setRest( 'skema_hibah' );
+	$skema_hibah->setRest( 'model_hibah' );
 	$skema_hibah->addPostType( 'hibah' );
+
+	$jenis_hibah = tr_taxonomy( 'Jenis Hibah', 'Jenis Hibah' );
+	$jenis_hibah->setId( 'jenis_hibah' );
+	$jenis_hibah->setSlug( 'jenis-hibah' );
+	$jenis_hibah->setHierarchical( false );
+	$jenis_hibah->setRest( 'jenis_hibah' );
+	$jenis_hibah->addPostType( 'hibah' );
+
+	$sdgs = tr_taxonomy( 'SDGs (Sustainable Development Goals)', 'SDGs' );
+	$sdgs->setId( 'sdgs' );
+	$sdgs->setSlug( 'sdgs' );
+	$sdgs->setHierarchical( false );
+	$sdgs->setRest( 'sdgs' );
+	$sdgs->addPostType( 'hibah' );
+
+	$kelompok_keahlian = tr_taxonomy( 'Kelompok Keahlian', 'Kelompok Keahlian' );
+	$kelompok_keahlian->setId( 'kelompok_keahlian' );
+	$kelompok_keahlian->setSlug( 'kelompok-keahlian' );
+	$kelompok_keahlian->setHierarchical( false );
+	$kelompok_keahlian->setRest( 'kelompok_keahlian' );
+	$kelompok_keahlian->addPostType( 'hibah' );
+
+	// ── Migrasi & seed: skema_hibah → model_hibah + default SDGs ──
+	add_action( 'init', function () {
+		if ( ! taxonomy_exists( 'skema_hibah' ) ) { return; }
+
+		// 1) Migrasi term skema_hibah → model_hibah (sekali saja, via option flag).
+		if ( ! get_option( 'itsi_model_hibah_migrated' ) ) {
+			$old_terms = get_terms( array(
+				'taxonomy'   => 'skema_hibah',
+				'hide_empty' => false,
+			) );
+			if ( ! is_wp_error( $old_terms ) ) {
+				foreach ( $old_terms as $term ) {
+					$exists = term_exists( $term->name, 'model_hibah' );
+					if ( ! $exists ) {
+						$new = wp_insert_term( $term->name, 'model_hibah', array(
+							'slug'        => $term->slug,
+							'parent'      => 0,
+							'description' => $term->description,
+						) );
+						if ( ! is_wp_error( $new ) ) {
+							$new_id = (int) $new['term_id'];
+						} else {
+							$maybe = term_exists( $term->name, 'model_hibah' );
+							$new_id = is_array( $maybe ) ? (int) $maybe['term_id'] : 0;
+						}
+					} else {
+						$new_id = is_array( $exists ) ? (int) $exists['term_id'] : (int) $exists;
+					}
+
+					// Pindahkan relasi post (obj_id → old term) ke term baru.
+					if ( $new_id ) {
+						global $wpdb;
+						$posts = $wpdb->get_col( $wpdb->prepare(
+							"SELECT object_id FROM {$wpdb->term_relationships} WHERE term_taxonomy_id = %d",
+							(int) $term->term_taxonomy_id
+						) );
+						foreach ( $posts as $pid ) {
+							wp_set_object_terms( (int) $pid, array( $new_id ), 'model_hibah', true );
+						}
+					}
+				}
+			}
+			update_option( 'itsi_model_hibah_migrated', 1 );
+		}
+
+		// 2) Seed default SDGs (17 tujuan) kalau taxonomy masih kosong.
+		if ( ! get_option( 'itsi_sdgs_seeded' ) ) {
+			$sdgs = array(
+				'1 No Poverty', '2 Zero Hunger', '3 Good Health and Well-being',
+				'4 Quality Education', '5 Gender Equality', '6 Clean Water and Sanitation',
+				'7 Affordable and Clean Energy', '8 Decent Work and Economic Growth',
+				'9 Industry, Innovation and Infrastructure', '10 Reduced Inequality',
+				'11 Sustainable Cities and Communities', '12 Responsible Consumption and Production',
+				'13 Climate Action', '14 Life Below Water', '15 Life on Land',
+				'16 Peace and Justice Strong Institutions', '17 Partnerships for the Goals',
+			);
+			$existing = get_terms( array( 'taxonomy' => 'sdgs', 'hide_empty' => false, 'fields' => 'names' ) );
+			$existing = is_wp_error( $existing ) ? array() : $existing;
+			foreach ( $sdgs as $name ) {
+				if ( ! in_array( $name, $existing, true ) ) {
+					wp_insert_term( $name, 'sdgs', array( 'slug' => sanitize_title( $name ) ) );
+				}
+			}
+			update_option( 'itsi_sdgs_seeded', 1 );
+		}
+	} );
 
 	// ═══ META BOXES ════════════════════════════════════════════
 	tr_meta_box( 'Prioritas Pengumuman' )

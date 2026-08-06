@@ -106,9 +106,11 @@ class ITSI_LP2M_Hibah_Receiver {
 			$prodi_options[] = [ 'id' => $p->ID, 'name' => get_the_title( $p ) ];
 		}
 
-		// Skema: taxonomy skema_hibah hierarchical → flatten parent-child + desc.
+		// Skema: taxonomy model_hibah hierarchical → flatten parent-child + desc.
+		// (Legacy: kalau model_hibah belum ada, fallback ke skema_hibah.)
+		$skema_tax = taxonomy_exists( 'model_hibah' ) ? 'model_hibah' : 'skema_hibah';
 		$skema_terms = get_terms( [
-			'taxonomy'   => 'skema_hibah',
+			'taxonomy'   => $skema_tax,
 			'hide_empty' => false,
 			'orderby'    => 'name',
 			'order'      => 'ASC',
@@ -136,11 +138,57 @@ class ITSI_LP2M_Hibah_Receiver {
 			}
 		}
 
+		// Jenis hibah: taxonomy jenis_hibah.
+		$jenis_options = [];
+		$jenis_terms   = get_terms( [
+			'taxonomy'   => 'jenis_hibah',
+			'hide_empty' => false,
+			'orderby'    => 'name',
+			'order'      => 'ASC',
+		] );
+		if ( ! is_wp_error( $jenis_terms ) ) {
+			foreach ( $jenis_terms as $t ) {
+				$jenis_options[] = [ 'id' => $t->term_id, 'name' => $t->name, 'desc' => $t->description ];
+			}
+		}
+
+		// SDGs: taxonomy sdgs.
+		$sdgs_options = [];
+		$sdgs_terms   = get_terms( [
+			'taxonomy'   => 'sdgs',
+			'hide_empty' => false,
+			'orderby'    => 'name',
+			'order'      => 'ASC',
+		] );
+		if ( ! is_wp_error( $sdgs_terms ) ) {
+			foreach ( $sdgs_terms as $t ) {
+				$sdgs_options[] = [ 'id' => $t->term_id, 'name' => $t->name ];
+			}
+		}
+
+		// Kelompok keahlian: taxonomy kelompok_keahlian.
+		$kk_options = [];
+		$kk_terms   = get_terms( [
+			'taxonomy'   => 'kelompok_keahlian',
+			'hide_empty' => false,
+			'orderby'    => 'name',
+			'order'      => 'ASC',
+		] );
+		if ( ! is_wp_error( $kk_terms ) ) {
+			foreach ( $kk_terms as $t ) {
+				$kk_options[] = [ 'id' => $t->term_id, 'name' => $t->name ];
+			}
+		}
+
 		return new \WP_REST_Response( [
-			'success'       => true,
-			'hibah_id'      => $id,
-			'prodi_options' => $prodi_options,
-			'skema_options' => $skema_options,
+			'success'          => true,
+			'hibah_id'         => $id,
+			'prodi_options'    => $prodi_options,
+			'skema_options'    => $skema_options,
+			'jenis_options'    => $jenis_options,
+			'sdgs_options'     => $sdgs_options,
+			'kk_options'       => $kk_options,
+			'kelompok_options' => $kk_options,
 		], 200 );
 	}
 
@@ -178,6 +226,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			'hibah_id', 'nama', 'nip', 'jenis', 'prodi', 'skema', 'judul',
 			'ringkasan', 'jml_tim', 'anggota', 'email', 'hp',
 			'skema_id', 'prodi_id',
+			'jenis_hibah', 'jenis_hibah_id', 'sdgs', 'sdgs_id', 'kelompok_keahlian', 'kk_id',
 		];
 
 		$clean = [];
@@ -190,6 +239,9 @@ class ITSI_LP2M_Hibah_Receiver {
 		$clean['hibah_id'] = (string) absint( $clean['hibah_id'] );
 		$clean['skema_id'] = (string) absint( $clean['skema_id'] );
 		$clean['prodi_id'] = (string) absint( $clean['prodi_id'] );
+		$clean['jenis_hibah_id'] = (string) absint( $clean['jenis_hibah_id'] );
+		$clean['sdgs_id'] = (string) absint( $clean['sdgs_id'] );
+		$clean['kk_id'] = (string) absint( $clean['kk_id'] );
 
 		$jenis_whitelist = [ 'Dosen', 'Mahasiswa', 'Tenaga Kependidikan' ];
 		if ( ! in_array( $clean['jenis'], $jenis_whitelist, true ) ) {
@@ -204,7 +256,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		$clean['hp']    = preg_replace( '/[^0-9\+\-]/', '', $clean['hp'] );
 		$clean['email'] = sanitize_email( $clean['email'] );
 
-		$text_fields = [ 'nama', 'prodi', 'skema', 'judul', 'ringkasan', 'anggota' ];
+		$text_fields = [ 'nama', 'prodi', 'skema', 'judul', 'ringkasan', 'anggota', 'jenis_hibah', 'sdgs', 'kelompok_keahlian' ];
 		foreach ( $text_fields as $f ) {
 			$clean[ $f ] = wp_strip_all_tags( $clean[ $f ], true );
 		}
@@ -235,7 +287,7 @@ class ITSI_LP2M_Hibah_Receiver {
 
 		if ( '' === trim( $params['jenis'] ) ) { $errors['jenis'] = 'Jenis Pengusul wajib dipilih.'; }
 		if ( '' === trim( $params['prodi'] ) ) { $errors['prodi'] = 'Program Studi / Unit Kerja wajib dipilih.'; }
-		if ( '' === trim( $params['skema'] ) ) { $errors['skema'] = 'Skema Hibah wajib dipilih.'; }
+		if ( '' === trim( $params['skema'] ) ) { $errors['skema'] = 'Model Hibah wajib dipilih.'; }
 
 		if ( '' !== $params['email'] && ! is_email( $params['email'] ) ) {
 			$errors['email'] = 'Format email tidak valid.';
@@ -321,6 +373,9 @@ class ITSI_LP2M_Hibah_Receiver {
 				'jenis'      => get_post_meta( $post->ID, '_jenis', true ),
 				'prodi'      => get_post_meta( $post->ID, '_prodi', true ),
 				'skema'      => get_post_meta( $post->ID, '_skema', true ),
+				'jenis_hibah' => get_post_meta( $post->ID, '_jenis_hibah', true ),
+				'sdgs'       => get_post_meta( $post->ID, '_sdgs', true ),
+				'kelompok_keahlian' => get_post_meta( $post->ID, '_kelompok_keahlian', true ),
 				'judul'      => get_post_meta( $post->ID, '_judul', true ),
 				'email'      => get_post_meta( $post->ID, '_email', true ),
 				'hp'         => get_post_meta( $post->ID, '_hp', true ),
@@ -355,6 +410,9 @@ class ITSI_LP2M_Hibah_Receiver {
 			'jenis'      => get_post_meta( $post->ID, '_jenis', true ),
 			'prodi'      => get_post_meta( $post->ID, '_prodi', true ),
 			'skema'      => get_post_meta( $post->ID, '_skema', true ),
+			'jenis_hibah' => get_post_meta( $post->ID, '_jenis_hibah', true ),
+			'sdgs'       => get_post_meta( $post->ID, '_sdgs', true ),
+			'kelompok_keahlian' => get_post_meta( $post->ID, '_kelompok_keahlian', true ),
 			'judul'      => get_post_meta( $post->ID, '_judul', true ),
 			'ringkasan'  => get_post_meta( $post->ID, '_ringkasan', true ),
 			'jml_tim'    => get_post_meta( $post->ID, '_jml_tim', true ),
@@ -403,7 +461,10 @@ class ITSI_LP2M_Hibah_Receiver {
 			"<p><strong>NIP/NIDN:</strong> %s</p>\n" .
 			"<p><strong>Jenis:</strong> %s</p>\n" .
 			"<p><strong>Prodi:</strong> %s</p>\n" .
-			"<p><strong>Skema:</strong> %s</p>\n" .
+			"<p><strong>Model Hibah:</strong> %s</p>\n" .
+			"<p><strong>Jenis Hibah:</strong> %s</p>\n" .
+			"<p><strong>SDGs:</strong> %s</p>\n" .
+			"<p><strong>Kelompok Keahlian:</strong> %s</p>\n" .
 			"<p><strong>Judul Usulan:</strong> %s</p>\n" .
 			"<p><strong>Ringkasan:</strong> %s</p>\n" .
 			"<p><strong>Jumlah Tim:</strong> %s</p>\n" .
@@ -412,7 +473,11 @@ class ITSI_LP2M_Hibah_Receiver {
 			esc_html( $event_title ?: '—' ),
 			esc_html( $params['nama'] ), esc_html( $params['nip'] ),
 			esc_html( $params['jenis'] ), esc_html( $params['prodi'] ),
-			esc_html( $params['skema'] ), esc_html( $params['judul'] ),
+			esc_html( $params['skema'] ),
+			esc_html( $params['jenis_hibah'] ?: '—' ),
+			esc_html( $params['sdgs'] ?: '—' ),
+			esc_html( $params['kelompok_keahlian'] ?: '—' ),
+			esc_html( $params['judul'] ),
 			esc_html( $params['ringkasan'] ),
 			esc_html( $params['jml_tim'] ?: '—' ),
 			esc_html( $params['anggota'] ?: '—' ),
@@ -441,6 +506,9 @@ class ITSI_LP2M_Hibah_Receiver {
 			'_ringkasan' => $params['ringkasan'], '_jml_tim' => $params['jml_tim'],
 			'_anggota'   => $params['anggota'], '_email' => $params['email'],
 			'_hp'        => $params['hp'],
+			'_jenis_hibah'      => $params['jenis_hibah'], '_jenis_hibah_id' => $params['jenis_hibah_id'],
+			'_sdgs'             => $params['sdgs'], '_sdgs_id' => $params['sdgs_id'],
+			'_kelompok_keahlian' => $params['kelompok_keahlian'], '_kk_id' => $params['kk_id'],
 		];
 
 		foreach ( $meta as $mk => $mv ) {
@@ -457,9 +525,11 @@ class ITSI_LP2M_Hibah_Receiver {
 		wp_mail( $admin_email,
 			sprintf( '[LP2M] Pendaftaran Hibah Baru — %s', $reg_no ),
 			sprintf(
-				"Event Hibah: %s\nNo: %s\nNama: %s\nNIP: %s\nJenis: %s\nSkema: %s\nJudul: %s\n\nCek: %s/wp-admin/",
+				"Event Hibah: %s\nNo: %s\nNama: %s\nNIP: %s\nJenis: %s\nModel Hibah: %s\nJenis Hibah: %s\nSDGs: %s\nKel. Keahlian: %s\nJudul: %s\n\nCek: %s/wp-admin/",
 				$event_name ?: '—', $reg_no, $params['nama'], $params['nip'],
-				$params['jenis'], $params['skema'], $params['judul'], get_site_url()
+				$params['jenis'], $params['skema'],
+				$params['jenis_hibah'] ?: '—', $params['sdgs'] ?: '—', $params['kelompok_keahlian'] ?: '—',
+				$params['judul'], get_site_url()
 			)
 		);
 	}

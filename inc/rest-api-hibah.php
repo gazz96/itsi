@@ -173,6 +173,23 @@ function itsi_hibah_register_rest_fields() {
 		},
 		'schema' => array( 'type' => 'array', 'description' => 'Category names', 'context' => array( 'view' ) ),
 	) );
+
+	// ── Taxonomy names (SDGs, Jenis Hibah, Kelompok Keahlian, Model Hibah) ──
+	$tax_name_fields = array(
+		'sdgs'               => 'SDGs terms',
+		'jenis_hibah'        => 'Jenis Hibah terms',
+		'kelompok_keahlian'  => 'Kelompok Keahlian terms',
+		'model_hibah'        => 'Model Hibah terms',
+	);
+	foreach ( $tax_name_fields as $tax => $desc ) {
+		register_rest_field( 'hibah', $tax . '_names', array(
+			'get_callback' => function ( $post ) use ( $tax ) {
+				$terms = wp_get_post_terms( $post['id'], $tax, array( 'fields' => 'names' ) );
+				return is_wp_error( $terms ) ? array() : $terms;
+			},
+			'schema' => array( 'type' => 'array', 'description' => $desc . ' (names)', 'context' => array( 'view' ) ),
+		) );
+	}
 }
 add_action( 'rest_api_init', 'itsi_hibah_register_rest_fields' );
 
