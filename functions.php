@@ -794,12 +794,12 @@ add_action( 'typerocket_loaded', function () {
 				$tabs->tab( 'Panduan & Template', 'dashicons-media-document', array(
 					'<div style="margin-bottom:1rem">'
 					. '<h4 style="margin:.4rem 0 .5rem">📘 Panduan Penulisan (DOCX/PDF)</h4>'
-					. $form->image( 'file_panduan' )->setLabel( 'Upload File Panduan' )
+					. $form->file( 'file_panduan' )->setLabel( 'Upload File Panduan' )
 						->setHelp( 'File panduan penulisan proposal (DOCX/PDF). Bisa upload beberapa file.' )
 					. '</div>'
 					. '<div style="margin-bottom:1rem">'
 					. '<h4 style="margin:.4rem 0 .5rem">📝 Template Dokumen (DOCX/XLSX)</h4>'
-					. $form->image( 'file_template' )->setLabel( 'Upload File Template' )
+					. $form->file( 'file_template' )->setLabel( 'Upload File Template' )
 						->setHelp( 'File template proposal/laporan yang siap diisi.' )
 					. '</div>'
 					. '<div style="margin-top:1rem">'

@@ -154,6 +154,17 @@ function itsi_hibah_register_rest_fields() {
 		'schema' => array( 'type' => 'array', 'description' => 'File template (URLs)', 'context' => array( 'view' ) ),
 	) );
 
+	// ── Thumbnail URL ──
+	register_rest_field( 'hibah', 'thumbnail_url', array(
+		'get_callback' => function ( $post ) {
+			$thumb_id = get_post_thumbnail_id( $post['id'] );
+			if ( ! $thumb_id ) { return ''; }
+			$url = wp_get_attachment_image_url( $thumb_id, 'large' );
+			return $url ? $url : '';
+		},
+		'schema' => array( 'type' => 'string', 'description' => 'Featured image URL', 'context' => array( 'view' ) ),
+	) );
+
 	// ── Category names ──
 	register_rest_field( 'hibah', 'category_names', array(
 		'get_callback' => function ( $post ) {
@@ -262,12 +273,16 @@ function itsi_hibah_get_nearest_deadline( WP_REST_Request $request ) {
 
 	$cats = wp_get_post_categories( $id, array( 'fields' => 'names' ) );
 
+	$thumb_id  = get_post_thumbnail_id( $id );
+	$thumb_url = $thumb_id ? wp_get_attachment_image_url( $thumb_id, 'large' ) : '';
+
 	$data = array(
 		'id'             => $id,
 		'slug'           => $post->post_name,
 		'title'          => get_the_title( $post ),
 		'excerpt'        => get_the_excerpt( $post ),
 		'permalink'      => get_permalink( $post ),
+		'thumbnail_url'  => $thumb_url ? $thumb_url : '',
 		'deadline'       => get_post_meta( $id, 'deadline', true ),
 		'deadline_label' => get_post_meta( $id, 'deadline_label', true ),
 		'event_eyebrow'  => get_post_meta( $id, 'event_eyebrow', true ),
