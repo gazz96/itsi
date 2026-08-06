@@ -231,7 +231,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			}
 		}
 
-		// Jenis hibah: taxonomy jenis_hibah.
+		// Jenis hibah: taxonomy jenis_hibah (hierarchical → flatten parent-child).
 		$jenis_options = [];
 		$jenis_terms   = get_terms( [
 			'taxonomy'   => 'jenis_hibah',
@@ -240,9 +240,25 @@ class ITSI_LP2M_Hibah_Receiver {
 			'order'      => 'ASC',
 		] );
 		if ( ! is_wp_error( $jenis_terms ) ) {
+			$jenis_by_id = [];
+			foreach ( $jenis_terms as $t ) {
+				$jenis_by_id[ $t->term_id ] = $t;
+			}
 			foreach ( $jenis_terms as $t ) {
 				if ( '' === trim( (string) $t->name ) ) { continue; }
-				$jenis_options[] = [ 'id' => $t->term_id, 'name' => $t->name, 'desc' => $t->description ];
+				$label  = $t->name;
+				$parent = '';
+				if ( $t->parent && isset( $jenis_by_id[ $t->parent ] ) ) {
+					$label  = $jenis_by_id[ $t->parent ]->name . ' — ' . $t->name;
+					$parent = $jenis_by_id[ $t->parent ]->name;
+				}
+				$jenis_options[] = [
+					'id'     => $t->term_id,
+					'label'  => $label,
+					'name'   => $t->name,
+					'parent' => $parent,
+					'desc'   => $t->description,
+				];
 			}
 		}
 
@@ -261,7 +277,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			}
 		}
 
-		// Kelompok keahlian: taxonomy kelompok_keahlian.
+		// Kelompok keahlian: taxonomy kelompok_keahlian (hierarchical → flatten parent-child).
 		$kk_options = [];
 		$kk_terms   = get_terms( [
 			'taxonomy'   => 'kelompok_keahlian',
@@ -270,9 +286,25 @@ class ITSI_LP2M_Hibah_Receiver {
 			'order'      => 'ASC',
 		] );
 		if ( ! is_wp_error( $kk_terms ) ) {
+			$kk_by_id = [];
+			foreach ( $kk_terms as $t ) {
+				$kk_by_id[ $t->term_id ] = $t;
+			}
 			foreach ( $kk_terms as $t ) {
 				if ( '' === trim( (string) $t->name ) ) { continue; }
-				$kk_options[] = [ 'id' => $t->term_id, 'name' => $t->name ];
+				$label  = $t->name;
+				$parent = '';
+				if ( $t->parent && isset( $kk_by_id[ $t->parent ] ) ) {
+					$label  = $kk_by_id[ $t->parent ]->name . ' — ' . $t->name;
+					$parent = $kk_by_id[ $t->parent ]->name;
+				}
+				$kk_options[] = [
+					'id'     => $t->term_id,
+					'label'  => $label,
+					'name'   => $t->name,
+					'parent' => $parent,
+					'desc'   => $t->description,
+				];
 			}
 		}
 

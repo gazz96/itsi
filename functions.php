@@ -489,7 +489,7 @@ add_action( 'typerocket_loaded', function () {
 	$jenis_hibah = tr_taxonomy( 'Jenis Hibah', 'Jenis Hibah' );
 	$jenis_hibah->setId( 'jenis_hibah' );
 	$jenis_hibah->setSlug( 'jenis-hibah' );
-	$jenis_hibah->setHierarchical( false );
+	$jenis_hibah->setHierarchical( true );
 	$jenis_hibah->setRest( 'jenis_hibah' );
 	$jenis_hibah->addPostType( 'hibah' );
 
@@ -503,7 +503,7 @@ add_action( 'typerocket_loaded', function () {
 	$kelompok_keahlian = tr_taxonomy( 'Kelompok Keahlian', 'Kelompok Keahlian' );
 	$kelompok_keahlian->setId( 'kelompok_keahlian' );
 	$kelompok_keahlian->setSlug( 'kelompok-keahlian' );
-	$kelompok_keahlian->setHierarchical( false );
+	$kelompok_keahlian->setHierarchical( true );
 	$kelompok_keahlian->setRest( 'kelompok_keahlian' );
 	$kelompok_keahlian->addPostType( 'hibah' );
 
