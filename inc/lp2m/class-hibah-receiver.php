@@ -49,7 +49,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			if ( 'date' === $key ) {
 				$new['ph_reg_no']     = 'Reg No';
 				$new['ph_nama']       = 'Nama';
-				$new['ph_nip']        = 'NIDN/NIDK/NIM';
+				$new['ph_nip']        = 'NIDN/NIDK';
 				$new['ph_prodi']      = 'Prodi';
 				$new['ph_model']      = 'Model Hibah';
 				$new['ph_jenis_hibah'] = 'Jenis Hibah';
@@ -241,6 +241,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		] );
 		if ( ! is_wp_error( $jenis_terms ) ) {
 			foreach ( $jenis_terms as $t ) {
+				if ( '' === trim( (string) $t->name ) ) { continue; }
 				$jenis_options[] = [ 'id' => $t->term_id, 'name' => $t->name, 'desc' => $t->description ];
 			}
 		}
@@ -255,6 +256,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		] );
 		if ( ! is_wp_error( $sdgs_terms ) ) {
 			foreach ( $sdgs_terms as $t ) {
+				if ( '' === trim( (string) $t->name ) ) { continue; }
 				$sdgs_options[] = [ 'id' => $t->term_id, 'name' => $t->name ];
 			}
 		}
@@ -269,6 +271,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		] );
 		if ( ! is_wp_error( $kk_terms ) ) {
 			foreach ( $kk_terms as $t ) {
+				if ( '' === trim( (string) $t->name ) ) { continue; }
 				$kk_options[] = [ 'id' => $t->term_id, 'name' => $t->name ];
 			}
 		}
@@ -356,14 +359,22 @@ class ITSI_LP2M_Hibah_Receiver {
 
 		$clean['anggota'] = mb_substr( $clean['anggota'], 0, 500 );
 
-		// Anggota tim dinamis: array [{tipe, nomor, nama, prodi}] — max 2.
+		// Anggota tim dinamis: array [{tipe, nomor, nama, prodi}] — max 2 dosen + 2 mahasiswa.
 		$clean['anggota_list'] = [];
 		$raw_list = $params['anggota_list'] ?? [];
+		$dosen_count = 0;
+		$mhs_count   = 0;
 		if ( is_array( $raw_list ) ) {
 			foreach ( $raw_list as $m ) {
-				if ( count( $clean['anggota_list'] ) >= 2 ) { break; }
 				if ( ! is_array( $m ) ) { continue; }
 				$tipe = ( 'mahasiswa' === ( $m['tipe'] ?? '' ) ) ? 'mahasiswa' : 'dosen';
+				if ( 'mahasiswa' === $tipe ) {
+					if ( $mhs_count >= 2 ) { continue; }
+					$mhs_count++;
+				} else {
+					if ( $dosen_count >= 2 ) { continue; }
+					$dosen_count++;
+				}
 				$nomor = wp_strip_all_tags( (string) ( $m['nomor'] ?? '' ), true );
 				$nama  = wp_strip_all_tags( (string) ( $m['nama'] ?? '' ), true );
 				$prodi = wp_strip_all_tags( (string) ( $m['prodi'] ?? '' ), true );
@@ -388,7 +399,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		$errors = [];
 
 		$labels = [
-			'nama' => 'Nama Lengkap & Gelar', 'nip' => 'NIDN / NIDK / NIM',
+			'nama' => 'Nama Lengkap & Gelar', 'nip' => 'NIDN / NIDK',
 			'judul' => 'Judul Usulan', 'ringkasan' => 'Ringkasan Usulan',
 			'email' => 'Email Aktif', 'hp' => 'Nomor WhatsApp',
 		];
@@ -412,7 +423,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			$errors['hp'] = 'Nomor WhatsApp minimal 10 digit.';
 		}
 
-		// Anggota tim dinamis (max 2): tiap entry butuh nomor + nama lengkap.
+		// Anggota tim dinamis (max 2 dosen + 2 mahasiswa): tiap entry butuh nomor + nama lengkap.
 		foreach ( $params['anggota_list'] as $i => $m ) {
 			if ( '' === trim( (string) $m['nomor'] ) || '' === trim( (string) $m['nama'] ) ) {
 				$errors[ 'anggota_list_' . $i ] = 'Nomor & nama anggota #' . ( $i + 1 ) . ' wajib diisi.';
