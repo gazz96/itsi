@@ -31,7 +31,11 @@ function itsi_hibah_register_rest_fields() {
 					return false;
 				}
 				$clean = is_string( $value ) ? sanitize_text_field( $value ) : '';
-				if ( in_array( $field, array( 'info_tambahan', 'link_panduan' ), true ) ) {
+				if ( 'info_tambahan' === $field ) {
+					// Textarea multi-baris: pertahankan newline agar tampil satu per baris.
+					$clean = is_string( $value ) ? sanitize_textarea_field( $value ) : '';
+				}
+				if ( 'link_panduan' === $field ) {
 					$clean = is_string( $value ) ? wp_strip_all_tags( $value, true ) : '';
 				}
 				update_post_meta( $post->ID, $field, $clean );
@@ -318,6 +322,20 @@ function itsi_hibah_register_routes() {
 }
 add_action( 'rest_api_init', 'itsi_hibah_register_routes' );
 
+/**
+ * Konversi info_tambahan (textarea "satu per baris") menjadi array baris.
+ * Menerima string multi-baris, atau array (bila sudah terlanjur array).
+ */
+function itsi_hibah_lines( $value ) {
+	if ( is_array( $value ) ) {
+		return array_values( array_filter( array_map( 'trim', $value ), 'strlen' ) );
+	}
+	if ( is_string( $value ) && '' !== trim( $value ) ) {
+		return array_values( array_filter( array_map( 'trim', preg_split( '/\r\n|\r|\n/', $value ) ), 'strlen' ) );
+	}
+	return array();
+}
+
 function itsi_hibah_get_nearest_deadline( WP_REST_Request $request ) {
 	$today = current_time( 'Y-m-d' );
 
@@ -380,7 +398,7 @@ function itsi_hibah_get_nearest_deadline( WP_REST_Request $request ) {
 		'event_eyebrow'  => get_post_meta( $id, 'event_eyebrow', true ),
 		'dana_maks'      => get_post_meta( $id, 'dana_maks', true ),
 		'jumlah_tim_maks'=> get_post_meta( $id, 'jumlah_tim_maks', true ),
-		'info_tambahan'  => get_post_meta( $id, 'info_tambahan', true ),
+		'info_tambahan'  => itsi_hibah_lines( get_post_meta( $id, 'info_tambahan', true ) ),
 		'link_panduan'   => get_post_meta( $id, 'link_panduan', true ),
 		'file_panduan'   => itsi_hibah_attachment_urls( get_post_meta( $id, 'file_panduan', true ) ),
 		'file_template'  => itsi_hibah_attachment_urls( get_post_meta( $id, 'file_template', true ) ),
