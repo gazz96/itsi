@@ -140,14 +140,89 @@ function lp2m_pendaftaran_submit(WP_REST_Request $request) {
     ]);
 }
 
+/**
+ * Track status pendaftaran hibah.
+ *
+ * Mencari di CPT `pendaftaran_hibah` (data baru, meta `_reg_no` format
+ * `2026-00001`), lalu fallback ke legacy wp_options `lp2m_reg_{no}`
+ * (format lama `202608040003`).
+ *
+ * @param WP_REST_Request $request
+ * @return WP_REST_Response|WP_Error
+ */
 function lp2m_pendaftaran_status(WP_REST_Request $request) {
     $no  = sanitize_text_field($request->get_param('no'));
-    $key = 'lp2m_reg_' . $no;
-    $data = get_option($key);
-    if ( ! $data ) {
-        return new WP_Error('not_found', 'Nomor pendaftaran tidak ditemukan.', ['status' => 404]);
+    if ('' === $no) {
+        return new WP_Error('invalid_no', 'Nomor pendaftaran wajib diisi.', ['status' => 400]);
     }
-    return rest_ensure_response(array_merge(['reg_no' => $no], (array) $data));
+
+    // ── 1) Cari di CPT pendaftaran_hibah (data baru) ──
+    $q = new WP_Query([
+        'post_type'      => 'pendaftaran_hibah',
+        'post_status'    => 'private',
+        'posts_per_page' => 1,
+        'meta_query'     => [
+            [
+                'key'     => '_reg_no',
+                'value'   => $no,
+                'compare' => '=',
+            ],
+        ],
+    ]);
+
+    if ($q->have_posts()) {
+        $post = $q->posts[0];
+        $meta = function ($k) use ($post) {
+            $v = get_post_meta($post->ID, $k, true);
+            return is_string($v) ? $v : (string) $v;
+        };
+
+        $anggota_list = json_decode((string) get_post_meta($post->ID, '_anggota_list', true), true);
+        if (!is_array($anggota_list)) {
+            $anggota_list = [];
+        }
+        // Pastikan tiap entry punya field yang dibutuhkan frontend.
+        $anggota_list = array_map(static function ($m) {
+            return [
+                'tipe'  => ( 'mahasiswa' === ( $m['tipe'] ?? '' ) ) ? 'mahasiswa' : 'dosen',
+                'nama'  => (string) ( $m['nama'] ?? '' ),
+                'nomor' => (string) ( $m['nomor'] ?? '' ),
+                'prodi' => (string) ( $m['prodi'] ?? '' ),
+            ];
+        }, $anggota_list);
+
+        return rest_ensure_response([
+            'success'      => true,
+            'reg_no'       => $meta('_reg_no') ?: $no,
+            'nama'         => $meta('_nama'),
+            'nip'          => $meta('_nip'),
+            'email'        => $meta('_email'),
+            'hp'           => $meta('_hp'),
+            'judul'        => $meta('_judul'),
+            'prodi'        => $meta('_prodi'),
+            'skema'        => $meta('_skema'),
+            'jenis'        => $meta('_jenis'),
+            'jenis_hibah'  => $meta('_jenis_hibah'),
+            'sdgs'         => $meta('_sdgs'),
+            'kelompok_keahlian' => $meta('_kelompok_keahlian'),
+            'anggota_list' => $anggota_list,
+            'tanggal'      => $post->post_date,
+            'status'       => $meta('_status') ?: 'submitted',
+        ]);
+    }
+
+    // ── 2) Fallback legacy: wp_options lp2m_reg_{no} ──
+    $data = get_option('lp2m_reg_' . $no);
+    if (is_array($data)) {
+        // Data lama tidak punya anggota_list → kosongkan agar frontend aman.
+        $anggota = isset($data['anggota_list']) && is_array($data['anggota_list']) ? $data['anggota_list'] : [];
+        return rest_ensure_response(array_merge(
+            ['reg_no' => $no, 'anggota_list' => $anggota],
+            $data
+        ));
+    }
+
+    return new WP_Error('not_found', 'Nomor pendaftaran tidak ditemukan.', ['status' => 404]);
 }
 
 function lp2m_pendaftaran_test_email(WP_REST_Request $request) {
