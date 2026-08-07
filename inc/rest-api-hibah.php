@@ -140,26 +140,71 @@ function itsi_hibah_register_rest_fields() {
 
 	// ── File panduan ──
 	register_rest_field( 'hibah', 'file_panduan', array(
-		'get_callback' => function ( $post ) {
+		'get_callback'    => function ( $post ) {
 			return itsi_hibah_attachment_urls( get_post_meta( $post['id'], 'file_panduan', true ) );
 		},
-		'schema' => array( 'type' => 'array', 'description' => 'File panduan (URLs)', 'context' => array( 'view' ) ),
+		'update_callback' => function ( $value, $post ) {
+			if ( ! current_user_can( 'edit_post', $post->ID ) ) { return false; }
+			update_post_meta( $post->ID, 'file_panduan', itsi_hibah_attachment_ids( $value ) );
+			return true;
+		},
+		'schema' => array( 'type' => 'array', 'description' => 'File panduan (URLs)', 'context' => array( 'view', 'edit' ) ),
 	) );
 
 	// ── File template ──
 	register_rest_field( 'hibah', 'file_template', array(
-		'get_callback' => function ( $post ) {
+		'get_callback'    => function ( $post ) {
 			return itsi_hibah_attachment_urls( get_post_meta( $post['id'], 'file_template', true ) );
 		},
-		'schema' => array( 'type' => 'array', 'description' => 'File template (URLs)', 'context' => array( 'view' ) ),
+		'update_callback' => function ( $value, $post ) {
+			if ( ! current_user_can( 'edit_post', $post->ID ) ) { return false; }
+			update_post_meta( $post->ID, 'file_template', itsi_hibah_attachment_ids( $value ) );
+			return true;
+		},
+		'schema' => array( 'type' => 'array', 'description' => 'File template (URLs)', 'context' => array( 'view', 'edit' ) ),
 	) );
 
 	// ── File kelompok keahlian ──
 	register_rest_field( 'hibah', 'file_kelompok_keahlian', array(
-		'get_callback' => function ( $post ) {
+		'get_callback'    => function ( $post ) {
 			return itsi_hibah_attachment_urls( get_post_meta( $post['id'], 'file_kelompok_keahlian', true ) );
 		},
-		'schema' => array( 'type' => 'array', 'description' => 'File template kelompok keahlian (URLs)', 'context' => array( 'view' ) ),
+		'update_callback' => function ( $value, $post ) {
+			if ( ! current_user_can( 'edit_post', $post->ID ) ) { return false; }
+			update_post_meta( $post->ID, 'file_kelompok_keahlian', itsi_hibah_attachment_ids( $value ) );
+			return true;
+		},
+		'schema' => array( 'type' => 'array', 'description' => 'File template kelompok keahlian (URLs)', 'context' => array( 'view', 'edit' ) ),
+	) );
+
+	// ── ID media panduan (legacy dashboard form) ──
+	register_rest_field( 'hibah', 'panduan_penulisan_id', array(
+		'get_callback'    => function ( $post ) {
+			$v = get_post_meta( $post['id'], 'panduan_penulisan_id', true );
+			return $v ? (int) $v : null;
+		},
+		'update_callback' => function ( $value, $post ) {
+			if ( ! current_user_can( 'edit_post', $post->ID ) ) { return false; }
+			if ( empty( $value ) ) { delete_post_meta( $post->ID, 'panduan_penulisan_id' ); return true; }
+			update_post_meta( $post->ID, 'panduan_penulisan_id', (int) $value );
+			return true;
+		},
+		'schema' => array( 'type' => 'integer', 'description' => 'Attachment ID panduan (legacy)', 'context' => array( 'view', 'edit' ) ),
+	) );
+
+	// ── ID media template (legacy dashboard form) ──
+	register_rest_field( 'hibah', 'template_dokumen_id', array(
+		'get_callback'    => function ( $post ) {
+			$v = get_post_meta( $post['id'], 'template_dokumen_id', true );
+			return $v ? (int) $v : null;
+		},
+		'update_callback' => function ( $value, $post ) {
+			if ( ! current_user_can( 'edit_post', $post->ID ) ) { return false; }
+			if ( empty( $value ) ) { delete_post_meta( $post->ID, 'template_dokumen_id', '' ); return true; }
+			update_post_meta( $post->ID, 'template_dokumen_id', (int) $value );
+			return true;
+		},
+		'schema' => array( 'type' => 'integer', 'description' => 'Attachment ID template (legacy)', 'context' => array( 'view', 'edit' ) ),
 	) );
 
 	// ── Thumbnail URL ──
@@ -224,6 +269,28 @@ function itsi_hibah_attachment_urls( $value ) {
 		if ( $src ) { $urls[] = $src; }
 	}
 	return $urls;
+}
+
+/**
+ * Normalisasi input file field (dari REST) menjadi daftar attachment ID.
+ * Menerima: array ID, array URL, atau string CSV ID/URL.
+ */
+function itsi_hibah_attachment_ids( $value ): array {
+	if ( empty( $value ) ) { return array(); }
+	$items = is_array( $value ) ? $value : explode( ',', (string) $value );
+	$ids   = array();
+	foreach ( $items as $item ) {
+		$item = trim( (string) $item );
+		if ( '' === $item ) { continue; }
+		if ( is_numeric( $item ) ) {
+			$ids[] = (int) $item;
+			continue;
+		}
+		// URL → cari attachment by URL.
+		$att_id = attachment_url_to_postid( $item );
+		if ( $att_id ) { $ids[] = $att_id; }
+	}
+	return array_values( array_unique( array_filter( $ids ) ) );
 }
 
 function itsi_hibah_field( $row, ...$keys ) {
