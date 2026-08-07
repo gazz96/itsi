@@ -535,6 +535,19 @@ class ITSI_LP2M_Hibah_Receiver {
 		}
 
 		$errors = $this->validate( $params );
+
+		// File proposal (multipart/form-data) — validasi PDF + ukuran.
+		$proposal_file = $request->get_file_params()['proposal'] ?? null;
+		if ( is_array( $proposal_file ) && isset( $proposal_file['error'] ) && UPLOAD_ERR_OK === (int) $proposal_file['error'] ) {
+			if ( ! empty( $proposal_file['type'] ) && 'application/pdf' !== $proposal_file['type'] ) {
+				$errors['proposal'] = 'Hanya file PDF yang diperbolehkan.';
+			} elseif ( ! empty( $proposal_file['size'] ) && $proposal_file['size'] > 10 * 1024 * 1024 ) {
+				$errors['proposal'] = 'Ukuran file maksimal 10MB.';
+			}
+		} else {
+			$errors['proposal'] = 'File proposal (PDF) wajib diunggah.';
+		}
+
 		if ( ! empty( $errors ) ) {
 			return new \WP_REST_Response( [ 'success' => false, 'errors' => $errors ], 400 );
 		}
@@ -547,6 +560,17 @@ class ITSI_LP2M_Hibah_Receiver {
 			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Gagal menyimpan data.' ], 500 );
 		}
 
+		// Simpan file proposal sebagai attachment WP + meta _proposal_id/_proposal_url.
+		if ( is_array( $proposal_file ) && isset( $proposal_file['error'] ) && UPLOAD_ERR_OK === (int) $proposal_file['error'] ) {
+			$att_id = $this->upload_proposal( $proposal_file, $reg_no );
+			if ( is_wp_error( $att_id ) ) {
+				wp_delete_post( $post_id, true );
+				return new \WP_REST_Response( [ 'success' => false, 'errors' => [ 'proposal' => $att_id->get_error_message() ] ], 400 );
+			}
+			update_post_meta( $post_id, '_proposal_id', $att_id );
+			update_post_meta( $post_id, '_proposal_url', wp_get_attachment_url( $att_id ) );
+		}
+
 		$this->last_post_id = (int) $post_id;
 		$this->send_admin_email( $params, $reg_no, $hibah_id );
 
@@ -555,6 +579,55 @@ class ITSI_LP2M_Hibah_Receiver {
 			'reg_no'  => $reg_no,
 			'message' => 'Pendaftaran dikirim. No. registrasi: ' . $reg_no,
 		], 201 );
+	}
+
+	/**
+	 * Simpan file proposal (PDF) ke media library WP.
+	 *
+	 * @param array  $file   Entry $_FILES['proposal'] (name, type, tmp_name, error, size).
+	 * @param string $reg_no Nomor registrasi (untuk penamaan file).
+	 * @return int|\WP_Error Attachment ID.
+	 */
+	private function upload_proposal( array $file, string $reg_no ): int|\WP_Error {
+		if ( ! function_exists( 'wp_handle_upload' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+		}
+		if ( ! function_exists( 'media_handle_upload' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/media.php';
+		}
+		if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/image.php';
+		}
+
+		$ext  = pathinfo( (string) $file['name'], PATHINFO_EXTENSION );
+		$ext  = strtolower( (string) $ext ) ?: 'pdf';
+		$base = sanitize_file_name( sprintf( 'proposal-%s.%s', $reg_no, $ext ) );
+
+		$overrides = [
+			'test_form' => false,
+			'test_type' => true,
+			'mimes'     => [ 'pdf' => 'application/pdf' ],
+		];
+		$moved = wp_handle_upload( $file, $overrides );
+		if ( is_wp_error( $moved ) ) {
+			return $moved;
+		}
+
+		$attachment_id = wp_insert_attachment( [
+			'post_mime_type' => $moved['type'],
+			'post_title'     => 'Proposal ' . $reg_no,
+			'post_content'   => '',
+			'post_status'    => 'inherit',
+		], $moved['file'], 0 );
+
+		if ( is_wp_error( $attachment_id ) || ! $attachment_id ) {
+			return new \WP_Error( 'upload_failed', 'Gagal menyimpan file proposal.' );
+		}
+
+		$meta = wp_generate_attachment_metadata( $attachment_id, $moved['file'] );
+		wp_update_attachment_metadata( $attachment_id, $meta );
+
+		return $attachment_id;
 	}
 
 	public function handle_list( \WP_REST_Request $request ): \WP_REST_Response {
@@ -600,6 +673,8 @@ class ITSI_LP2M_Hibah_Receiver {
 				'hp'         => get_post_meta( $post->ID, '_hp', true ),
 				'status'     => $status,
 				'anggota_list' => json_decode( (string) get_post_meta( $post->ID, '_anggota_list', true ), true ) ?: [],
+				'proposal_id'  => get_post_meta( $post->ID, '_proposal_id', true ),
+				'proposal_url' => get_post_meta( $post->ID, '_proposal_url', true ),
 				'created_at' => $post->post_date,
 			];
 		}
@@ -642,6 +717,8 @@ class ITSI_LP2M_Hibah_Receiver {
 			'email'      => get_post_meta( $post->ID, '_email', true ),
 			'hp'         => get_post_meta( $post->ID, '_hp', true ),
 			'status'     => (string) ( get_post_meta( $post->ID, '_status', true ) ?: 'submitted' ),
+			'proposal_id'  => get_post_meta( $post->ID, '_proposal_id', true ),
+			'proposal_url' => get_post_meta( $post->ID, '_proposal_url', true ),
 			'created_at' => $post->post_date,
 		] ], 200 );
 	}
@@ -875,6 +952,14 @@ class ITSI_LP2M_Hibah_Receiver {
 			$admin_btn = '<p style="margin:20px 0 0"><a href="' . esc_url( $admin_link ) . '" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Lihat Detail Pendaftaran</a></p>';
 		}
 
+		// Link "Cek Status" untuk pendaftar — ambil dari setting URL frontend.
+		$frontend_url = untrailingslashit( (string) get_option( 'lp2m_site_frontend_url', '' ) );
+		$track_btn    = '';
+		if ( '' !== $frontend_url ) {
+			$track_url = $frontend_url . '/daftar/status/' . rawurlencode( $reg_no );
+			$track_btn = '<p style="margin:20px 0 0"><a href="' . esc_url( $track_url ) . '" style="display:inline-block;padding:10px 18px;background:#1f4d36;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Cek Status Pendaftaran</a></p>';
+		}
+
 		return '<div style="background:#f3f4f6;padding:24px;font-family:Segoe UI,Arial,sans-serif">'
 			. '<div style="max-width:640px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb">'
 			. '<div style="background:#0f172a;padding:20px 24px"><h2 style="margin:0;color:#fff;font-size:18px">' . esc_html( $event_name ?: 'LP2M ITSI' ) . '</h2>'
@@ -895,6 +980,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			. $row( 'Email', $params['email'] )
 			. $row( 'WhatsApp', $params['hp'] )
 			. '</table>'
+			. $track_btn
 			. $admin_btn
 			. '<p style="margin:20px 0 0;color:#6b7280;font-size:12px">Email ini dikirim otomatis oleh sistem LP2M ITSI.</p>'
 			. '</div></div></div>';

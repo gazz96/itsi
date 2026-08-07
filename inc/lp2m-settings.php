@@ -59,6 +59,9 @@ function lp2m_render() {
 		\TypeRocket\Utility\Helper::form()->input( 'lp2m_site_admin_email' )->setTypeEmail()
 			->setLabel( __( 'Email Admin (Terima Notif)', 'itsi' ) )
 			->setHelp( __( 'Email yang menerima notifikasi pendaftaran hibah baru.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()->input( 'lp2m_site_frontend_url' )->setTypeUrl()
+			->setLabel( __( 'URL Situs Frontend (LP2M)', 'itsi' ) )
+			->setHelp( __( 'URL situs publik LP2M (mis. https://lp2m.pages.dev). Dipakai untuk link \"Cek Status\" di email konfirmasi.', 'itsi' ) ),
 	) );
 
 	// ── DOKUMEN ─────────────────────────────────────────────────────
@@ -409,6 +412,7 @@ function lp2m_handle_settings_save() {
 	$email_keys = array( 'lp2m_site_email', 'lp2m_site_admin_email', 'lp2m_smtp_username', 'lp2m_smtp_from' );
 	$url_keys   = array(
 		'lp2m_hero_btn_primary_url', 'lp2m_hero_btn_secondary_url',
+		'lp2m_site_frontend_url',
 	);
 	$id_keys    = array( 'lp2m_site_logo_id', 'lp2m_site_favicon_id', 'lp2m_dok_panduan_id', 'lp2m_dok_template_id' );
 	$json_keys  = array( 'lp2m_hero_infografis', 'lp2m_about_pillars', 'lp2m_about_leadership', 'lp2m_bidang_items', 'lp2m_mitra_items', 'lp2m_footer_tautan', 'lp2m_footer_layanan' );
@@ -572,6 +576,7 @@ function lp2m_site_data() {
 		'email'          => lp2m_opt( 'site_email' ),
 		'telepon'        => lp2m_opt( 'site_telepon' ),
 		'alamat'         => lp2m_opt( 'site_alamat' ),
+		'frontend_url'   => lp2m_opt( 'site_frontend_url' ),
 	);
 }
 function lp2m_dok_data() {
