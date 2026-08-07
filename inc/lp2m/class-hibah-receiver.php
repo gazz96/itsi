@@ -212,6 +212,24 @@ class ITSI_LP2M_Hibah_Receiver {
 				],
 			],
 		] );
+
+		// Statistik infografis: agregasi pendaftaran per tahun (publik, untuk homepage + dashboard).
+		register_rest_route( 'lp2m/v1', '/statistik', [
+			'methods'             => 'GET',
+			'callback'            => [ $this, 'handle_statistik' ],
+			'permission_callback' => '__return_true',
+			'args'                => [
+				'tahun' => [
+					'required'          => false,
+					'validate_callback' => function ( $param ) {
+						return '' === (string) $param || (bool) preg_match( '/^\d{4}$/', (string) $param );
+					},
+					'sanitize_callback' => function ( $param ) {
+						return '' === (string) $param ? '' : (string) $param;
+					},
+				],
+			],
+		] );
 	}
 
 	/**
@@ -1037,6 +1055,143 @@ class ITSI_LP2M_Hibah_Receiver {
 			}
 		}
 		return implode( "\n", $lines );
+	}
+
+	/* ────────────────────────────────────────────────────────────
+	 *  STATISTIK INFIGRAFIS (lp2m/v1/statistik)
+	 * ──────────────────────────────────────────────────────────── */
+
+	/**
+	 * Agregasi pendaftaran hibah untuk infografis.
+	 *
+	 * Respons:
+	 * {
+	 *   "total_usulan": int,
+	 *   "dosen_unik": int,
+	 *   "mahasiswa_unik": int,
+	 *   "jumlah_skema": int,
+	 *   "skema_distribusi": [{ "label": string, "count": int }],
+	 *   "sdgs_trend": [{ "label": string, "count": int }],
+	 *   "tahun_tersedia": ["2026","2025","2024"],
+	 *   "tahun": "2026" | null
+	 * }
+	 *
+	 * @param WP_REST_Request $request
+	 * @return WP_REST_Response
+	 */
+	public function handle_statistik( $request ) {
+		$tahun = (string) ( $request->get_param( 'tahun' ) ?? '' );
+		$tahun = preg_match( '/^\d{4}$/', $tahun ) ? $tahun : '';
+
+		// Cache transient 5 menit per tahun (data pendaftaran jarang berubah).
+		$cache_key = 'lp2m_statistik_' . ( $tahun ?: 'all' );
+		$cached    = get_transient( $cache_key );
+		if ( false !== $cached && is_array( $cached ) ) {
+			return rest_ensure_response( $cached );
+		}
+
+		$args = [
+			'post_type'      => 'pendaftaran_hibah',
+			'post_status'    => 'private',
+			'posts_per_page' => -1,
+			'orderby'        => 'date',
+			'order'          => 'ASC',
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+		];
+		if ( '' !== $tahun ) {
+			$args['date_query'] = [ [ 'year' => (int) $tahun ] ];
+		}
+		$query = new WP_Query( $args );
+		$ids   = $query->posts;
+
+		$total_usulan    = count( $ids );
+		$dosen_set       = [];
+		$mahasiswa_set   = [];
+		$skema_counts    = [];
+		$sdgs_counts     = [];
+		$tahun_set       = [];
+
+		foreach ( $ids as $post_id ) {
+			// Tahun pendaftaran (dari post_date) untuk daftar tahun tersedia.
+			$post_year = (int) get_the_date( 'Y', $post_id );
+			if ( $post_year > 0 ) {
+				$tahun_set[ $post_year ] = true;
+			}
+
+			// Pengusul (ketua).
+			$nip = trim( (string) get_post_meta( $post_id, '_nip', true ) );
+			if ( '' !== $nip ) {
+				$dosen_set[ strtolower( $nip ) ] = true;
+			}
+
+			// Anggota tim.
+			$list = json_decode( (string) get_post_meta( $post_id, '_anggota_list', true ), true );
+			if ( is_array( $list ) ) {
+				foreach ( $list as $m ) {
+					$tipe = strtolower( (string) ( $m['tipe'] ?? '' ) );
+					$nom  = trim( (string) ( $m['nomor'] ?? '' ) );
+					if ( '' === $nom ) { continue; }
+					$key = strtolower( $nom );
+					if ( 'mahasiswa' === $tipe ) {
+						$mahasiswa_set[ $key ] = true;
+					} elseif ( 'dosen' === $tipe ) {
+						$dosen_set[ $key ] = true;
+					}
+				}
+			}
+
+			// Skema.
+			$skema = trim( (string) get_post_meta( $post_id, '_skema', true ) );
+			if ( '' !== $skema ) {
+				$skema_counts[ $skema ] = ( $skema_counts[ $skema ] ?? 0 ) + 1;
+			}
+
+			// SDGs.
+			$sdgs = trim( (string) get_post_meta( $post_id, '_sdgs', true ) );
+			if ( '' !== $sdgs ) {
+				$sdgs_counts[ $sdgs ] = ( $sdgs_counts[ $sdgs ] ?? 0 ) + 1;
+			}
+		}
+
+		// Urutkan skema & SDGs berdasarkan jumlah (desc), lalu label (asc).
+		$sort_by_count = function ( array $a, array $b ): int {
+			if ( $a['count'] === $b['count'] ) {
+				return strcasecmp( $a['label'], $b['label'] );
+			}
+			return $b['count'] - $a['count'];
+		};
+
+		$skema_distribusi = [];
+		foreach ( $skema_counts as $label => $count ) {
+			$skema_distribusi[] = [ 'label' => $label, 'count' => (int) $count ];
+		}
+		usort( $skema_distribusi, $sort_by_count );
+
+		$sdgs_trend = [];
+		foreach ( $sdgs_counts as $label => $count ) {
+			$sdgs_trend[] = [ 'label' => $label, 'count' => (int) $count ];
+		}
+		usort( $sdgs_trend, $sort_by_count );
+
+		$tahun_tersedia = array_keys( $tahun_set );
+		rsort( $tahun_tersedia, SORT_NUMERIC );
+		$tahun_tersedia = array_map( 'strval', $tahun_tersedia );
+
+		$data = [
+			'total_usulan'      => $total_usulan,
+			'dosen_unik'        => count( $dosen_set ),
+			'mahasiswa_unik'    => count( $mahasiswa_set ),
+			'jumlah_skema'      => count( $skema_counts ),
+			'skema_distribusi'  => $skema_distribusi,
+			'sdgs_trend'        => $sdgs_trend,
+			'tahun_tersedia'    => $tahun_tersedia,
+			'tahun'             => '' !== $tahun ? $tahun : null,
+		];
+
+		set_transient( $cache_key, $data, 5 * MINUTE_IN_SECONDS );
+
+		return rest_ensure_response( $data );
 	}
 }
 
