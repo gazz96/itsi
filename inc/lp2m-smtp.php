@@ -40,10 +40,18 @@ function itsi_lp2m_smtp( $phpmailer ) {
 	$phpmailer->SMTPSecure = ( 'ssl' === $secure ) ? 'ssl' : 'tls';
 	$phpmailer->Timeout    = 15;
 
-	if ( ! empty( $from ) && is_email( $from ) ) {
-		$phpmailer->From     = $from;
-		$phpmailer->Sender   = $from;
-		$phpmailer->FromName = ! empty( $from_name ) ? $from_name : get_bloginfo( 'name' );
+	// From: gunakan option `lp2m_smtp_from` jika valid, selain itu fallback
+	// ke username SMTP agar domain pengirim konsisten dengan akun SMTP.
+	$from_email = ( ! empty( $from ) && is_email( $from ) ) ? $from : $phpmailer->Username;
+	if ( is_email( $from_email ) ) {
+		$phpmailer->From   = $from_email;
+		$phpmailer->Sender = $from_email;
 	}
+
+	// FromName: selalu diterapkan, agar alias (mis. "Tim IT LP2M") tampil
+	// di semua email. Fallback ke nama situs bila kosong.
+	$phpmailer->FromName = ! empty( $from_name )
+		? sanitize_text_field( $from_name )
+		: get_bloginfo( 'name' );
 }
 add_action( 'phpmailer_init', 'itsi_lp2m_smtp' );
