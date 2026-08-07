@@ -147,13 +147,13 @@ class ITSI_LP2M_Hibah_Receiver {
 		register_rest_route( 'lp2m/v1', '/hibah', [
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'handle_list' ],
-			'permission_callback' => '__return_true',
+			'permission_callback' => [ $this, 'check_rate_limit_read' ],
 		] );
 
 		register_rest_route( 'lp2m/v1', '/hibah/(?P<id>\d+)', [
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'handle_detail' ],
-			'permission_callback' => '__return_true',
+			'permission_callback' => [ $this, 'check_rate_limit_read' ],
 			'args'                => [
 				'id' => [
 					'required'          => true,
@@ -169,7 +169,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		register_rest_route( 'lp2m/v1', '/hibah/(?P<id>\d+)/form-config', [
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'handle_form_config' ],
-			'permission_callback' => '__return_true',
+			'permission_callback' => [ $this, 'check_rate_limit_read' ],
 			'args'                => [
 				'id' => [
 					'required'          => true,
@@ -217,7 +217,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		register_rest_route( 'lp2m/v1', '/statistik', [
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'handle_statistik' ],
-			'permission_callback' => '__return_true',
+			'permission_callback' => [ $this, 'check_rate_limit_read' ],
 			'args'                => [
 				'tahun' => [
 					'required'          => false,
@@ -410,6 +410,27 @@ class ITSI_LP2M_Hibah_Receiver {
 		}
 
 		set_transient( $key, $count + 1, 15 * MINUTE_IN_SECONDS );
+		return true;
+	}
+
+	/**
+	 * Rate limit untuk endpoint publik GET (statistik, list, detail, form-config).
+	 * 120 permintaan / 10 menit per IP — cukup untuk halaman normal, melindungi dari scraping.
+	 */
+	public function check_rate_limit_read( \WP_REST_Request $request ): bool|\WP_Error {
+		$ip    = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+		$key   = 'lp2m_hibah_rate_read_' . md5( $ip );
+		$count = (int) get_transient( $key );
+
+		if ( $count >= 120 ) {
+			return new \WP_Error(
+				'rate_limit_read',
+				'Terlalu banyak permintaan. Silakan coba lagi dalam 10 menit.',
+				[ 'status' => 429 ]
+			);
+		}
+
+		set_transient( $key, $count + 1, 10 * MINUTE_IN_SECONDS );
 		return true;
 	}
 
@@ -617,9 +638,38 @@ class ITSI_LP2M_Hibah_Receiver {
 			require_once ABSPATH . 'wp-admin/includes/image.php';
 		}
 
-		$ext  = pathinfo( (string) $file['name'], PATHINFO_EXTENSION );
-		$ext  = strtolower( (string) $ext ) ?: 'pdf';
-		$base = sanitize_file_name( sprintf( 'proposal-%s.%s', $reg_no, $ext ) );
+		// ── Validasi isi file (jangan percaya nama file / header MIME klien) ──
+		$tmp = $file['tmp_name'] ?? '';
+		if ( '' === $tmp || ! is_string( $tmp ) || ! is_file( $tmp ) ) {
+			return new \WP_Error( 'upload_invalid', 'File proposal tidak valid.' );
+		}
+		if ( ! is_readable( $tmp ) ) {
+			return new \WP_Error( 'upload_unreadable', 'File proposal tidak dapat dibaca.' );
+		}
+
+		$size = (int) ( $file['size'] ?? 0 );
+		if ( $size <= 0 || $size > 10 * 1024 * 1024 ) {
+			return new \WP_Error( 'upload_too_large', 'Ukuran file maksimal 10MB.' );
+		}
+
+		// Magic bytes PDF: "%PDF-" di 5 byte pertama.
+		$head = (string) file_get_contents( $tmp, false, null, 0, 5 );
+		if ( '%PDF-' !== $head ) {
+			return new \WP_Error( 'upload_not_pdf', 'File harus berupa PDF asli (bukan file lain yang diubah ekstensinya).' );
+		}
+
+		// Deteksi MIME asli via finfo (jika tersedia) sebagai lapisan kedua.
+		if ( function_exists( 'finfo_open' ) ) {
+			$finfo     = finfo_open( FILEINFO_MIME_TYPE );
+			$mime_type = finfo_file( $finfo, $tmp );
+			finfo_close( $finfo );
+			if ( 'application/pdf' !== $mime_type ) {
+				return new \WP_Error( 'upload_not_pdf', 'File harus berupa PDF asli.' );
+			}
+		}
+
+		// Ekstensi dipaksa .pdf — nama file asli tidak dipercaya.
+		$base = sanitize_file_name( sprintf( 'proposal-%s.pdf', $reg_no ) );
 
 		$overrides = [
 			'test_form' => false,
