@@ -545,7 +545,176 @@ add_action( 'rest_api_init', function () {
 		'methods'             => 'POST',
 		'callback'            => 'lp2m_rest_branding_update',
 		'permission_callback' => function () {
-			return current_user_can( 'manage_options' );
+			// Editor & Admin — pengelola LP2M (akun lp2m = Editor) perlu bisa set branding.
+			return current_user_can( 'edit_posts' );
+		},
+	) );
+} );
+
+// =================================================================
+// 5b. POST /settings/{group} — simpan settings dari dashboard LP2M (frontend)
+// =================================================================
+/**
+ * Whitelist group + mapping REST key → option key (konsisten dgn lp2m_*_data()).
+ * 'scalar' => sanitizer, 'repeater' => array sanitize + JSON encode.
+ */
+function lp2m_settings_field_map( $group ) {
+	$map = array(
+		'site'     => array(
+			'scalar'  => array(
+				'nama'          => array( 'lp2m_site_nama', 'text' ),
+				'nama_panjang'  => array( 'lp2m_site_nama_panjang', 'text' ),
+				'email'         => array( 'lp2m_site_email', 'email' ),
+				'telepon'       => array( 'lp2m_site_telepon', 'text' ),
+				'alamat'        => array( 'lp2m_site_alamat', 'text' ),
+				'frontend_url'  => array( 'lp2m_site_frontend_url', 'url' ),
+			),
+			'repeater' => array(),
+		),
+		'hero'     => array(
+			'scalar'  => array(
+				'headline'           => array( 'lp2m_hero_headline', 'text' ),
+				'title'              => array( 'lp2m_hero_title', 'text' ),
+				'caption'            => array( 'lp2m_hero_caption', 'text' ),
+				'btn_primary_text'   => array( 'lp2m_hero_btn_primary_text', 'text' ),
+				'btn_primary_url'    => array( 'lp2m_hero_btn_primary_url', 'url' ),
+				'btn_secondary_text' => array( 'lp2m_hero_btn_secondary_text', 'text' ),
+				'btn_secondary_url'  => array( 'lp2m_hero_btn_secondary_url', 'url' ),
+			),
+			'repeater' => array(
+				'infografis' => 'lp2m_hero_infografis',
+			),
+		),
+		'about'    => array(
+			'scalar'  => array(
+				'eyebrow'    => array( 'lp2m_about_eyebrow', 'text' ),
+				'title'      => array( 'lp2m_about_title', 'text' ),
+				'desc'       => array( 'lp2m_about_desc', 'text' ),
+				'quote'      => array( 'lp2m_about_quote', 'text' ),
+				'quote_body' => array( 'lp2m_about_quote_body', 'text' ),
+			),
+			'repeater' => array(
+				'pillars'    => 'lp2m_about_pillars',
+				'leadership' => 'lp2m_about_leadership',
+			),
+		),
+		'bidang'   => array(
+			'scalar'  => array(
+				'label' => array( 'lp2m_bidang_label', 'text' ),
+				'title' => array( 'lp2m_bidang_title', 'text' ),
+				'desc'  => array( 'lp2m_bidang_desc', 'text' ),
+			),
+			'repeater' => array(
+				'items' => 'lp2m_bidang_items',
+			),
+		),
+		'mitra'    => array(
+			'scalar'  => array(
+				'label' => array( 'lp2m_mitra_label', 'text' ),
+				'title' => array( 'lp2m_mitra_title', 'text' ),
+			),
+			'repeater' => array(
+				'items' => 'lp2m_mitra_items',
+			),
+		),
+		'footer'   => array(
+			'scalar'  => array(
+				'tagline'   => array( 'lp2m_footer_tagline', 'text' ),
+				'copyright' => array( 'lp2m_footer_copyright', 'text' ),
+				'credit'    => array( 'lp2m_footer_credit', 'text' ),
+			),
+			'repeater' => array(
+				'tautan'  => 'lp2m_footer_tautan',
+				'layanan' => 'lp2m_footer_layanan',
+			),
+		),
+		'homepage' => array(
+			'scalar'  => array(
+				'bidang_title'  => array( 'lp2m_home_bidang_title', 'text' ),
+				'bidang_desc'   => array( 'lp2m_home_bidang_desc', 'text' ),
+				'mitra_title'   => array( 'lp2m_home_mitra_title', 'text' ),
+				'cta_title'     => array( 'lp2m_home_cta_title', 'text' ),
+				'cta_desc'      => array( 'lp2m_home_cta_desc', 'text' ),
+				'footer_tagline'=> array( 'lp2m_home_footer_tagline', 'text' ),
+			),
+			'repeater' => array(),
+		),
+	);
+	return isset( $map[ $group ] ) ? $map[ $group ] : null;
+}
+
+function lp2m_rest_settings_update( WP_REST_Request $request ) {
+	$group = $request['group'];
+	$map   = lp2m_settings_field_map( $group );
+	if ( null === $map ) {
+		return new WP_Error( 'invalid_group', 'Group settings tidak valid.', array( 'status' => 400 ) );
+	}
+
+	$body = $request->get_json_params();
+	if ( ! is_array( $body ) ) {
+		return new WP_Error( 'invalid_body', 'Body harus JSON object.', array( 'status' => 400 ) );
+	}
+
+	// Scalar fields — hanya update option bila key dikirim (biarkan yang lain apa adanya).
+	foreach ( $map['scalar'] as $key => $cfg ) {
+		if ( ! array_key_exists( $key, $body ) ) {
+			continue;
+		}
+		$option = $cfg[0];
+		$type   = $cfg[1];
+		$val    = $body[ $key ];
+		if ( 'email' === $type ) {
+			update_option( $option, sanitize_email( (string) $val ) );
+		} elseif ( 'url' === $type ) {
+			update_option( $option, esc_url_raw( (string) $val ) );
+		} else {
+			update_option( $option, sanitize_textarea_field( (string) $val ) );
+		}
+	}
+
+	// Repeater fields — JSON encode array; bila key dikirim sebagai array.
+	foreach ( $map['repeater'] as $key => $option ) {
+		if ( ! array_key_exists( $key, $body ) ) {
+			continue;
+		}
+		$val = $body[ $key ];
+		if ( ! is_array( $val ) ) {
+			$val = array();
+		}
+		$clean = array();
+		foreach ( $val as $item ) {
+			if ( is_array( $item ) && array_filter( $item ) ) {
+				$clean[] = array_map( 'sanitize_text_field', $item );
+			}
+		}
+		update_option( $option, wp_json_encode( $clean ) );
+	}
+
+	// Return data segar sesuai group.
+	$fn = 'lp2m_rest_' . $group;
+	$fresh = function_exists( $fn ) ? $fn() : null;
+
+	return rest_ensure_response( array(
+		'success' => true,
+		'data'    => $fresh ? $fresh->get_data() : array(),
+	) );
+}
+
+add_action( 'rest_api_init', function () {
+	$groups = array( 'site', 'hero', 'about', 'bidang', 'mitra', 'footer', 'homepage' );
+	register_rest_route( 'lp2m/v1', '/settings/(?P<group>[a-z]+)', array(
+		'methods'  => 'POST',
+		'callback' => 'lp2m_rest_settings_update',
+		'args'     => array(
+			'group' => array(
+				'validate_callback' => function ( $param ) use ( $groups ) {
+					return in_array( $param, $groups, true );
+				},
+			),
+		),
+		'permission_callback' => function () {
+			// Editor & Admin — akun lp2m (Editor) perlu menyimpan settings dari dashboard.
+			return current_user_can( 'edit_posts' );
 		},
 	) );
 } );
