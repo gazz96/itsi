@@ -286,6 +286,15 @@ function lp2m_render() {
 		\TypeRocket\Utility\Helper::form()->text( 'lp2m_smtp_from_name' )
 			->setLabel( __( 'From Name (opsional)', 'itsi' ) )
 			->setHelp( __( 'mis. LP2M ITSI', 'itsi' ) ),
+		'<div style="margin-top:1.2rem;padding:1rem;background:#f0fdf4;border-radius:8px;border-left:3px solid #16a34a">'
+		. '<p style="margin:0 0 .6rem;font-weight:600">Kirim Email Uji Coba</p>'
+		. '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+		. '<input type="email" id="lp2m_smtp_test_to" class="regular-text" placeholder="email tujuan (default: SMTP username / admin)" style="min-width:280px">'
+		. '<button type="button" id="lp2m_smtp_test_btn" class="button button-secondary">Kirim Email Test</button>'
+		. '<span id="lp2m_smtp_test_result" style="font-size:12px"></span>'
+		. '</div>'
+		. '<p style="margin:.6rem 0 0;color:#6b7280;font-size:.85em">Tombol ini menyimpan konfigurasi SMTP di atas lalu mengirim email uji ke alamat tujuan. Pastikan sudah mengisi Host, Username, dan Password.</p>'
+		. '</div>',
 	) );
 
 	$tabs->setTitle( __( 'LP2M Settings', 'itsi' ) )
@@ -630,3 +639,87 @@ function lp2m_home_data() {
 		'footer_tagline'=> lp2m_opt( 'home_footer_tagline' ),
 	);
 }
+
+// =================================================================
+// 6. TEST EMAIL — kirim email uji via SMTP yang sudah disimpan
+// =================================================================
+add_action( 'wp_ajax_lp2m_smtp_test', 'lp2m_handle_smtp_test' );
+function lp2m_handle_smtp_test() {
+	check_ajax_referer( 'lp2m_settings_save', '_lp2m_nonce' );
+
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( array( 'message' => 'Anda tidak memiliki akses.' ), 403 );
+	}
+
+	$to = isset( $_POST['to'] ) ? sanitize_email( wp_unslash( $_POST['to'] ) ) : '';
+	if ( empty( $to ) ) {
+		$to = get_option( 'lp2m_smtp_username', '' );
+	}
+	if ( empty( $to ) ) {
+		$to = get_option( 'admin_email' );
+	}
+	if ( ! is_email( $to ) ) {
+		wp_send_json_error( array( 'message' => 'Alamat email tujuan tidak valid.' ) );
+	}
+
+	$host = get_option( 'lp2m_smtp_host', '' );
+	if ( empty( $host ) ) {
+		wp_send_json_error( array( 'message' => 'SMTP Host masih kosong. Isi dulu di tab SMTP, klik "Simpan Semua Pengaturan", lalu test lagi.' ) );
+	}
+
+	$subject = '[' . wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ) . '] Test Email SMTP';
+	$body    = '<h2>Email Test SMTP Berhasil 🎉</h2>'
+		. '<p>Jika Anda menerima email ini, konfigurasi SMTP sudah benar dan siap dipakai untuk notifikasi LP2M.</p>'
+		. '<p><strong>Host:</strong> ' . esc_html( $host ) . '<br>'
+		. '<strong>Port:</strong> ' . (int) get_option( 'lp2m_smtp_port', 587 ) . '<br>'
+		. '<strong>Enkripsi:</strong> ' . esc_html( get_option( 'lp2m_smtp_secure', 'tls' ) ) . '<br>'
+		. '<strong>Waktu kirim:</strong> ' . esc_html( current_time( 'd M Y H:i:s' ) ) . '</p>';
+
+	$headers = array( 'Content-Type: text/html; charset=UTF-8' );
+
+	// Simpan error phpmailer untuk ditampilkan bila gagal.
+	add_filter( 'wp_mail_failed', function ( $wp_error ) {
+		update_option( 'lp2m_smtp_test_error', $wp_error->get_error_message() );
+	} );
+
+	$sent = wp_mail( $to, $subject, $body, $headers );
+
+	if ( $sent ) {
+		wp_send_json_success( array( 'message' => 'Email test terkirim ke ' . $to . '. Cek kotak masuk Anda (termasuk spam).' ) );
+	}
+
+	$err = get_option( 'lp2m_smtp_test_error', '' );
+	delete_option( 'lp2m_smtp_test_error' );
+	wp_send_json_error( array( 'message' => 'Gagal mengirim email. ' . $err ) );
+}
+
+// Enqueue JS untuk tombol test.
+add_action( 'admin_enqueue_scripts', function ( $hook ) {
+	if ( 'toplevel_page_lp2m-settings' !== $hook ) {
+		return;
+	}
+	wp_add_inline_script(
+		'jquery',
+		'jQuery(function($){
+			var btn=$("#lp2m_smtp_test_btn"),res=$("#lp2m_smtp_test_result");
+			if(!btn.length)return;
+			btn.on("click",function(){
+				var to=$("#lp2m_smtp_test_to").val().trim();
+				if(!to){to="";}
+				res.text("Mengirim...").css("color","#6b7280");
+				btn.prop("disabled",true);
+				$.post(ajaxurl,{
+					action:"lp2m_smtp_test",
+					to:to,
+					_lp2m_nonce:$("#_lp2m_nonce").val()
+				}).done(function(r){
+					if(r.success){res.text("✓ "+r.data.message).css("color","#16a34a");}
+					else{res.text("✗ "+(r.data&&r.data.message?r.data.message:"Gagal")).css("color","#dc2626");}
+				}).fail(function(x){
+					res.text("✗ Terjadi kesalahan (HTTP "+x.status+")").css("color","#dc2626");
+				}).always(function(){btn.prop("disabled",false);});
+			});
+		});',
+		'after'
+	);
+} );
