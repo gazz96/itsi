@@ -893,6 +893,11 @@ add_action( 'typerocket_loaded', function () {
 					. $form->file( 'file_template' )->setLabel( 'Upload File Template' )
 						->setHelp( 'File template proposal/laporan yang siap diisi.' )
 					. '</div>'
+					. '<div style="margin-bottom:1rem">'
+					. '<h4 style="margin:.4rem 0 .5rem">👥 Template Kelompok Keahlian (DOCX/PDF)</h4>'
+					. $form->file( 'file_kelompok_keahlian' )->setLabel( 'Upload File Template Kelompok Keahlian' )
+						->setHelp( 'File template/berkas kelompok keahlian yang siap diisi (DOCX/PDF). Bisa upload beberapa file.' )
+					. '</div>'
 					. '<div style="margin-top:1rem">'
 					. '<h4 style="margin:.4rem 0 .5rem">⬇️ Link Download Alternatif</h4>'
 					. $form->text( 'link_panduan' )->setLabel( 'URL Panduan (opsional)' )

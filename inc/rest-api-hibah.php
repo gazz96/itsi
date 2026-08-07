@@ -154,6 +154,14 @@ function itsi_hibah_register_rest_fields() {
 		'schema' => array( 'type' => 'array', 'description' => 'File template (URLs)', 'context' => array( 'view' ) ),
 	) );
 
+	// ── File kelompok keahlian ──
+	register_rest_field( 'hibah', 'file_kelompok_keahlian', array(
+		'get_callback' => function ( $post ) {
+			return itsi_hibah_attachment_urls( get_post_meta( $post['id'], 'file_kelompok_keahlian', true ) );
+		},
+		'schema' => array( 'type' => 'array', 'description' => 'File template kelompok keahlian (URLs)', 'context' => array( 'view' ) ),
+	) );
+
 	// ── Thumbnail URL ──
 	register_rest_field( 'hibah', 'thumbnail_url', array(
 		'get_callback' => function ( $post ) {
@@ -309,6 +317,7 @@ function itsi_hibah_get_nearest_deadline( WP_REST_Request $request ) {
 		'link_panduan'   => get_post_meta( $id, 'link_panduan', true ),
 		'file_panduan'   => itsi_hibah_attachment_urls( get_post_meta( $id, 'file_panduan', true ) ),
 		'file_template'  => itsi_hibah_attachment_urls( get_post_meta( $id, 'file_template', true ) ),
+		'file_kelompok_keahlian' => itsi_hibah_attachment_urls( get_post_meta( $id, 'file_kelompok_keahlian', true ) ),
 		'timeline_items' => $timeline,
 		'category_names' => is_array( $cats ) ? $cats : array(),
 	);
