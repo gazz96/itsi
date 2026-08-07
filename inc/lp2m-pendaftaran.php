@@ -146,28 +146,105 @@ function lp2m_pendaftaran_test_email(WP_REST_Request $request) {
 }
 
 function lp2m_pendaftaran_export(WP_REST_Request $request) {
-    $dari    = sanitize_text_field($request->get_param('dari'))    ?: date('Y-m-d');
-    $sampai  = sanitize_text_field($request->get_param('sampai')) ?: date('Y-m-d');
+    $dari    = sanitize_text_field($request->get_param('dari'))    ?: '';
+    $sampai  = sanitize_text_field($request->get_param('sampai'))  ?: '';
     $status  = sanitize_text_field($request->get_param('status'))  ?: '';
+    $hibah_id = absint($request->get_param('hibah_id') ?? 0);
     $perPage = absint($request->get_param('per_page'))             ?: 1000;
     if ($perPage > 1000) $perPage = 1000;
 
-    $list   = get_option('lp2m_reg_list', []);
-    $dateFrom = substr(str_replace('-', '', $dari),   0, 8);
-    $dateTo   = substr(str_replace('-', '', $sampai),  0, 8);
-    $rows = [];
-
-    foreach ($list as $no) {
-        $d = get_option('lp2m_reg_' . $no);
-        if (!$d) continue;
-        $tgl = substr($d['tanggal']  ?? '', 0, 8);                          // YYYYMMDD
-        if (!$tgl) continue;
-        if ($tgl < $dateFrom || $tgl > $dateTo) continue;
-        if ($status && ($d['status'] ?? '') !== $status) continue;
-        $rows[] = array_merge(['reg_no' => $no], (array) $d);
+    // ── Sumber utama: CPT pendaftaran_hibah (data baru dari form LP2M) ──
+    $args = [
+        'post_type'      => 'pendaftaran_hibah',
+        'post_status'    => 'private',
+        'posts_per_page' => $perPage,
+        'orderby'        => 'date',
+        'order'          => 'DESC',
+    ];
+    if ($hibah_id > 0) {
+        $args['post_parent'] = $hibah_id;
     }
-    usort($rows, fn($a, $b) => strcmp($b['reg_no'] ?? '', $a['reg_no'] ?? ''));
-    $rows = array_slice($rows, 0, $perPage);
+    if ($dari || $sampai) {
+        $date_q = [];
+        if ($dari)   $date_q['after']     = gmdate('Y-m-d 00:00:00', strtotime($dari));
+        if ($sampai) $date_q['before']    = gmdate('Y-m-d 23:59:59', strtotime($sampai));
+        $date_q['inclusive'] = true;
+        $args['date_query'] = [$date_q];
+    }
+    if ($status) {
+        $args['meta_query'] = [
+            ['key' => '_status', 'value' => $status, 'compare' => '='],
+        ];
+    }
+
+    $query = new WP_Query($args);
+    $rows  = [];
+
+    foreach ($query->posts as $post) {
+        $meta = function ($k) use ($post) {
+            $v = get_post_meta($post->ID, $k, true);
+            return is_string($v) ? $v : (string) $v;
+        };
+
+        // Anggota tim → satu string teks.
+        $anggota_list = json_decode((string) get_post_meta($post->ID, '_anggota_list', true), true);
+        $anggota_text = '';
+        if (is_array($anggota_list)) {
+            $parts = [];
+            foreach ($anggota_list as $i => $m) {
+                $tipe = ('mahasiswa' === ($m['tipe'] ?? '')) ? 'Mahasiswa' : 'Dosen';
+                if ('mahasiswa' === ($m['tipe'] ?? '')) {
+                    $parts[] = sprintf('%d. %s (%s, NIM %s, Prodi %s)', (int) $i + 1, $m['nama'] ?? '', $tipe, $m['nomor'] ?? '', $m['prodi'] ?? '—');
+                } else {
+                    $parts[] = sprintf('%d. %s (%s, NIDN %s)', (int) $i + 1, $m['nama'] ?? '', $tipe, $m['nomor'] ?? '');
+                }
+            }
+            $anggota_text = implode("\n", $parts);
+        }
+
+        $hibah = (int) $meta('_hibah_id') > 0 ? get_the_title((int) $meta('_hibah_id')) : '';
+
+        $rows[] = [
+            'reg_no'     => $meta('_reg_no'),
+            'tanggal'    => $post->post_date,
+            'status'     => $meta('_status') ?: 'submitted',
+            'nama'       => $meta('_nama'),
+            'nip'        => $meta('_nip'),
+            'jenis'      => $meta('_jenis'),
+            'prodi'      => $meta('_prodi'),
+            'skema'      => $meta('_skema'),
+            'jenis_hibah'=> $meta('_jenis_hibah'),
+            'sdgs'       => $meta('_sdgs'),
+            'kelompok_keahlian' => $meta('_kelompok_keahlian'),
+            'judul'      => $meta('_judul'),
+            'ringkasan'  => $meta('_ringkasan'),
+            'jml_tim'    => $meta('_jml_tim'),
+            'anggota'    => $anggota_text,
+            'email'      => $meta('_email'),
+            'hp'         => $meta('_hp'),
+            'hibah_id'   => $meta('_hibah_id'),
+            'event'      => $hibah,
+        ];
+    }
+
+    // ── Fallback: legacy wp_options (data lama sebelum CPT) ──
+    if (empty($rows)) {
+        $list = get_option('lp2m_reg_list', []);
+        $dateFrom = $dari   ? (int) substr(str_replace('-', '', $dari), 0, 8) : 0;
+        $dateTo   = $sampai ? (int) substr(str_replace('-', '', $sampai), 0, 8) : 99999999;
+        foreach ($list as $no) {
+            $d = get_option('lp2m_reg_' . $no);
+            if (!$d) continue;
+            $tgl = (int) substr((string) ($d['tanggal'] ?? ''), 0, 8);
+            if ($dateFrom && $tgl < $dateFrom) continue;
+            if ($dateTo != 99999999 && $tgl > $dateTo) continue;
+            if ($status && ($d['status'] ?? '') !== $status) continue;
+            $rows[] = array_merge(['reg_no' => $no], (array) $d);
+        }
+        usort($rows, fn($a, $b) => strcmp((string) ($b['reg_no'] ?? ''), (string) ($a['reg_no'] ?? '')));
+        $rows = array_slice($rows, 0, $perPage);
+    }
+
     header('X-Total-Count: ' . count($rows));
     return rest_ensure_response($rows);
 }

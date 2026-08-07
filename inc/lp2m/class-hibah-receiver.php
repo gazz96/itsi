@@ -11,6 +11,14 @@ defined( 'ABSPATH' ) || exit;
 
 class ITSI_LP2M_Hibah_Receiver {
 
+	/** Status yang diperbolehkan untuk field `_status`. */
+	public const STATUSES = [
+		'submitted', 'under_review', 'revised', 'approved', 'rejected', 'done',
+	];
+
+	/** ID post terakhir yang disimpan (dipakai untuk link admin di email). */
+	private int $last_post_id = 0;
+
 	public function init(): void {
 		add_action( 'init', [ $this, 'register_cpt' ] );
 		add_action( 'rest_api_init', [ $this, 'register_routes' ] );
@@ -32,7 +40,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			'show_ui'             => true,
 			'show_in_menu'        => true,
 			'menu_icon'           => 'dashicons-email-alt',
-			'supports'            => [ 'title', 'editor' ],
+			'supports'            => [ 'title' ],
 			'exclude_from_search' => true,
 			'show_in_rest'        => false,
 			'title_placeholder'   => 'Otomatis — jangan edit manual',
@@ -172,6 +180,48 @@ class ITSI_LP2M_Hibah_Receiver {
 				],
 			],
 		] );
+
+		// Update status / data pendaftaran (admin, via Basic auth).
+		register_rest_route( 'lp2m/v1', '/hibah/(?P<id>\d+)', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'handle_update' ],
+			'permission_callback' => [ $this, 'check_admin' ],
+			'args'                => [
+				'id' => [
+					'required'          => true,
+					'validate_callback' => function ( $param ) {
+						return is_numeric( $param ) && (int) $param > 0;
+					},
+					'sanitize_callback' => 'absint',
+				],
+			],
+		] );
+
+		// Hapus pendaftaran (admin, via Basic auth).
+		register_rest_route( 'lp2m/v1', '/hibah/(?P<id>\d+)', [
+			'methods'             => 'DELETE',
+			'callback'            => [ $this, 'handle_delete' ],
+			'permission_callback' => [ $this, 'check_admin' ],
+			'args'                => [
+				'id' => [
+					'required'          => true,
+					'validate_callback' => function ( $param ) {
+						return is_numeric( $param ) && (int) $param > 0;
+					},
+					'sanitize_callback' => 'absint',
+				],
+			],
+		] );
+	}
+
+	/**
+	 * Permission: hanya administrator (termasuk via Application Password/Basic auth).
+	 */
+	public function check_admin(): bool|\WP_Error {
+		if ( current_user_can( 'manage_options' ) ) {
+			return true;
+		}
+		return new \WP_Error( 'forbidden', 'Anda tidak memiliki akses.', [ 'status' => 403 ] );
 	}
 
 	/**
@@ -497,6 +547,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Gagal menyimpan data.' ], 500 );
 		}
 
+		$this->last_post_id = (int) $post_id;
 		$this->send_admin_email( $params, $reg_no, $hibah_id );
 
 		return new \WP_REST_Response( [
@@ -528,6 +579,10 @@ class ITSI_LP2M_Hibah_Receiver {
 		$items = [];
 
 		foreach ( $query->posts as $post ) {
+			$status = (string) get_post_meta( $post->ID, '_status', true );
+			if ( '' === $status ) {
+				$status = 'submitted';
+			}
 			$items[] = [
 				'id'         => $post->ID,
 				'reg_no'     => get_post_meta( $post->ID, '_reg_no', true ),
@@ -542,7 +597,10 @@ class ITSI_LP2M_Hibah_Receiver {
 				'kelompok_keahlian' => get_post_meta( $post->ID, '_kelompok_keahlian', true ),
 				'judul'      => get_post_meta( $post->ID, '_judul', true ),
 				'email'      => get_post_meta( $post->ID, '_email', true ),
-				'hp'         => get_post_meta( $post->ID, '_hp', true ),			'anggota_list' => json_decode( (string) get_post_meta( $post->ID, '_anggota_list', true ), true ) ?: [],				'created_at' => $post->post_date,
+				'hp'         => get_post_meta( $post->ID, '_hp', true ),
+				'status'     => $status,
+				'anggota_list' => json_decode( (string) get_post_meta( $post->ID, '_anggota_list', true ), true ) ?: [],
+				'created_at' => $post->post_date,
 			];
 		}
 
@@ -583,8 +641,81 @@ class ITSI_LP2M_Hibah_Receiver {
 			'anggota_list' => json_decode( (string) get_post_meta( $post->ID, '_anggota_list', true ), true ) ?: [],
 			'email'      => get_post_meta( $post->ID, '_email', true ),
 			'hp'         => get_post_meta( $post->ID, '_hp', true ),
+			'status'     => (string) ( get_post_meta( $post->ID, '_status', true ) ?: 'submitted' ),
 			'created_at' => $post->post_date,
 		] ], 200 );
+	}
+
+	/**
+	 * Update status + data pendaftaran (admin).
+	 *
+	 * @param \WP_REST_Request $request
+	 * @return \WP_REST_Response
+	 */
+	public function handle_update( \WP_REST_Request $request ): \WP_REST_Response {
+		$id   = (int) $request->get_param( 'id' );
+		$post = get_post( $id );
+
+		if ( ! $post || 'pendaftaran_hibah' !== $post->post_type ) {
+			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Data tidak ditemukan.' ], 404 );
+		}
+
+		$params = $request->get_params();
+
+		// Status: whitelist.
+		if ( isset( $params['status'] ) ) {
+			$status = sanitize_text_field( (string) $params['status'] );
+			if ( ! in_array( $status, self::STATUSES, true ) ) {
+				return new \WP_REST_Response( [ 'success' => false, 'message' => 'Status tidak valid.' ], 400 );
+			}
+			update_post_meta( $id, '_status', $status );
+		}
+
+		// Field opsional lain (semua divalidasi ulang lewat sanitize_input + whitelist).
+		$editable = [
+			'nama', 'nip', 'jenis', 'prodi', 'skema', 'judul', 'ringkasan',
+			'jml_tim', 'anggota', 'email', 'hp', 'jenis_hibah', 'sdgs', 'kelompok_keahlian',
+		];
+		foreach ( $editable as $f ) {
+			if ( ! isset( $params[ $f ] ) ) {
+				continue;
+			}
+			$clean = $this->sanitize_input( [ $f => $params[ $f ] ] );
+			$val   = $clean[ $f ];
+			$map   = [
+				'nama' => '_nama', 'nip' => '_nip', 'jenis' => '_jenis',
+				'prodi' => '_prodi', 'skema' => '_skema', 'judul' => '_judul',
+				'ringkasan' => '_ringkasan', 'jml_tim' => '_jml_tim',
+				'anggota' => '_anggota', 'email' => '_email', 'hp' => '_hp',
+				'jenis_hibah' => '_jenis_hibah', 'sdgs' => '_sdgs',
+				'kelompok_keahlian' => '_kelompok_keahlian',
+			];
+			update_post_meta( $id, $map[ $f ], $val );
+		}
+
+		return new \WP_REST_Response( [ 'success' => true, 'message' => 'Data diperbarui.' ], 200 );
+	}
+
+	/**
+	 * Hapus pendaftaran (admin).
+	 *
+	 * @param \WP_REST_Request $request
+	 * @return \WP_REST_Response
+	 */
+	public function handle_delete( \WP_REST_Request $request ): \WP_REST_Response {
+		$id   = (int) $request->get_param( 'id' );
+		$post = get_post( $id );
+
+		if ( ! $post || 'pendaftaran_hibah' !== $post->post_type ) {
+			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Data tidak ditemukan.' ], 404 );
+		}
+
+		$deleted = wp_delete_post( $id, true );
+		if ( ! $deleted ) {
+			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Gagal menghapus data.' ], 500 );
+		}
+
+		return new \WP_REST_Response( [ 'success' => true, 'message' => 'Data dihapus.' ], 200 );
 	}
 
 	/* ────────────────────────────────────────────────────────────
@@ -671,6 +802,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			'_jenis_hibah'      => $params['jenis_hibah'], '_jenis_hibah_id' => $params['jenis_hibah_id'],
 			'_sdgs'             => $params['sdgs'], '_sdgs_id' => $params['sdgs_id'],
 			'_kelompok_keahlian' => $params['kelompok_keahlian'], '_kk_id' => $params['kk_id'],
+			'_status'    => 'submitted',
 		];
 		$meta['_anggota_list'] = wp_json_encode( $params['anggota_list'] );
 
@@ -682,19 +814,80 @@ class ITSI_LP2M_Hibah_Receiver {
 	}
 
 	private function send_admin_email( array $params, string $reg_no, int $hibah_id ): void {
-		$admin_email = get_option( 'admin_email' );
+		$admin_email = get_option( 'lp2m_site_admin_email', '' ) ?: get_option( 'admin_email' );
+		$admin_email = is_email( $admin_email ) ? $admin_email : get_option( 'admin_email' );
 		if ( empty( $admin_email ) ) { return; }
+
 		$event_name = $hibah_id > 0 ? get_the_title( $hibah_id ) : '';
-		wp_mail( $admin_email,
-			sprintf( '[LP2M] Pendaftaran Hibah Baru — %s', $reg_no ),
-			sprintf(
-				"Event Hibah: %s\nNo: %s\nNama: %s\nNIP: %s\nJenis: %s\nModel Hibah: %s\nJenis Hibah: %s\nSDGs: %s\nKel. Keahlian: %s\nJudul: %s\nAnggota Tim:\n%s\n\nCek: %s/wp-admin/",
-				$event_name ?: '—', $reg_no, $params['nama'], $params['nip'],
-				$params['jenis'], $params['skema'],
-				$params['jenis_hibah'] ?: '—', $params['sdgs'] ?: '—', $params['kelompok_keahlian'] ?: '—',
-				$params['judul'], $this->format_anggota_text( $params['anggota_list'] ), get_site_url()
-			)
-		);
+		$site_url   = get_site_url();
+		$admin_link = $site_url . '/wp-admin/post.php?post=' . $this->last_post_id . '&action=edit';
+
+		$to        = [ $admin_email ];
+		$subject   = sprintf( '[LP2M] Pendaftaran Hibah Baru — %s', $reg_no );
+		$body      = $this->email_html( $params, $reg_no, $event_name, $admin_link );
+		$headers   = [ 'Content-Type: text/html; charset=UTF-8' ];
+		wp_mail( $to, $subject, $body, $headers );
+
+		// Email konfirmasi ke pendaftar (sama konten, tanpa link admin).
+		if ( is_email( $params['email'] ) ) {
+			wp_mail(
+				$params['email'],
+				sprintf( 'Konfirmasi Pendaftaran Hibah — %s', $reg_no ),
+				$this->email_html( $params, $reg_no, $event_name, '' ),
+				[ 'Content-Type: text/html; charset=UTF-8' ]
+			);
+		}
+	}
+
+	/**
+	 * Template email HTML untuk admin + pendaftar.
+	 */
+	private function email_html( array $params, string $reg_no, string $event_name, string $admin_link ): string {
+		$row = function ( string $label, string $value ): string {
+			return '<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#374151;white-space:nowrap;vertical-align:top">'
+				. esc_html( $label )
+				. '</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#111827">'
+				. esc_html( $value ?: '—' ) . '</td></tr>';
+		};
+
+		$anggota_rows = '';
+		foreach ( $params['anggota_list'] as $i => $m ) {
+			$tipe = ( 'mahasiswa' === ( $m['tipe'] ?? '' ) ) ? 'Mahasiswa' : 'Dosen';
+			if ( 'mahasiswa' === ( $m['tipe'] ?? '' ) ) {
+				$anggota_rows .= $row( 'Anggota #' . ( $i + 1 ), sprintf( '%s — %s (NIM: %s, Prodi: %s)', $m['nama'] ?? '', $tipe, $m['nomor'] ?? '', $m['prodi'] ?? '—' ) );
+			} else {
+				$anggota_rows .= $row( 'Anggota #' . ( $i + 1 ), sprintf( '%s — %s (NIDN: %s)', $m['nama'] ?? '', $tipe, $m['nomor'] ?? '' ) );
+			}
+		}
+
+		$admin_btn = '';
+		if ( '' !== $admin_link ) {
+			$admin_btn = '<p style="margin:20px 0 0"><a href="' . esc_url( $admin_link ) . '" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Lihat Detail Pendaftaran</a></p>';
+		}
+
+		return '<div style="background:#f3f4f6;padding:24px;font-family:Segoe UI,Arial,sans-serif">'
+			. '<div style="max-width:640px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb">'
+			. '<div style="background:#0f172a;padding:20px 24px"><h2 style="margin:0;color:#fff;font-size:18px">' . esc_html( $event_name ?: 'LP2M ITSI' ) . '</h2>'
+			. '<p style="margin:4px 0 0;color:#94a3b8;font-size:13px">No. Registrasi: <strong style="color:#f8fafc">' . esc_html( $reg_no ) . '</strong></p></div>'
+			. '<div style="padding:24px">'
+			. '<table style="width:100%;border-collapse:collapse;font-size:14px">'
+			. $row( 'Nama', $params['nama'] )
+			. $row( 'NIP/NIDN', $params['nip'] )
+			. $row( 'Jenis Pengusul', $params['jenis'] )
+			. $row( 'Program Studi', $params['prodi'] )
+			. $row( 'Model Hibah', $params['skema'] )
+			. $row( 'Jenis Hibah', $params['jenis_hibah'] )
+			. $row( 'SDGs', $params['sdgs'] )
+			. $row( 'Kelompok Keahlian', $params['kelompok_keahlian'] )
+			. $row( 'Judul Usulan', $params['judul'] )
+			. $row( 'Ringkasan', $params['ringkasan'] )
+			. $anggota_rows
+			. $row( 'Email', $params['email'] )
+			. $row( 'WhatsApp', $params['hp'] )
+			. '</table>'
+			. $admin_btn
+			. '<p style="margin:20px 0 0;color:#6b7280;font-size:12px">Email ini dikirim otomatis oleh sistem LP2M ITSI.</p>'
+			. '</div></div></div>';
 	}
 
 	/**

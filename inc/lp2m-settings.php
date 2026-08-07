@@ -255,6 +255,39 @@ function lp2m_render() {
 			->setAttribute( 'rows', 2 ),
 	) );
 
+	// ── SMTP ────────────────────────────────────────────────────────
+	$tabs->tab( __( 'SMTP', 'itsi' ), 'dashicons-email', array(
+		'<p style="margin:0 0 1rem;padding:.9rem 1rem;background:#f6f8fc;border-radius:8px;border-left:3px solid #2271b3">'
+		. esc_html__( 'Konfigurasi SMTP untuk seluruh email WordPress (notifikasi pendaftaran hibah, permohonan informasi, dsb.). Kosongkan Host untuk memakai default wp_mail. Untuk Gmail gunakan Application Password, bukan password biasa.', 'itsi' )
+		. '</p>',
+		\TypeRocket\Utility\Helper::form()->text( 'lp2m_smtp_host' )
+			->setLabel( __( 'SMTP Host', 'itsi' ) )
+			->setHelp( __( 'mis. smtp.gmail.com', 'itsi' ) )
+			->setAttribute( 'placeholder', 'smtp.gmail.com' ),
+		\TypeRocket\Utility\Helper::form()->input( 'lp2m_smtp_port' )->setTypeNumber( 587 )
+			->setLabel( __( 'SMTP Port', 'itsi' ) )
+			->setHelp( __( '587 (STARTTLS) atau 465 (SSL).', 'itsi' ) )
+			->setAttribute( 'placeholder', '587' ),
+		\TypeRocket\Utility\Helper::form()->input( 'lp2m_smtp_username' )->setTypeEmail()
+			->setLabel( __( 'SMTP Username', 'itsi' ) )
+			->setHelp( __( 'Alamat email pengirim, mis. kanit@itsi.ac.id', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()->input( 'lp2m_smtp_password' )->setTypePassword()
+			->setLabel( __( 'SMTP Password (Application Password)', 'itsi' ) )
+			->setHelp( __( 'Disimpan di database WordPress (wp_options), tidak di source code.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()->select( 'lp2m_smtp_secure' )
+			->setLabel( __( 'Enkripsi', 'itsi' ) )
+			->setOptions( array(
+				'tls' => 'TLS (STARTTLS) — port 587',
+				'ssl' => 'SSL — port 465',
+			) ),
+		\TypeRocket\Utility\Helper::form()->input( 'lp2m_smtp_from' )->setTypeEmail()
+			->setLabel( __( 'From Email (opsional)', 'itsi' ) )
+			->setHelp( __( 'Pengganti header From. Kosongkan = pakai SMTP username.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()->text( 'lp2m_smtp_from_name' )
+			->setLabel( __( 'From Name (opsional)', 'itsi' ) )
+			->setHelp( __( 'mis. LP2M ITSI', 'itsi' ) ),
+	) );
+
 	$tabs->setTitle( __( 'LP2M Settings', 'itsi' ) )
 		->layoutTopEnclosed();
 
@@ -364,12 +397,30 @@ function lp2m_handle_settings_save() {
 		'lp2m_home_bidang_title', 'lp2m_home_bidang_desc', 'lp2m_home_mitra_title',
 		'lp2m_home_cta_title', 'lp2m_home_cta_desc', 'lp2m_home_footer_tagline',
 	);
-	$email_keys = array( 'lp2m_site_email', 'lp2m_site_admin_email' );
+	$email_keys = array( 'lp2m_site_email', 'lp2m_site_admin_email', 'lp2m_smtp_username', 'lp2m_smtp_from' );
 	$url_keys   = array(
 		'lp2m_hero_btn_primary_url', 'lp2m_hero_btn_secondary_url',
 	);
 	$id_keys    = array( 'lp2m_site_logo_id', 'lp2m_site_favicon_id', 'lp2m_dok_panduan_id', 'lp2m_dok_template_id' );
 	$json_keys  = array( 'lp2m_hero_infografis', 'lp2m_about_pillars', 'lp2m_about_leadership', 'lp2m_bidang_items', 'lp2m_mitra_items', 'lp2m_footer_tautan', 'lp2m_footer_layanan' );
+
+	// SMTP: host/port/secure/from_name = text; password disimpan apa adanya (tidak di-escape, tidak diekspos REST).
+	$smtp_text_keys = array( 'lp2m_smtp_host', 'lp2m_smtp_from_name' );
+	foreach ( $smtp_text_keys as $key ) {
+		if ( isset( $posted[ $key ] ) ) {
+			update_option( $key, sanitize_text_field( $posted[ $key ] ) );
+		}
+	}
+	if ( isset( $posted['lp2m_smtp_port'] ) ) {
+		$port = (int) $posted['lp2m_smtp_port'];
+		update_option( 'lp2m_smtp_port', ( $port > 0 && $port <= 65535 ) ? $port : 587 );
+	}
+	if ( isset( $posted['lp2m_smtp_secure'] ) ) {
+		update_option( 'lp2m_smtp_secure', in_array( $posted['lp2m_smtp_secure'], array( 'tls', 'ssl' ), true ) ? $posted['lp2m_smtp_secure'] : 'tls' );
+	}
+	if ( isset( $posted['lp2m_smtp_password'] ) ) {
+		update_option( 'lp2m_smtp_password', (string) $posted['lp2m_smtp_password'] );
+	}
 
 	foreach ( $text_keys as $key ) {
 		if ( isset( $posted[ $key ] ) ) {
