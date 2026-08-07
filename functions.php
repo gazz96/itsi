@@ -898,11 +898,6 @@ add_action( 'typerocket_loaded', function () {
 					. $form->file( 'file_kelompok_keahlian' )->setLabel( 'Upload File Template Kelompok Keahlian' )
 						->setHelp( 'File template/berkas kelompok keahlian yang siap diisi (DOCX/PDF). Bisa upload beberapa file.' )
 					. '</div>'
-					. '<div style="margin-top:1rem">'
-					. '<h4 style="margin:.4rem 0 .5rem">⬇️ Link Download Alternatif</h4>'
-					. $form->text( 'link_panduan' )->setLabel( 'URL Panduan (opsional)' )
-						->setAttribute( 'placeholder', 'https://drive.google.com/...' )
-					. '</div>'
 				) );
 
 				$tabs->layoutLeftEnclosed()->render();
