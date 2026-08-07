@@ -886,17 +886,20 @@ add_action( 'typerocket_loaded', function () {
 					'<div style="margin-bottom:1rem">'
 					. '<h4 style="margin:.4rem 0 .5rem">📘 Panduan Penulisan (DOCX/PDF)</h4>'
 					. $form->file( 'file_panduan' )->setLabel( 'Upload File Panduan' )
-						->setHelp( 'File panduan penulisan proposal (DOCX/PDF). Bisa upload beberapa file.' )
+						->setHelp( 'File panduan penulisan proposal (DOCX/PDF). Field ini single-file. File tambahan dari dashboard LP2M tetap tersimpan & ditampilkan di situs.' )
+					. itsi_hibah_metabox_file_note( 'file_panduan' )
 					. '</div>'
 					. '<div style="margin-bottom:1rem">'
 					. '<h4 style="margin:.4rem 0 .5rem">📝 Template Dokumen (DOCX/XLSX)</h4>'
 					. $form->file( 'file_template' )->setLabel( 'Upload File Template' )
-						->setHelp( 'File template proposal/laporan yang siap diisi.' )
+						->setHelp( 'File template proposal/laporan yang siap diisi. Field ini single-file.' )
+					. itsi_hibah_metabox_file_note( 'file_template' )
 					. '</div>'
 					. '<div style="margin-bottom:1rem">'
 					. '<h4 style="margin:.4rem 0 .5rem">👥 Template Kelompok Keahlian (DOCX/PDF)</h4>'
 					. $form->file( 'file_kelompok_keahlian' )->setLabel( 'Upload File Template Kelompok Keahlian' )
-						->setHelp( 'File template/berkas kelompok keahlian yang siap diisi (DOCX/PDF). Bisa upload beberapa file.' )
+						->setHelp( 'File template/berkas kelompok keahlian yang siap diisi (DOCX/PDF). Field ini single-file.' )
+					. itsi_hibah_metabox_file_note( 'file_kelompok_keahlian' )
 					. '</div>'
 				) );
 

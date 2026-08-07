@@ -143,14 +143,17 @@ function itsi_hibah_register_rest_fields() {
 	) );
 
 	// ── File panduan ──
+	// Meta key utama (metabox TypeRocket) = `file_panduan` (single attachment ID int).
+	// Meta key cadangan (dashboard LP2M, array multi-file) = `file_panduan_ids`.
+	// Get baca `*_ids` dulu (bisa beberapa file), fallback ke key metabox.
+	// Update tulis keduanya agar metabox (itsi.ac.id) dan dashboard sinkron.
 	register_rest_field( 'hibah', 'file_panduan', array(
 		'get_callback'    => function ( $post ) {
-			return itsi_hibah_attachment_urls( get_post_meta( $post['id'], 'file_panduan', true ) );
+			return itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $post['id'], 'file_panduan' ) );
 		},
 		'update_callback' => function ( $value, $post ) {
 			if ( ! current_user_can( 'edit_post', $post->ID ) ) { return false; }
-			update_post_meta( $post->ID, 'file_panduan', itsi_hibah_attachment_ids( $value ) );
-			return true;
+			return itsi_hibah_write_file_meta( $post->ID, 'file_panduan', $value );
 		},
 		'schema' => array( 'type' => 'array', 'description' => 'File panduan (URLs)', 'context' => array( 'view', 'edit' ) ),
 	) );
@@ -158,12 +161,11 @@ function itsi_hibah_register_rest_fields() {
 	// ── File template ──
 	register_rest_field( 'hibah', 'file_template', array(
 		'get_callback'    => function ( $post ) {
-			return itsi_hibah_attachment_urls( get_post_meta( $post['id'], 'file_template', true ) );
+			return itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $post['id'], 'file_template' ) );
 		},
 		'update_callback' => function ( $value, $post ) {
 			if ( ! current_user_can( 'edit_post', $post->ID ) ) { return false; }
-			update_post_meta( $post->ID, 'file_template', itsi_hibah_attachment_ids( $value ) );
-			return true;
+			return itsi_hibah_write_file_meta( $post->ID, 'file_template', $value );
 		},
 		'schema' => array( 'type' => 'array', 'description' => 'File template (URLs)', 'context' => array( 'view', 'edit' ) ),
 	) );
@@ -171,12 +173,11 @@ function itsi_hibah_register_rest_fields() {
 	// ── File kelompok keahlian ──
 	register_rest_field( 'hibah', 'file_kelompok_keahlian', array(
 		'get_callback'    => function ( $post ) {
-			return itsi_hibah_attachment_urls( get_post_meta( $post['id'], 'file_kelompok_keahlian', true ) );
+			return itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $post['id'], 'file_kelompok_keahlian' ) );
 		},
 		'update_callback' => function ( $value, $post ) {
 			if ( ! current_user_can( 'edit_post', $post->ID ) ) { return false; }
-			update_post_meta( $post->ID, 'file_kelompok_keahlian', itsi_hibah_attachment_ids( $value ) );
-			return true;
+			return itsi_hibah_write_file_meta( $post->ID, 'file_kelompok_keahlian', $value );
 		},
 		'schema' => array( 'type' => 'array', 'description' => 'File template kelompok keahlian (URLs)', 'context' => array( 'view', 'edit' ) ),
 	) );
@@ -262,25 +263,214 @@ function itsi_hibah_json_decode( $value ): array {
 function itsi_hibah_attachment_urls( $value ) {
 	if ( empty( $value ) ) { return array(); }
 	if ( is_numeric( $value ) ) { $ids = array( (int) $value ); }
-	elseif ( is_string( $value ) && '' !== $value ) { $ids = array_filter( array_map( 'intval', explode( ',', $value ) ) ); }
-	elseif ( is_array( $value ) ) { $ids = array_map( 'intval', $value ); }
+	elseif ( is_string( $value ) && '' !== $value ) {
+		$ids = array_filter( array_map( 'intval', explode( ',', $value ) ) );
+	}
+	elseif ( is_array( $value ) ) {
+		// Bisa berisi ID int, string ID, atau URL.
+		$ids = array();
+		foreach ( $value as $item ) {
+			if ( is_numeric( $item ) ) {
+				$ids[] = (int) $item;
+			} elseif ( is_string( $item ) && '' !== trim( $item ) ) {
+				if ( is_numeric( trim( $item ) ) ) {
+					$ids[] = (int) trim( $item );
+				} else {
+					$att_id = attachment_url_to_postid( trim( $item ) );
+					if ( $att_id ) { $ids[] = $att_id; }
+				}
+			}
+		}
+	}
 	else { return array(); }
 
 	$urls = array();
-	foreach ( $ids as $id ) {
+	foreach ( array_unique( array_filter( $ids ) ) as $id ) {
 		if ( $id <= 0 ) { continue; }
 		$src = wp_get_attachment_url( (int) $id );
 		if ( $src ) { $urls[] = $src; }
 	}
-	return $urls;
+	return array_values( $urls );
 }
 
 /**
- * Normalisasi input file field (dari REST) menjadi daftar attachment ID.
- * Menerima: array ID, array URL, atau string CSV ID/URL.
+ * Baca meta file gabungan (metabox + dashboard).
+ *
+ * Prioritas:
+ *  1. `{key}_ids` — array multi-file dari dashboard LP2M (dan sync dari metabox).
+ *  2. `{key}`    — single int / CSV dari metabox TypeRocket (itsi.ac.id).
+ *  3. `_tr_{key}` / `tr_{key}` — legacy prefix TypeRocket (jika ada).
+ *
+ * Data lama (sebelum fitur sync) yang menyimpan array/CSV/URL langsung di
+ * `{key}` otomatis dimigrasi ke format baru agar metabox TypeRocket tidak
+ * salah menampilkan (cast array → int 1).
+ *
+ * @param int    $post_id
+ * @param string $key
+ * @return array Normalized array of attachment IDs.
+ */
+function itsi_hibah_read_file_meta( $post_id, $key ) {
+	// 1. Multi-file dari dashboard (array ID).
+	$ids_meta = get_post_meta( $post_id, $key . '_ids', true );
+	if ( ! empty( $ids_meta ) ) {
+		if ( is_array( $ids_meta ) ) {
+			return array_values( array_filter( array_map( 'intval', $ids_meta ) ) );
+		}
+		if ( is_numeric( $ids_meta ) ) {
+			return array( (int) $ids_meta );
+		}
+		if ( is_string( $ids_meta ) && '' !== trim( $ids_meta ) ) {
+			return array_values( array_filter( array_map( 'intval', explode( ',', $ids_meta ) ) ) );
+		}
+	}
+
+	// 2. Meta utama (metabox TypeRocket): single int / CSV / array / URL.
+	$main = get_post_meta( $post_id, $key, true );
+	if ( ! empty( $main ) ) {
+		$ids = itsi_hibah_attachment_ids( $main );
+
+		// Migrasi data lama: `{key}` bukan int tunggal (array/CSV/URL lama)
+		// → pindahkan ke `{key}_ids` & simpan int pertama di `{key}`.
+		$is_clean_single = is_int( $main ) || ( is_string( $main ) && is_numeric( $main ) );
+		if ( ! $is_clean_single && ! empty( $ids ) ) {
+			update_post_meta( $post_id, $key, (int) $ids[0] );
+			update_post_meta( $post_id, $key . '_ids', array_map( 'intval', $ids ) );
+		}
+		return $ids;
+	}
+
+	// 3. Legacy prefix TypeRocket.
+	foreach ( array( '_tr_' . $key, 'tr_' . $key ) as $legacy ) {
+		$v = get_post_meta( $post_id, $legacy, true );
+		if ( ! empty( $v ) ) {
+			$ids = itsi_hibah_attachment_ids( $v );
+			// Migrasi ke format baru.
+			update_post_meta( $post_id, $key, ! empty( $ids ) ? (int) $ids[0] : '' );
+			update_post_meta( $post_id, $key . '_ids', array_map( 'intval', $ids ) );
+			delete_post_meta( $post_id, $legacy );
+			return $ids;
+		}
+	}
+
+	return array();
+}
+
+/**
+ * Tulis meta file agar sinkron metabox (itsi.ac.id) + dashboard LP2M.
+ *
+ * - `{key}`     : single int attachment ID pertama (format metabox TypeRocket).
+ * - `{key}_ids` : array semua attachment ID (format dashboard, multi-file).
+ *
+ * @param int         $post_id
+ * @param string      $key
+ * @param mixed       $value Array URL/ID, int, atau string CSV.
+ * @return bool
+ */
+function itsi_hibah_write_file_meta( $post_id, $key, $value ) {
+	$ids = itsi_hibah_attachment_ids( $value );
+	if ( empty( $ids ) ) {
+		delete_post_meta( $post_id, $key );
+		delete_post_meta( $post_id, $key . '_ids' );
+		// Bersihkan juga legacy prefix.
+		delete_post_meta( $post_id, '_tr_' . $key );
+		delete_post_meta( $post_id, 'tr_' . $key );
+		return true;
+	}
+
+	// Metabox TypeRocket (File field) = single int (attachment ID pertama).
+	update_post_meta( $post_id, $key, (int) $ids[0] );
+
+	// Dashboard multi-file = array ID lengkap.
+	update_post_meta( $post_id, $key . '_ids', array_map( 'intval', $ids ) );
+
+	// Bersihkan legacy prefix agar tidak bentrok.
+	delete_post_meta( $post_id, '_tr_' . $key );
+	delete_post_meta( $post_id, 'tr_' . $key );
+
+	return true;
+}
+
+/**
+ * Sinkronkan meta file saat metabox TypeRocket menyimpan (hook save_post).
+ *
+ * Metabox TypeRocket menulis `{key}` = single attachment ID (int) ke postmeta.
+ * Dashboard LP2M memakai `{key}_ids` = array multi-file.
+ *
+ * Strategi sinkron (ikuti itsi.ac.id = metabox single-file):
+ *  - Metabox mengirim `tr[file_panduan]` → set `{key}_ids` sesuai isi metabox
+ *    (file utama = satu-satunya sumber dari sisi metabox).
+ *  - REST/dashboard menulis `{key}_ids` + `{key}` (int pertama) secara langsung
+ *    di update_callback (tidak lewat save_post).
+ *
+ * @param int    $post_id
+ * @param WP_Post $post
+ * @param bool   $update
+ */
+function itsi_hibah_sync_metabox_files_on_save( $post_id, $post, $update ) {
+	// Hanya hibah & hindari autosave/revision.
+	if ( get_post_type( $post_id ) !== 'hibah' ) { return; }
+	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) { return; }
+	if ( wp_is_post_revision( $post_id ) ) { return; }
+	if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) { return; }
+
+	// Field metabox dikirim dalam $_POST['tr'] (prefix TypeRocket).
+	if ( empty( $_POST['tr'] ) || ! is_array( $_POST['tr'] ) ) { return; }
+
+	$file_keys = array( 'file_panduan', 'file_template', 'file_kelompok_keahlian' );
+	foreach ( $file_keys as $key ) {
+		if ( ! array_key_exists( $key, $_POST['tr'] ) ) {
+			continue; // field ini tidak diedit di metabox → jangan sentuh.
+		}
+		$value = $_POST['tr'][ $key ];
+		$ids   = itsi_hibah_attachment_ids( $value );
+
+		// Bandingkan dengan meta `{key}` tersimpan (sumber metabox saat ini).
+		$current_main = get_post_meta( $post_id, $key, true );
+		$current_ids  = itsi_hibah_read_file_meta( $post_id, $key );
+
+		if ( empty( $ids ) ) {
+			// Metabox dikosongkan (tombol Clear) → hapus dari dashboard juga.
+			if ( ! empty( $current_main ) || ! empty( $current_ids ) ) {
+				delete_post_meta( $post_id, $key );
+				delete_post_meta( $post_id, $key . '_ids' );
+				delete_post_meta( $post_id, '_tr_' . $key );
+				delete_post_meta( $post_id, 'tr_' . $key );
+			}
+			continue;
+		}
+
+		// Jika metabox tidak berubah DAN `{key}_ids` sudah ada (file dari
+		// dashboard sudah tersimpan), biarkan — file tambahan dashboard tidak
+		// boleh hilang. Jika `{key}_ids` belum ada (upload pertama dari
+		// metabox), tulis agar format konsisten.
+		$ids_meta       = get_post_meta( $post_id, $key . '_ids', true );
+		$current_first  = ! empty( $current_ids ) ? (int) $current_ids[0] : 0;
+		$new_first      = (int) $ids[0];
+		if ( ! empty( $ids_meta ) && $current_first === $new_first ) {
+			continue;
+		}
+
+		// Metabox berubah → file utama lama digantikan file baru, file lain
+		// dari dashboard dipertahankan (tidak ada data yang hilang).
+		$existing = array_values( array_filter( $current_ids, function ( $id ) use ( $current_first ) {
+			return (int) $id !== $current_first;
+		} ) );
+		$merged   = array_values( array_unique( array_merge( array( $new_first ), $existing ) ) );
+		update_post_meta( $post_id, $key, $new_first );
+		update_post_meta( $post_id, $key . '_ids', $merged );
+	}
+}
+add_action( 'save_post', 'itsi_hibah_sync_metabox_files_on_save', 999, 3 );
+
+/**
+ * Normalisasi input file field (dari REST/metabox) menjadi daftar attachment ID.
+ * Menerima: array ID, array URL, string CSV ID/URL, atau int tunggal.
  */
 function itsi_hibah_attachment_ids( $value ): array {
 	if ( empty( $value ) ) { return array(); }
+	if ( is_int( $value ) ) {
+		return array( (int) $value );
+	}
 	$items = is_array( $value ) ? $value : explode( ',', (string) $value );
 	$ids   = array();
 	foreach ( $items as $item ) {
@@ -306,6 +496,44 @@ function itsi_hibah_field( $row, ...$keys ) {
 		}
 	}
 	return '';
+}
+
+/**
+ * Render daftar read-only semua file aktif untuk metabox.
+ *
+ * Metabox TypeRocket File field hanya menampilkan 1 file (single int).
+ * Dashboard LP2M bisa menyimpan beberapa file di `{key}_ids` — tampilkan
+ * semuanya di sini agar admin itsi tahu file yang terpasang.
+ *
+ * @param string $key Meta key (file_panduan / file_template / file_kelompok_keahlian)
+ * @return string
+ */
+function itsi_hibah_metabox_file_note( $key ) {
+	$post_id = get_the_ID();
+	if ( ! $post_id ) {
+		global $post;
+		$post_id = isset( $post->ID ) ? (int) $post->ID : 0;
+	}
+	if ( ! $post_id ) { return ''; }
+
+	$ids = itsi_hibah_read_file_meta( $post_id, $key );
+	if ( empty( $ids ) ) { return ''; }
+
+	$rows = array();
+	foreach ( $ids as $i => $id ) {
+		$url = wp_get_attachment_url( (int) $id );
+		if ( ! $url ) { continue; }
+		$rows[] = '<li style="margin:2px 0"><a href="' . esc_url( $url ) . '" target="_blank" rel="noopener" style="text-decoration:none">'
+			. esc_html( basename( $url ) ) . '</a>'
+			. ( 0 === $i ? ' <em style="color:#888">(file utama)</em>' : '' )
+			. '</li>';
+	}
+	if ( empty( $rows ) ) { return ''; }
+
+	return '<div style="margin-top:6px;padding:8px 10px;background:#f6f7f7;border:1px solid #dcdcde;border-radius:4px">'
+		. '<strong style="font-size:12px;display:block;margin-bottom:2px">File terpasang saat ini:</strong>'
+		. '<ul style="margin:0;padding-left:16px;font-size:12px">' . implode( '', $rows ) . '</ul>'
+		. '</div>';
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -400,9 +628,9 @@ function itsi_hibah_get_nearest_deadline( WP_REST_Request $request ) {
 		'jumlah_tim_maks'=> get_post_meta( $id, 'jumlah_tim_maks', true ),
 		'info_tambahan'  => itsi_hibah_lines( get_post_meta( $id, 'info_tambahan', true ) ),
 		'link_panduan'   => get_post_meta( $id, 'link_panduan', true ),
-		'file_panduan'   => itsi_hibah_attachment_urls( get_post_meta( $id, 'file_panduan', true ) ),
-		'file_template'  => itsi_hibah_attachment_urls( get_post_meta( $id, 'file_template', true ) ),
-		'file_kelompok_keahlian' => itsi_hibah_attachment_urls( get_post_meta( $id, 'file_kelompok_keahlian', true ) ),
+		'file_panduan'   => itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $id, 'file_panduan' ) ),
+		'file_template'  => itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $id, 'file_template' ) ),
+		'file_kelompok_keahlian' => itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $id, 'file_kelompok_keahlian' ) ),
 		'timeline_items' => $timeline,
 		'category_names' => is_array( $cats ) ? $cats : array(),
 	);
