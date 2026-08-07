@@ -730,9 +730,12 @@ function lp2m_json( $k ) {
 }
 
 function lp2m_site_data() {
-	// Override LP2M (opsional) menang; default ambil dari itsi.
-	$logo_id   = lp2m_opt( 'override_logo_id' ) ?: lp2m_opt( 'site_logo_id' );
-	$favicon_id = lp2m_opt( 'override_favicon_id' ) ?: lp2m_opt( 'site_favicon_id' );
+	// Override LP2M (opsional) menang; default logo & favicon ambil dari settingan
+	// itsi.ac.id (theme_mod custom_logo / site_icon). Nama tetap default LP2M.
+	$logo_id    = lp2m_opt( 'override_logo_id' ) ?: lp2m_opt( 'site_logo_id' ) ?: get_theme_mod( 'custom_logo', 0 );
+	$favicon_id = lp2m_opt( 'override_favicon_id' ) ?: lp2m_opt( 'site_favicon_id' ) ?: get_theme_mod( 'site_icon', 0 );
+	$nama       = lp2m_opt( 'site_nama' ) ?: 'LP2M ITSI';
+	$nama_pjg   = lp2m_opt( 'site_nama_panjang' ) ?: 'Lembaga Penelitian dan Pengabdian kepada Masyarakat';
 	return array(
 		'logo_id'        => $logo_id,
 		'logo_url'       => lp2m_url( $logo_id ),
@@ -740,8 +743,8 @@ function lp2m_site_data() {
 		'favicon_url'    => lp2m_url( $favicon_id ),
 		'logo_is_override'   => (bool) lp2m_opt( 'override_logo_id' ),
 		'favicon_is_override'=> (bool) lp2m_opt( 'override_favicon_id' ),
-		'nama'           => lp2m_opt( 'site_nama' ) ?: 'LP2M ITSI',
-		'nama_panjang'   => lp2m_opt( 'site_nama_panjang' ),
+		'nama'           => $nama,
+		'nama_panjang'   => $nama_pjg,
 		'email'          => lp2m_opt( 'site_email' ),
 		'telepon'        => lp2m_opt( 'site_telepon' ),
 		'alamat'         => lp2m_opt( 'site_alamat' ),
