@@ -954,6 +954,10 @@ class ITSI_LP2M_Hibah_Receiver {
 
 		// Link "Cek Status" untuk pendaftar — ambil dari setting URL frontend.
 		$frontend_url = untrailingslashit( (string) get_option( 'lp2m_site_frontend_url', '' ) );
+		if ( '' === $frontend_url ) {
+			// Fallback: URL publik LP2M (apabila setting belum diisi di produksi).
+			$frontend_url = 'https://lp2m.bagistudio.com';
+		}
 		$track_btn    = '';
 		if ( '' !== $frontend_url ) {
 			$track_url = $frontend_url . '/daftar/status/' . rawurlencode( $reg_no );
