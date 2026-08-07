@@ -258,6 +258,7 @@ require_once get_template_directory() . '/inc/lp2m-smtp.php';
  *   - Dynamic form builder (custom fields per event)
  */
 require_once get_template_directory() . '/inc/lp2m/class-hibah-receiver.php';
+require_once get_template_directory() . '/inc/lp2m/class-lp2m-pdf.php';
 
 /**
  * Register widget areas for single post / page.

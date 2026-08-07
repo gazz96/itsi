@@ -86,6 +86,10 @@ function lp2m_pendaftaran_submit(WP_REST_Request $request) {
     $admin_email = lp2m_opt('site_admin_email') ?: get_option('admin_email');
     $from_name   = get_bloginfo('name');
 
+    // Lampiran PDF detail pendaftaran (temp file, langsung dihapus setelah kirim).
+    $attachment    = class_exists('ITSI_LP2M_PDF') ? ITSI_LP2M_PDF::create_attachment($data, $reg_no, '') : '';
+    $pdf_attachments = $attachment ? [$attachment] : [];
+
     // 1) Notif admin
     $subject_admin = "[LP2M] Pendaftaran Hibah Baru: {$reg_no}";
     $msg_admin     = implode("\n", [
@@ -99,9 +103,11 @@ function lp2m_pendaftaran_submit(WP_REST_Request $request) {
         "Skema            : {$skema}",
         "Jenis            : {$jenis}",
         "",
+        "Detail lengkap ada di lampiran PDF.",
+        "",
         "Silakan login dashboard: https://lp2m.bagistudio.com/dashboard/pendaftaran",
     ]);
-    wp_mail($admin_email, $subject_admin, $msg_admin, ['From: ' . $from_name . ' <noreply@' . $_SERVER['SERVER_NAME'] . '>']);
+    wp_mail($admin_email, $subject_admin, $msg_admin, ['From: ' . $from_name . ' <noreply@' . $_SERVER['SERVER_NAME'] . '>'], $pdf_attachments);
 
     // 2) Notif penerima
     $subject_user = "Konfirmasi Pendaftaran Hibah LP2M ITSI — {$reg_no}";
@@ -112,12 +118,19 @@ function lp2m_pendaftaran_submit(WP_REST_Request $request) {
         "Judul            : {$judul}",
         "Status           : SUBMITTED",
         "",
+        "Detail pendaftaran Anda ada di lampiran PDF.",
+        "",
         "Simpan nomor ini. Cek status sewaktu-waktu:",
         "https://lp2m.bagistudio.com/daftar/status/{$reg_no}",
         "",
         "Tim LP2M ITSI",
     ]);
-    wp_mail($email, $subject_user, $msg_user);
+    wp_mail($email, $subject_user, $msg_user, [], $pdf_attachments);
+
+    // Bersihkan file temp PDF.
+    if (class_exists('ITSI_LP2M_PDF')) {
+        ITSI_LP2M_PDF::cleanup($attachment);
+    }
 
     return rest_ensure_response([
         'success' => true,

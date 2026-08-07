@@ -822,21 +822,31 @@ class ITSI_LP2M_Hibah_Receiver {
 		$site_url   = get_site_url();
 		$admin_link = $site_url . '/wp-admin/post.php?post=' . $this->last_post_id . '&action=edit';
 
+		// Lampiran PDF detail pendaftaran (nama file: REGNO-detail.pdf).
+		// PDF berisi data pribadi pendaftar → dipakai temp file yang langsung
+		// dihapus setelah kirim, TIDAK disimpan permanen di folder uploads.
+		$attachment = ITSI_LP2M_PDF::create_attachment( $params, $reg_no, $event_name );
+		$attachments = $attachment ? [ $attachment ] : [];
+
 		$to        = [ $admin_email ];
 		$subject   = sprintf( '[LP2M] Pendaftaran Hibah Baru — %s', $reg_no );
 		$body      = $this->email_html( $params, $reg_no, $event_name, $admin_link );
 		$headers   = [ 'Content-Type: text/html; charset=UTF-8' ];
-		wp_mail( $to, $subject, $body, $headers );
+		wp_mail( $to, $subject, $body, $headers, $attachments );
 
-		// Email konfirmasi ke pendaftar (sama konten, tanpa link admin).
+		// Email konfirmasi ke pendaftar (sama konten, tanpa link admin + lampiran PDF).
 		if ( is_email( $params['email'] ) ) {
 			wp_mail(
 				$params['email'],
 				sprintf( 'Konfirmasi Pendaftaran Hibah — %s', $reg_no ),
 				$this->email_html( $params, $reg_no, $event_name, '' ),
-				[ 'Content-Type: text/html; charset=UTF-8' ]
+				[ 'Content-Type: text/html; charset=UTF-8' ],
+				$attachments
 			);
 		}
+
+		// Bersihkan file temp lampiran.
+		ITSI_LP2M_PDF::cleanup( $attachment );
 	}
 
 	/**
