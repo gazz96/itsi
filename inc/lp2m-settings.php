@@ -271,7 +271,7 @@ function lp2m_render() {
 		\TypeRocket\Utility\Helper::form()->input( 'lp2m_smtp_username' )->setTypeEmail()
 			->setLabel( __( 'SMTP Username', 'itsi' ) )
 			->setHelp( __( 'Alamat email pengirim, mis. kanit@itsi.ac.id', 'itsi' ) ),
-		\TypeRocket\Utility\Helper::form()->input( 'lp2m_smtp_password' )->setTypePassword()
+		\TypeRocket\Utility\Helper::form()->password( 'lp2m_smtp_password' )
 			->setLabel( __( 'SMTP Password (Application Password)', 'itsi' ) )
 			->setHelp( __( 'Disimpan di database WordPress (wp_options), tidak di source code.', 'itsi' ) ),
 		\TypeRocket\Utility\Helper::form()->select( 'lp2m_smtp_secure' )
