@@ -766,6 +766,15 @@ class ITSI_LP2M_Hibah_Receiver {
 			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Data tidak ditemukan.' ], 404 );
 		}
 
+		$anggota_list = json_decode( (string) get_post_meta( $post->ID, '_anggota_list', true ), true );
+		$anggota_list = is_array( $anggota_list ) ? $anggota_list : [];
+
+		// Jumlah tim: kosong pada data lama → hitung dari anggota + 1 (ketua).
+		$jml_tim = (string) get_post_meta( $post->ID, '_jml_tim', true );
+		if ( '' === trim( $jml_tim ) || '0' === trim( $jml_tim ) ) {
+			$jml_tim = (string) ( count( $anggota_list ) + 1 );
+		}
+
 		return new \WP_REST_Response( [ 'success' => true, 'data' => [
 			'id'         => $post->ID,
 			'reg_no'     => get_post_meta( $post->ID, '_reg_no', true ),
@@ -780,9 +789,9 @@ class ITSI_LP2M_Hibah_Receiver {
 			'kelompok_keahlian' => get_post_meta( $post->ID, '_kelompok_keahlian', true ),
 			'judul'      => get_post_meta( $post->ID, '_judul', true ),
 			'ringkasan'  => get_post_meta( $post->ID, '_ringkasan', true ),
-			'jml_tim'    => get_post_meta( $post->ID, '_jml_tim', true ),
+			'jml_tim'    => $jml_tim,
 			'anggota'    => get_post_meta( $post->ID, '_anggota', true ),
-			'anggota_list' => json_decode( (string) get_post_meta( $post->ID, '_anggota_list', true ), true ) ?: [],
+			'anggota_list' => $anggota_list,
 			'email'      => get_post_meta( $post->ID, '_email', true ),
 			'hp'         => get_post_meta( $post->ID, '_hp', true ),
 			'status'     => (string) ( get_post_meta( $post->ID, '_status', true ) ?: 'submitted' ),
@@ -935,6 +944,12 @@ class ITSI_LP2M_Hibah_Receiver {
 			return $post_id;
 		}
 
+		// Jumlah tim: kalau kosong, hitung otomatis dari anggota tim terisi + 1 (ketua).
+		$jml_tim = (string) $params['jml_tim'];
+		if ( '' === trim( $jml_tim ) || '0' === trim( $jml_tim ) ) {
+			$jml_tim = (string) ( count( $params['anggota_list'] ) + 1 );
+		}
+
 		$meta = [
 			'_reg_no'    => $reg_no, '_hibah_id' => $hibah_id,
 			'_nama'      => $params['nama'], '_nip' => $params['nip'],
@@ -942,7 +957,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			'_prodi_id'  => $params['prodi_id'],
 			'_skema'     => $params['skema'], '_skema_id' => $params['skema_id'],
 			'_judul'     => $params['judul'],
-			'_ringkasan' => $params['ringkasan'], '_jml_tim' => $params['jml_tim'],
+			'_ringkasan' => $params['ringkasan'], '_jml_tim' => $jml_tim,
 			'_anggota'   => $params['anggota'], '_email' => $params['email'],
 			'_hp'        => $params['hp'],
 			'_jenis_hibah'      => $params['jenis_hibah'], '_jenis_hibah_id' => $params['jenis_hibah_id'],
