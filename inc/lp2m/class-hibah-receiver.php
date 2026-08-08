@@ -233,7 +233,8 @@ class ITSI_LP2M_Hibah_Receiver {
 	}
 
 	/**
-	 * Permission: hanya administrator (termasuk via Application Password/Basic auth).
+	 * Permission: hanya administrator. Basic auth diterima untuk Application
+	 * Password (core) maupun password akun (fallback lp2m-auth.php).
 	 */
 	public function check_admin(): bool|\WP_Error {
 		if ( current_user_can( 'manage_options' ) ) {

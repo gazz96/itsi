@@ -248,6 +248,23 @@ require_once get_template_directory() . '/inc/lp2m-pendaftaran.php';
 require_once get_template_directory() . '/inc/lp2m-smtp.php';
 
 /**
+ * LP2M Auth — fallback autentikasi REST dengan password akun.
+ *
+ * WordPress core hanya menerima Application Password via Basic Auth; filter
+ * ini (rest_authentication_errors) menambahkan dukungan username + password
+ * akun biasa agar SPA LP2M bisa login & mengakses /wp-json langsung dengan
+ * password akun. Application password lama tetap valid (diproses core dulu).
+ */
+require_once get_template_directory() . '/inc/lp2m-auth.php';
+
+/**
+ * LP2M User Password — ganti password akun via REST (POST /lp2m/v1/me/password).
+ *
+ * Dipakai dashboard LP2M (Profile) untuk mengganti password akun pengguna.
+ */
+require_once get_template_directory() . '/inc/lp2m/class-user-password.php';
+
+/**
  * LP2M Hibah Receiver — form submission, sanitization, REST endpoints.
  *
  * Handles POST/GET /lp2m/v1/hibah with:
