@@ -30,10 +30,19 @@ class ITSI_User_Password {
 			'args'                => [
 				'current_password' => [
 					'required'          => true,
-					'sanitize_callback' => 'sanitize_text_field',
+					// JANGAN pakai sanitize_text_field: ia menghapus pola %xx
+					// (mis. "%3C"), merusak password yang mengandung karakter
+					// URL-encoded. Password harus diverifikasi apa adanya.
+					'sanitize_callback' => function ( $value ) {
+						return is_string( $value ) ? $value : '';
+					},
 				],
 				'new_password'      => [
 					'required'          => true,
+					// Sama: pertahankan string mentah (bisa mengandung %xx).
+					'sanitize_callback' => function ( $value ) {
+						return is_string( $value ) ? $value : '';
+					},
 					'validate_callback' => [ $this, 'validate_new_password' ],
 				],
 			],
