@@ -177,12 +177,40 @@ add_filter( 'request', 'itsi_berita_request', 1 );
  * query vars to the program_studi CPT single.
  *
  * The archive /index.php/program-studi/ (no trailing segment) is left untouched.
+ *
+ * Robustness: we parse REQUEST_URI as the source of truth instead of relying on
+ * the shape of the already-parsed query vars. On some hosting layers the rewrite
+ * does not emit `post_type=program_studi` for /program-studi/{slug}/ (it falls
+ * back to the generic post/page rules), so neither `name` nor `pagename` carries
+ * the `program-studi/` prefix in a predictable way. Checking the raw path makes
+ * the hijack work regardless.
  */
 function itsi_program_studi_request( $query_vars ) {
 	if ( is_admin() ) {
 		return $query_vars;
 	}
 
+	// 1) Source of truth: raw request path.
+	$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+	$path = rawurldecode( wp_parse_url( $uri, PHP_URL_PATH ) ?: '' );
+
+	if ( preg_match( '#/program-studi/([^/]+)/?$#', $path, $pm ) ) {
+		// Strip page-singulation vars and repoint to the CPT single.
+		unset(
+			$query_vars['name'],
+			$query_vars['pagename'],
+			$query_vars['page'],
+			$query_vars['feed'],
+			$query_vars['post_type'],
+			$query_vars['p']
+		);
+		$query_vars['post_type'] = 'program_studi';
+		$query_vars['name']      = $pm[1];
+
+		return $query_vars;
+	}
+
+	// 2) Fallback: hijack name/pagename that carries the two-segment shape.
 	$slug = isset( $query_vars['name'] ) ? $query_vars['name']
 	       : ( isset( $query_vars['pagename'] ) ? $query_vars['pagename'] : null );
 
