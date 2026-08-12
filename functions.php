@@ -390,6 +390,119 @@ require_once get_template_directory() . '/inc/lp2m/class-lp2m-pdf.php';
  *   _popular      → sidebar middle slot (was: Popular Posts card)
  *   _toc          → sidebar first slot (was: Daftar Isi card)
  */
+
+/**
+ * Default footer layout — 4 kolom: Brand 2fr + Prodi/Info/Kontak 1fr.
+ *
+ * Dipakai oleh: itsi_get_footer_layout(), widget registration (functions.php),
+ * populate tabs (admin-menu.php), dan render (footer.php). Semua merujuk ke
+ * sini agar default konsisten.
+ *
+ * @return array<int,array{label:string,width:string}>
+ */
+function itsi_footer_layout_default() {
+	return array(
+		array( 'label' => 'Footer 1', 'width' => '2fr' ),
+		array( 'label' => 'Footer 2', 'width' => '1fr' ),
+		array( 'label' => 'Footer 3', 'width' => '1fr' ),
+		array( 'label' => 'Footer 4', 'width' => '1fr' ),
+	);
+}
+
+/**
+ * Get the footer layout from theme_mod, normalized to rows [label, width].
+ *
+ * Handles: absent (null), array, serialized string (set_theme_mod auto-serializes
+ * arrays), and JSON string (TypeRocket repeater can post JSON). Invalid/empty
+ * rows dropped; missing width → '1fr'; empty result → default.
+ *
+ * @return array<int,array{label:string,width:string}>
+ */
+function itsi_get_footer_layout() {
+	$raw = get_theme_mod( 'itsi_footer_layout', null );
+
+	if ( is_string( $raw ) ) {
+		$decoded = json_decode( $raw, true );
+		if ( is_array( $decoded ) ) {
+			$raw = $decoded;
+		} else {
+			$unser = maybe_unserialize( $raw );
+			$raw   = is_array( $unser ) ? $unser : array();
+		}
+	}
+	if ( ! is_array( $raw ) ) {
+		$raw = array();
+	}
+
+	$rows = array();
+	foreach ( $raw as $row ) {
+		if ( ! is_array( $row ) ) {
+			continue;
+		}
+		$label = isset( $row['label'] ) ? (string) $row['label'] : '';
+		$width = isset( $row['width'] ) ? trim( (string) $row['width'] ) : '';
+		if ( '' === $label && '' === $width ) {
+			continue;
+		}
+		$rows[] = array(
+			'label' => '' !== $label ? $label : sprintf( 'Footer %d', count( $rows ) + 1 ),
+			'width' => '' !== $width ? $width : '1fr',
+		);
+	}
+
+	return ! empty( $rows ) ? $rows : itsi_footer_layout_default();
+}
+
+/**
+ * Build a sanitized CSS `grid-template-columns` value from layout rows.
+ *
+ * Only whitelisted tokens pass: angka+unit (fr, %, px, em, rem, vw, vh),
+ * auto, min-content, max-content, minmax(...). Token tak dikenal → '1fr'.
+ * Empty rows → default '2fr 1fr 1fr 1fr'.
+ *
+ * @param array $rows Rows from itsi_get_footer_layout().
+ * @return string CSS value, e.g. "2fr 1fr 1fr 1fr".
+ */
+function itsi_footer_grid_columns( $rows ) {
+	if ( ! is_array( $rows ) || empty( $rows ) ) {
+		return '2fr 1fr 1fr 1fr';
+	}
+
+	$tokens = array();
+	foreach ( $rows as $row ) {
+		$width = isset( $row['width'] ) ? trim( (string) $row['width'] ) : '';
+		if ( '' === $width ) {
+			$tokens[] = '1fr';
+			continue;
+		}
+		$parts = preg_split( '/[\s,]+/', $width, -1, PREG_SPLIT_NO_EMPTY );
+		foreach ( $parts as $tok ) {
+			if ( 1 === preg_match( '#^(\d+(\.\d+)?(fr|%|px|em|rem|vw|vh))|auto|min-content|max-content|minmax\([^)]*\)$#i', $tok ) ) {
+				$tokens[] = $tok;
+			} else {
+				$tokens[] = '1fr';
+			}
+		}
+	}
+
+	return implode( ' ', $tokens );
+}
+
+/**
+ * Register widget areas for single post / page.
+ *
+ * All five are scoped to the single-post / single-page layout — they only
+ * render inside `single.php` and `page.php` when `is_active_sidebar()` is
+ * true. Admin label is the user-facing name in the Customizer; the `id`
+ * follows the `itsi_single_post_widget_*` convention you requested.
+ *
+ * Position reference (see single.php):
+ *   _before_post  → top of <article>, above header (was: top AdSense slot)
+ *   _after_post   → end of <article>, after Related (was: post-article AdSense)
+ *   _sidebar      → sidebar first slot (was: tall AdSense)
+ *   _popular      → sidebar middle slot (was: Popular Posts card)
+ *   _toc          → sidebar first slot (was: Daftar Isi card)
+ */
 function itsi_widgets_init() {
 	$itsi_widget_areas = array(
 		array(
@@ -470,6 +583,24 @@ function itsi_widgets_init() {
 				)
 			);
 		}
+	}
+
+	// Footer widget areas — dinamis dari layout (Appearance → ITSI → Footer → Layout Footer).
+	// Setiap baris layout = satu widget area `footer_N`. Default 4 kolom.
+	$footer_layout = itsi_get_footer_layout();
+	foreach ( $footer_layout as $i => $col ) {
+		$num = (int) $i + 1;
+		register_sidebar(
+			array(
+				'name'          => sprintf( __( 'Footer %d — %s', 'itsi' ), $num, $col['label'] ),
+				'id'            => 'footer_' . $num,
+				'description'   => __( 'Kolom footer dari Layout Footer (Appearance → ITSI → Footer). Kosongkan untuk fallback footer statis.', 'itsi' ),
+				'before_widget' => '<div id="%1$s" class="f-col widget %2$s">',
+				'after_widget'  => '</div>',
+				'before_title'  => '<div class="f-col-ttl">',
+				'after_title'   => '</div>',
+			)
+		);
 	}
 
 	// Data-driven widgets (auto-render TOC from <h2>, Popular from post_views_count).

@@ -101,6 +101,8 @@ function itsi_handle_settings_save() {
 		'itsi_footer_privacy_url'     => 'esc_url_raw',
 		'itsi_footer_terms_url'       => 'esc_url_raw',
 		'itsi_footer_sitemap_url'     => 'esc_url_raw',
+		// 2026-08-12: Footer layout builder (repeater → widget areas + grid widths).
+		'itsi_footer_layout'          => 'itsi_sanitize_footer_layout',
 
 		// Posts.
 		'itsi_posts_per_page'         => 'absint',
@@ -184,6 +186,65 @@ function itsi_handle_settings_save() {
 	exit;
 }
 add_action( 'admin_post_itsi_settings_save', 'itsi_handle_settings_save' );
+
+/**
+ * Sanitize the footer layout repeater value.
+ *
+ * Each row = [ 'label' => string, 'width' => string ].
+ *  - Label: sanitize_text_field.
+ *  - Width: whitelist token per grid-template-columns — angka+fr/%, px/em/rem,
+ *    auto, min-content, max-content, minmax(...). Token dipisah spasi/koma;
+ *    token tak dikenal → '1fr'. Baris tanpa label & tanpa width valid dibuang.
+ *
+ * @param mixed $value Raw repeater value (array of rows or JSON string).
+ * @return array List of sanitized rows.
+ */
+function itsi_sanitize_footer_layout( $value ) {
+	if ( is_string( $value ) ) {
+		$decoded = json_decode( $value, true );
+		if ( is_array( $decoded ) ) {
+			$value = $decoded;
+		}
+	}
+	if ( ! is_array( $value ) ) {
+		return array();
+	}
+
+	$rows = array();
+	foreach ( $value as $row ) {
+		if ( ! is_array( $row ) ) {
+			continue;
+		}
+
+		$label = isset( $row['label'] ) ? sanitize_text_field( (string) $row['label'] ) : '';
+		$width = isset( $row['width'] ) ? trim( (string) $row['width'] ) : '';
+
+		// Width: split by whitespace / comma, validate each token.
+		$tokens = preg_split( '/[\s,]+/', $width, -1, PREG_SPLIT_NO_EMPTY );
+		$valid  = array();
+		foreach ( $tokens as $tok ) {
+			if ( 1 === preg_match( '#^(\d+(\.\d+)?(fr|%|px|em|rem|vw|vh))|auto|min-content|max-content|minmax\([^)]*\)$#i', $tok ) ) {
+				$valid[] = $tok;
+			} else {
+				$valid[] = '1fr'; // fallback token tak dikenal.
+			}
+		}
+
+		// Baris kosong total → buang. Minimal salah satu (label ATAU width) boleh ada;
+		// kalau width kosong tapi ada label, default width 1fr biar grid tetap konsisten.
+		if ( '' === $label && empty( $valid ) ) {
+			continue;
+		}
+		$width_str = empty( $valid ) ? '1fr' : implode( ' ', $valid );
+
+		$rows[] = array(
+			'label' => $label,
+			'width' => $width_str,
+		);
+	}
+
+	return $rows;
+}
 
 /**
  * Sanitize a numeric opacity value into 0.0–1.0 range.
@@ -359,6 +420,28 @@ function itsi_render_settings_page() {
 	) );
 
 	$tabs->tab( __( 'Footer', 'itsi' ), 'dashicons-share', array(
+		// === Layout Footer (repeater → widget areas + grid widths) ===
+		// Setiap baris = 1 kolom footer. Jumlah baris menentukan jumlah widget
+		// area yang diregistrasi (footer_1, footer_2, …). Default: 4 baris.
+		// Width mengikuti syntax CSS grid-template-columns (fr, %, px, em, …).
+		\TypeRocket\Utility\Helper::form()
+			->repeater( 'itsi_footer_layout' )
+			->setFields(
+				array(
+					\TypeRocket\Utility\Helper::form()
+						->text( 'Label' )
+						->setAttribute( 'placeholder', 'Footer 1' )
+						->setHelp( __( 'Nama kolom — dipakai sebagai label widget area (Appearance → Widgets).', 'itsi' ) ),
+					\TypeRocket\Utility\Helper::form()
+						->text( 'Width' )
+						->setAttribute( 'placeholder', '2fr' )
+						->setHelp( __( 'Lebar kolom, mengikuti syntax CSS grid-template-columns. Contoh: 2fr, 1fr, 25%, 300px, auto. Pisahkan beberapa token dengan spasi/koma untuk kolom gabungan.', 'itsi' ) ),
+				)
+			)
+			->setTitle( __( 'Layout Footer', 'itsi' ) )
+			->setSetting( 'help', __( 'Setiap baris = satu kolom footer & satu widget area (footer_1, footer_2, …). Kosongkan semua baris untuk kembali ke footer statis default. Jika minimal satu widget area terisi, footer memakai widget; jika kosong, footer statis (Brand / Prodi / Informasi / Kontak) tetap tampil.', 'itsi' ) )
+			->setLimit( 12 ),
+
 		// === Copyright + contact (konten statis) ===
 		\TypeRocket\Utility\Helper::form()
 			->text( 'itsi_footer_copyright' )
@@ -515,6 +598,26 @@ function itsi_populate_tabs_from_theme_mods( $node ) {
 			}
 			$key = preg_replace( '/\[([^\]]+)\]/', '.$1', $name );
 			$mod = get_theme_mod( $key, null );
+
+			// Repeater `itsi_footer_layout`: value bisa belum pernah disimpan (null)
+			// → tampilkan default 4 baris. Kalau sudah disimpan sebagai array / JSON /
+			// serialized string → normalisasi ke array (kosong = biarkan kosong,
+			// jangan ditimpa default, supaya user yang sengaja menghapus semua baris
+			// tetap melihat repeater kosong).
+			if ( 'itsi_footer_layout' === $key ) {
+				if ( null === $mod ) {
+					$mod = itsi_footer_layout_default();
+				} elseif ( is_string( $mod ) ) {
+					$decoded = json_decode( $mod, true );
+					if ( is_array( $decoded ) ) {
+						$mod = $decoded;
+					} else {
+						$unser = maybe_unserialize( $mod );
+						$mod   = is_array( $unser ) ? $unser : array();
+					}
+				}
+			}
+
 			if ( null === $mod ) {
 				continue;
 			}
@@ -524,6 +627,24 @@ function itsi_populate_tabs_from_theme_mods( $node ) {
 			if ( is_bool( $mod ) ) {
 				if ( $mod && method_exists( $field, 'setAttribute' ) ) {
 					$field->setAttribute( 'checked', 'checked' );
+				}
+				continue;
+			}
+
+			// Repeater `itsi_footer_layout`: dua model harus diset —
+			// (1) model FIELD repeater agar getValue() (setCast('array')) mengembalikan
+			//     baris-baris tersimpan → jumlah baris dirender benar;
+			// (2) model FORM field agar sub-field (Label/Width) yang di-clone saat
+			//     render ($form->super($k, $this)) bisa resolve nilainya lewat group
+			//     path `itsi_footer_layout.0.label` dst.
+			// Format: [ 'itsi_footer_layout' => [ ['label'=>'…','width'=>'…'], … ] ]
+			if ( 'itsi_footer_layout' === $key && is_array( $mod ) ) {
+				if ( method_exists( $field, 'setModel' ) ) {
+					$field->setModel( array( $key => $mod ) );
+				}
+				$form = method_exists( $field, 'getForm' ) ? $field->getForm() : null;
+				if ( $form && method_exists( $form, 'setModel' ) ) {
+					$form->setModel( array( $key => $mod ) );
 				}
 				continue;
 			}

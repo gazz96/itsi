@@ -58,7 +58,47 @@ function itsi_footer_icon_svg( $name ) {
 	<footer id="colophon" role="contentinfo">
 		<div class="footer-top">
 			<div class="container">
-				<div class="footer-grid">
+				<?php
+				/* === FOOTER LAYOUT BUILDER (dinamis) ===
+				 *
+				 * Layout dikonfigurasi di Appearance → ITSI → Footer → "Layout Footer"
+				 * (repeater: Label + Width per baris). Setiap baris = 1 kolom footer &
+				 * 1 widget area `footer_N` (diregistrasi di functions.php).
+				 *
+				 * Mode WIDGET : jika minimal satu widget area footer_N terisi, render
+				 *                kolom dari widget tsb + inline grid-template-columns
+				 *                sesuai width yang dikonfigurasi (terhubung ke class
+				 *                .footer-grid). Kolom tanpa widget dilewati.
+				 * Mode STATIS : jika tidak ada widget sama sekali, render footer statis
+				 *                (Brand / Prodi / Informasi / Kontak) — identik dengan
+				 *                tampilan lama, tanpa inline style.
+				 */
+				$itsi_layout       = itsi_get_footer_layout();
+				$itsi_grid_columns = itsi_footer_grid_columns( $itsi_layout );
+				$itsi_has_widgets  = false;
+				foreach ( $itsi_layout as $i => $col ) {
+					if ( is_active_sidebar( 'footer_' . ( (int) $i + 1 ) ) ) {
+						$itsi_has_widgets = true;
+						break;
+					}
+				}
+				?>
+				<div class="footer-grid"<?php echo $itsi_has_widgets ? ' style="--fg-cols:' . esc_attr( $itsi_grid_columns ) . '"' : ''; ?>>
+
+					<?php if ( $itsi_has_widgets ) : ?>
+						<?php
+						/* === WIDGET MODE: render kolom dari widget area footer_N === */
+						foreach ( $itsi_layout as $i => $col ) {
+							$sidebar_id = 'footer_' . ( (int) $i + 1 );
+							if ( ! is_active_sidebar( $sidebar_id ) ) {
+								continue;
+							}
+							echo '<div class="f-col f-col-widget">';
+							dynamic_sidebar( $sidebar_id );
+							echo '</div>';
+						}
+						?>
+					<?php else : ?>
 
 					<?php
 					/* === BRAND COLUMN === */
@@ -212,6 +252,7 @@ function itsi_footer_icon_svg( $name ) {
 						</ul>
 					</div>
 
+					<?php endif; // widget mode vs static mode ?>
 				</div>
 			</div>
 		</div>
