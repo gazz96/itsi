@@ -261,7 +261,7 @@ $map_misi        = [ 'icon' => ['icon','Icon'], 'text' => ['text','teks_misi','T
 $map_tujuan      = [ 'icon' => ['icon','Icon'], 'text' => ['text','teks_tujuan','Teks Tujuan','Text'] ];
 $map_kompetensi  = [ 'icon' => ['icon','Icon'], 'name' => ['name','nama_kompetensi','Nama Kompetensi','Name'] ];
 $map_lulusan     = [ 'icon' => ['icon','Icon'], 'name' => ['name','nama_karir','Nama Karir','Name'], 'desc' => ['desc','deskripsi','Deskripsi','Desc'] ];
-$map_dosen       = [ 'initials' => ['initials','inisial_(2_huruf)','Inisial (2 huruf)','Initials'], 'name' => ['name','nama','nama_lengkap_+_gelar','Nama Lengkap + Gelar','Name'], 'nidn' => ['nidn','NIDN'], 'univ' => ['univ','universitas','Universitas','Univ'], 'bid' => ['bid','bidang_keilmuan','Bidang Keilmuan','Bid'], 'deg' => ['deg','jenjang','Jenjang','Deg'] ];
+$map_dosen       = [ 'initials' => ['initials','inisial_(2_huruf)','Inisial (2 huruf)','Initials'], 'name' => ['name','nama','nama_lengkap_+_gelar','Nama Lengkap + Gelar','Name'], 'nidn' => ['nidn','NIDN'], 'univ' => ['univ','universitas','Universitas','Univ'], 'bid' => ['bid','bidang_keilmuan','Bidang Keilmuan','Bid'], 'deg' => ['deg','jenjang','Jenjang','Deg'], 'foto' => ['foto','foto_dosen','Foto Dosen','photo','Photo','image','Image','Foto'] ];
 $map_fasilitas   = [ 'icon' => ['icon','Icon'], 'name' => ['name','nama_fasilitas','Nama Fasilitas','Name'], 'desc' => ['desc','deskripsi','Deskripsi','Desc'] ];
 $map_mitra       = [ 'name' => ['name','nama_mitra','Nama Mitra','Name'], 'image' => ['image','url_logo','URL Logo','Image','logo'], 'website' => ['website','Website'] ];
 $map_prestasi    = [ 'year' => ['year','tahun','Tahun','Year'], 'title' => ['title','judul_prestasi','Judul Prestasi','Title'], 'desc' => ['desc','deskripsi','Deskripsi','Desc'] ];
@@ -714,8 +714,25 @@ unset( $dr );
                 $deg  = isset( $d['deg'] ) ? strtolower( $d['deg'] ) : 's2';
                 $init = isset( $d['initials'] ) ? $d['initials'] : strtoupper( mb_substr( $name !== '' ? $name : 'X', 0, 2 ) );
                 ?>
+                <?php
+                $d_foto_id  = 0;
+                $d_foto_src = '';
+                $d_foto_raw = isset( $d['foto'] ) ? $d['foto'] : '';
+                if ( is_array( $d_foto_raw ) && isset( $d_foto_raw['id'] ) ) { $d_foto_raw = $d_foto_raw['id']; }
+                if ( is_numeric( $d_foto_raw ) && (int) $d_foto_raw > 0 ) {
+                    $d_foto_id = (int) $d_foto_raw;
+                    $d_foto_src_arr = wp_get_attachment_image_src( $d_foto_id, 'medium' );
+                    if ( $d_foto_src_arr && ! empty( $d_foto_src_arr[0] ) ) { $d_foto_src = $d_foto_src_arr[0]; }
+                }
+                ?>
                 <div class="pg-dc pg-rv pg-d<?php echo esc_attr( ( $i % 6 ) + 1 ); ?>" data-lvl="<?php echo esc_attr( $deg ); ?>">
-                  <div class="pg-dc-av"><?php echo esc_html( $init ); ?></div>
+                  <div class="pg-dc-av">
+                    <?php if ( $d_foto_src !== '' ) : ?>
+                      <img src="<?php echo esc_url( $d_foto_src ); ?>" alt="<?php echo esc_attr( $name ); ?>" loading="lazy" />
+                    <?php else : ?>
+                      <?php echo esc_html( $init ); ?>
+                    <?php endif; ?>
+                  </div>
                   <div class="pg-dc-name"><?php echo esc_html( $name ); ?></div>
                   <div class="pg-dc-nidn">NIDN: <?php echo esc_html( $nidn ); ?></div>
                   <?php if ( $univ !== '' ) : ?>

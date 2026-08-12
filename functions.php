@@ -980,6 +980,7 @@ add_action( 'typerocket_loaded', function () {
 						$form->text( 'Universitas' )->setAttribute( 'placeholder', 'Institut Teknologi Bandung' ),
 						$form->text( 'Bidang Keilmuan' )->setAttribute( 'placeholder', 'Pertanian' ),
 						$form->select( 'Jenjang' )->setOptions( array( 's3' => 'S3 — Doktor', 's2' => 'S2 — Magister' ) )->setAttribute( 'style', 'width:100%' ),
+						$form->image( 'Foto Dosen' )->setLabel( 'Foto Dosen (opsional)' )->setHelp( 'Pilih/upload foto dari Media Library. Jika kosong, kartu dosen menampilkan avatar inisial otomatis.' ),
 					)
 				);
 				$tabs->tab( 'Dosen', 'dashicons-groups', array(

@@ -165,7 +165,8 @@
 .pg-dosen-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem}
 .pg-dc{background:#fff;border:1px solid #CEE2FF;border-radius:var(--r-lg);padding:1.25rem;text-align:center;transition:all .28s var(--ease)}
 .pg-dc:hover{border-color:#B0CCFF;box-shadow:var(--shadow-lg);transform:translateY(-4px)}
-.pg-dc-av{width:62px;height:62px;border-radius:50%;margin:0 auto .8rem;background:linear-gradient(135deg,var(--royal),var(--azure));display:flex;align-items:center;justify-content:center;font-family:"Cormorant Garamond",serif;font-size:1.25rem;font-weight:700;color:#fff;border:3px solid var(--frost)}
+.pg-dc-av{width:84px;height:84px;border-radius:50%;margin:0 auto .8rem;background:linear-gradient(135deg,var(--royal),var(--azure));display:flex;align-items:center;justify-content:center;font-family:"Cormorant Garamond",serif;font-size:1.25rem;font-weight:700;color:#fff;border:3px solid var(--frost);overflow:hidden;padding:0;position:relative;flex-shrink:0}
+.pg-dc-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;display:block}
 .pg-dc-name{font-size:.81rem;font-weight:700;color:var(--tx-dark);line-height:1.38;margin-bottom:.28rem}
 .pg-dc-nidn{font-size:.66rem;color:var(--tx-soft);margin-bottom:.4rem}
 .pg-dc-univ{font-size:.72rem;color:var(--tx-mid);line-height:1.4;margin-bottom:.4rem}
