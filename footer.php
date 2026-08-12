@@ -55,6 +55,16 @@ function itsi_footer_icon_svg( $name ) {
 ?>
 	</div><!-- #content -->
 
+	<!-- WIDGET AREA BEFORE FOOTER -->
+	<?php if ( is_active_sidebar( 'itsi_before_footer' ) ) : ?>
+		<section class="before-footer" aria-label="<?php esc_attr_e( 'Konten sebelum footer', 'itsi' ); ?>">
+			<div class="container">
+				<?php dynamic_sidebar( 'itsi_before_footer' ); ?>
+			</div>
+		</section>
+	<?php endif; ?>
+
+	<!-- FOOTER -->
 	<footer id="colophon" role="contentinfo">
 		<div class="footer-top">
 			<div class="container">

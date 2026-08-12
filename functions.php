@@ -603,6 +603,20 @@ function itsi_widgets_init() {
 		);
 	}
 
+	// Before Footer — band penuh (full-width) di atas <footer>, di luar footer
+	// gelap. Render di footer.php tepat sebelum <footer id="colophon">.
+	register_sidebar(
+		array(
+			'name'          => __( 'Before Footer', 'itsi' ),
+			'id'            => 'itsi_before_footer',
+			'description'   => __( 'Widget area penuh di atas footer. Cocok untuk CTA banner, newsletter, atau strip iklan. Hanya muncul jika minimal satu widget terisi.', 'itsi' ),
+			'before_widget' => '<div id="%1$s" class="bf-widget widget %2$s">',
+			'after_widget'  => '</div>',
+			'before_title'  => '<div class="bf-title">',
+			'after_title'   => '</div>',
+		)
+	);
+
 	// Data-driven widgets (auto-render TOC from <h2>, Popular from post_views_count).
 	register_widget( 'ITSI_TOC_Widget' );
 	register_widget( 'ITSI_Popular_Widget' );

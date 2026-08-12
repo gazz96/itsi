@@ -705,6 +705,10 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; }
    FOOTER
 ═══════════════════════════ */
 footer { background:var(--ink); border-top:1px solid rgba(255,255,255,.05); }
+.before-footer { padding:clamp(2rem,4vw,3.5rem) 0; border-bottom:1px solid rgba(255,255,255,.06); }
+.before-footer .bf-widget { margin-bottom:1.6rem; }
+.before-footer .bf-widget:last-child { margin-bottom:0; }
+.before-footer .bf-title { font-size:.7rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--cerulean); margin-bottom:1rem; }
 .footer-top { padding:clamp(3rem,6vw,5.5rem) 0 clamp(2.5rem,5vw,4rem); }
 .footer-grid { display:grid; grid-template-columns:var(--fg-cols, 2fr 1fr 1fr 1fr); gap:3rem; }
 .footer-grid > * { min-width:0; }
