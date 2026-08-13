@@ -103,16 +103,16 @@
 					<div class="dd">
 						<div class="dd-group">
 							<div class="dd-label">Profil Institusi</div>
-							<a href="#sambutan" class="dd-a"><div class="dd-ic">🏛️</div>Sambutan Rektor</a>
-							<a href="#" class="dd-a"><div class="dd-ic">📜</div>Sejarah ITSI</a>
-							<a href="#" class="dd-a"><div class="dd-ic">🎯</div>Visi, Misi &amp; Tujuan</a>
-							<a href="#" class="dd-a"><div class="dd-ic">🏗️</div>Struktur Organisasi</a>
+							<a href="#sambutan" class="dd-a">Sambutan Rektor</a>
+							<a href="#" class="dd-a">Sejarah ITSI</a>
+							<a href="#" class="dd-a">Visi, Misi &amp; Tujuan</a>
+							<a href="#" class="dd-a">Struktur Organisasi</a>
 						</div>
 						<div class="dd-group">
 							<div class="dd-label">Fasilitas</div>
-							<a href="#" class="dd-a"><div class="dd-ic">🔬</div>Laboratorium</a>
-							<a href="#" class="dd-a"><div class="dd-ic">📚</div>Perpustakaan</a>
-							<a href="#" class="dd-a"><div class="dd-ic">🏟️</div>Sarana &amp; Prasarana</a>
+							<a href="#" class="dd-a">Laboratorium</a>
+							<a href="#" class="dd-a">Perpustakaan</a>
+							<a href="#" class="dd-a">Sarana &amp; Prasarana</a>
 						</div>
 					</div>
 				</li>
@@ -123,15 +123,15 @@
 					<div class="dd">
 						<div class="dd-group">
 							<div class="dd-label">Fakultas Sains &amp; Teknologi</div>
-							<a href="#" class="dd-a"><div class="dd-ic">🌾</div>Agribisnis</a>
-							<a href="#" class="dd-a"><div class="dd-ic">🛡️</div>Proteksi Tanaman</a>
-							<a href="#" class="dd-a"><div class="dd-ic">💻</div>Sistem &amp; Teknologi Informasi</a>
-							<a href="#" class="dd-a"><div class="dd-ic">⚗️</div>Teknik Kimia</a>
+							<a href="#" class="dd-a">Agribisnis</a>
+							<a href="#" class="dd-a">Proteksi Tanaman</a>
+							<a href="#" class="dd-a">Sistem &amp; Teknologi Informasi</a>
+							<a href="#" class="dd-a">Teknik Kimia</a>
 						</div>
 						<div class="dd-group">
 							<div class="dd-label">Fakultas Vokasi</div>
-							<a href="#" class="dd-a"><div class="dd-ic">🏭</div>T. Pengolahan Hasil Perkebunan</a>
-							<a href="#" class="dd-a"><div class="dd-ic">🌴</div>Budidaya Perkebunan</a>
+							<a href="#" class="dd-a">T. Pengolahan Hasil Perkebunan</a>
+							<a href="#" class="dd-a">Budidaya Perkebunan</a>
 						</div>
 					</div>
 				</li>
@@ -141,11 +141,11 @@
 					</a>
 					<div class="dd">
 						<div class="dd-group">
-							<a href="#" class="dd-a"><div class="dd-ic">🎓</div>Penerimaan Mahasiswa Baru</a>
-							<a href="#" class="dd-a"><div class="dd-ic">📋</div>Kurikulum &amp; Akademik</a>
-							<a href="#" class="dd-a"><div class="dd-ic">🤝</div>Beasiswa</a>
-							<a href="#" class="dd-a"><div class="dd-ic">📊</div>Alumni</a>
-							<a href="#" class="dd-a"><div class="dd-ic">💼</div>Kemahasiswaan</a>
+							<a href="#" class="dd-a">Penerimaan Mahasiswa Baru</a>
+							<a href="#" class="dd-a">Kurikulum &amp; Akademik</a>
+							<a href="#" class="dd-a">Beasiswa</a>
+							<a href="#" class="dd-a">Alumni</a>
+							<a href="#" class="dd-a">Kemahasiswaan</a>
 						</div>
 					</div>
 				</li>
@@ -155,10 +155,10 @@
 					</a>
 					<div class="dd">
 						<div class="dd-group">
-							<a href="#" class="dd-a"><div class="dd-ic">🔬</div>Pusat Penelitian</a>
-							<a href="#" class="dd-a"><div class="dd-ic">📄</div>Publikasi Ilmiah</a>
-							<a href="#" class="dd-a"><div class="dd-ic">💡</div>Inovasi &amp; Paten</a>
-							<a href="#" class="dd-a"><div class="dd-ic">🤝</div>Kerjasama Riset</a>
+							<a href="#" class="dd-a">Pusat Penelitian</a>
+							<a href="#" class="dd-a">Publikasi Ilmiah</a>
+							<a href="#" class="dd-a">Inovasi &amp; Paten</a>
+							<a href="#" class="dd-a">Kerjasama Riset</a>
 						</div>
 					</div>
 				</li>
@@ -169,10 +169,10 @@
 					</a>
 					<div class="dd">
 						<div class="dd-group">
-							<a href="#pengumuman" class="dd-a"><div class="dd-ic">📢</div>Pengumuman</a>
-							<a href="#artikel"    class="dd-a"><div class="dd-ic">📰</div>Artikel</a>
-							<a href="#berita"     class="dd-a"><div class="dd-ic">📡</div>Berita &amp; Kegiatan</a>
-							<a href="#infopub"    class="dd-a"><div class="dd-ic">🏛️</div>Informasi Publik</a>
+							<a href="#pengumuman" class="dd-a">Pengumuman</a>
+							<a href="#artikel"    class="dd-a">Artikel</a>
+							<a href="#berita"     class="dd-a">Berita &amp; Kegiatan</a>
+							<a href="#infopub"    class="dd-a">Informasi Publik</a>
 						</div>
 					</div>
 				</li>
@@ -207,20 +207,20 @@
 		);
 		?>
 	<?php else : ?>
-		<a href="#sambutan" class="mob-a" onclick="closeMob()">🏛️ Tentang ITSI</a>
+		<a href="#sambutan" class="mob-a" onclick="closeMob()">Tentang ITSI</a>
 		<div class="mob-sec-ttl">Fak. Sains &amp; Teknologi</div>
-		<a href="#" class="mob-a" onclick="closeMob()">🌾 Agribisnis</a>
-		<a href="#" class="mob-a" onclick="closeMob()">🛡️ Proteksi Tanaman</a>
-		<a href="#" class="mob-a" onclick="closeMob()">💻 Sistem &amp; Teknologi Informasi</a>
-		<a href="#" class="mob-a" onclick="closeMob()">⚗️ Teknik Kimia</a>
+		<a href="#" class="mob-a" onclick="closeMob()">Agribisnis</a>
+		<a href="#" class="mob-a" onclick="closeMob()">Proteksi Tanaman</a>
+		<a href="#" class="mob-a" onclick="closeMob()">Sistem &amp; Teknologi Informasi</a>
+		<a href="#" class="mob-a" onclick="closeMob()">Teknik Kimia</a>
 		<div class="mob-sec-ttl">Fakultas Vokasi</div>
-		<a href="#" class="mob-a" onclick="closeMob()">🏭 T. Pengolahan Hasil Perkebunan</a>
-		<a href="#" class="mob-a" onclick="closeMob()">🌴 Budidaya Perkebunan</a>
+		<a href="#" class="mob-a" onclick="closeMob()">T. Pengolahan Hasil Perkebunan</a>
+		<a href="#" class="mob-a" onclick="closeMob()">Budidaya Perkebunan</a>
 		<div class="mob-sec-ttl">Informasi</div>
-		<a href="#pengumuman" class="mob-a" onclick="closeMob()">📢 Pengumuman</a>
-		<a href="#artikel"    class="mob-a" onclick="closeMob()">📰 Artikel</a>
-		<a href="#berita"     class="mob-a" onclick="closeMob()">📡 Berita &amp; Kegiatan</a>
-		<a href="#infopub"    class="mob-a" onclick="closeMob()">🏛️ Informasi Publik</a>
+		<a href="#pengumuman" class="mob-a" onclick="closeMob()">Pengumuman</a>
+		<a href="#artikel"    class="mob-a" onclick="closeMob()">Artikel</a>
+		<a href="#berita"     class="mob-a" onclick="closeMob()">Berita &amp; Kegiatan</a>
+		<a href="#infopub"    class="mob-a" onclick="closeMob()">Informasi Publik</a>
 	<?php endif; ?>
 </div>
 
