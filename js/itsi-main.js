@@ -389,7 +389,7 @@
         return;
       }
       // Reset invalid styles
-      formEl.querySelectorAll('.field-inp').forEach(function (i) { i.classList.remove('is-invalid'); });
+      formEl.querySelectorAll('.form-inp').forEach(function (i) { i.classList.remove('is-invalid'); });
       // Native validation
       if (!formEl.checkValidity()) {
         formEl.querySelectorAll(':invalid').forEach(function (i) { if (i.classList) i.classList.add('is-invalid'); });

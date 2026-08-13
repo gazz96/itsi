@@ -1598,6 +1598,7 @@ footer { background:var(--ink); border-top:1px solid rgba(255,255,255,.05); }
 .form-lbl span { color:#E53E3E; }
 .form-inp { font-family:inherit; font-size:.86rem; color:var(--tx-body); background:var(--surface); border:1.5px solid #C8DEFF; border-radius:10px; padding:.68rem 1rem; width:100%; outline:none; transition:border-color .2s; }
 .form-inp:focus { border-color:var(--azure); box-shadow:0 0 0 3px rgba(30,114,212,.1); background:var(--white); }
+.form-inp.is-invalid { border-color:#E53E3E; background:rgba(229,62,62,.05); }
 textarea.form-inp { resize:vertical; min-height:100px; }
 select.form-inp { cursor:pointer; }
 .form-submit { display:inline-flex; align-items:center; gap:.55rem; padding:.78rem 1.7rem; border-radius:12px; background:linear-gradient(135deg,var(--cobalt),var(--azure)); color:#fff; font-size:.88rem; font-weight:700; cursor:pointer; border:none; font-family:inherit; transition:all .28s; box-shadow:0 5px 20px rgba(20,89,179,.3); }

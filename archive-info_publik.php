@@ -95,6 +95,19 @@ $current_kat = isset( $_GET['kat'] ) ? sanitize_text_field( wp_unslash( $_GET['k
 	<div class="main-wrap">
 		<div class="container">
 
+			<!-- PPID Banner -->
+			<div class="ppid-banner rv">
+				<div class="ppid-ic">🏛️</div>
+				<div>
+					<div class="ppid-title">PPID Institut Teknologi Sawit Indonesia</div>
+					<p class="ppid-desc">Pejabat Pengelola Informasi dan Dokumentasi (PPID) ITSI melayani permohonan informasi publik sesuai UU No. 14 Tahun 2008 tentang Keterbukaan Informasi Publik. Akses dokumen resmi, laporan keuangan, akreditasi, dan regulasi secara transparan.</p>
+				</div>
+				<div class="ppid-btns">
+					<a href="#doc-table" class="ppid-btn ppid-btn-main">🔎 Lihat Dokumen</a>
+					<a href="#form-permohonan" class="ppid-btn ppid-btn-out">📋 Ajukan Permohonan</a>
+				</div>
+			</div>
+
 			<!-- Toolbar: Search + Category Filter -->
 			<div class="toolbar rv">
 				<form class="search-wrap" role="search" method="get" action="<?php echo esc_url( home_url( '/' ) ); ?>">
@@ -119,7 +132,7 @@ $current_kat = isset( $_GET['kat'] ) ? sanitize_text_field( wp_unslash( $_GET['k
 			</div>
 
 			<!-- Document Table -->
-			<div class="doc-table-wrap rv">
+			<div class="doc-table-wrap rv" id="doc-table">
 				<?php
 				$args = [
 					'post_type'      => 'info_publik',
@@ -280,6 +293,70 @@ $current_kat = isset( $_GET['kat'] ) ? sanitize_text_field( wp_unslash( $_GET['k
 					<div class="kip-title">Layanan Transparan</div>
 					<p class="kip-text">ITSI melalui PPID berkomitmen memberikan layanan informasi yang transparan, akuntabel, dan dapat dipertanggungjawabkan.</p>
 				</div>
+			</div>
+
+			<!-- Permohonan Informasi Form -->
+			<div class="form-section rv" id="form-permohonan">
+				<h2 class="form-title">📋 Formulir <em>Permohonan</em> Informasi Publik</h2>
+				<p class="form-sub">Isi formulir di bawah ini untuk mengajukan permohonan informasi publik kepada PPID Institut Teknologi Sawit Indonesia. Permohonan akan diproses dalam waktu 10 hari kerja.</p>
+
+				<form id="formPermohonan" novalidate>
+					<div class="form-grid">
+						<div class="form-group">
+							<label class="form-lbl" for="nama">Nama Lengkap <span>*</span></label>
+							<input class="form-inp" id="nama" name="nama" type="text" placeholder="Masukkan nama lengkap Anda" required>
+						</div>
+						<div class="form-group">
+							<label class="form-lbl" for="nik">NIK / Nomor Identitas <span>*</span></label>
+							<input class="form-inp" id="nik" name="nik" type="text" placeholder="16 digit NIK KTP" required>
+						</div>
+						<div class="form-group">
+							<label class="form-lbl" for="email">Alamat Email <span>*</span></label>
+							<input class="form-inp" id="email" name="email" type="email" placeholder="nama@email.com" required>
+						</div>
+						<div class="form-group">
+							<label class="form-lbl" for="no_hp">Nomor HP / WhatsApp <span>*</span></label>
+							<input class="form-inp" id="no_hp" name="no_hp" type="tel" placeholder="08xxxxxxxxxx" required>
+						</div>
+						<div class="form-group">
+							<label class="form-lbl" for="tujuan">Tujuan Penggunaan Informasi <span>*</span></label>
+							<select class="form-inp" id="tujuan" name="tujuan" required>
+								<option value="">Pilih tujuan penggunaan</option>
+								<option>Penelitian / Akademik</option>
+								<option>Jurnalisme / Media</option>
+								<option>Kebutuhan Hukum</option>
+								<option>Pengawasan Publik</option>
+								<option>Kepentingan Pribadi</option>
+								<option>Lainnya</option>
+							</select>
+						</div>
+						<div class="form-group">
+							<label class="form-lbl" for="pekerjaan">Pekerjaan / Instansi</label>
+							<input class="form-inp" id="pekerjaan" name="pekerjaan" type="text" placeholder="Pekerjaan atau nama instansi">
+						</div>
+						<div class="form-group full">
+							<label class="form-lbl" for="deskripsi">Informasi yang Dimohon <span>*</span></label>
+							<textarea class="form-inp" id="deskripsi" name="deskripsi" rows="4" placeholder="Deskripsikan secara spesifik informasi yang Anda butuhkan..." required></textarea>
+							<span class="form-note">Uraikan dengan jelas jenis dan spesifikasi informasi yang dibutuhkan agar dapat diproses lebih cepat.</span>
+						</div>
+						<div class="form-group full">
+							<label class="form-lbl" for="cara_penerimaan">Cara Memperoleh Informasi <span>*</span></label>
+							<select class="form-inp" id="cara_penerimaan" name="cara_penerimaan" required>
+								<option value="">Pilih cara penerimaan</option>
+								<option value="email">Dikirim via Email</option>
+								<option value="langsung">Diambil Langsung ke PPID</option>
+								<option value="pos">Dikirim via Pos</option>
+							</select>
+						</div>
+					</div>
+					<div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+						<button type="submit" class="form-submit" id="formSubmitBtn">
+							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+							Kirim Permohonan
+						</button>
+						<span style="font-size:.78rem;color:var(--ts)">Data Anda dilindungi sesuai UU ITE dan kebijakan privasi ITSI</span>
+					</div>
+				</form>
 			</div>
 
 		</div>

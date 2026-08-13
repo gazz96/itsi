@@ -213,7 +213,7 @@ function itsi_footer_icon_svg( $name ) {
 							<ul class="f-menu">
 								<li><a href="<?php echo esc_url( home_url( '/berita/?kat=pengumuman' ) ); ?>"><?php echo itsi_footer_icon_svg( 'chevron' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><?php esc_html_e( 'Pengumuman', 'itsi' ); ?></a></li>
 								<li><a href="<?php echo esc_url( home_url( '/berita/' ) ); ?>"><?php echo itsi_footer_icon_svg( 'chevron' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><?php esc_html_e( 'Berita &amp; Kegiatan', 'itsi' ); ?></a></li>
-								<li><a href="<?php echo esc_url( home_url( '/info-publik/' ) ); ?>"><?php echo itsi_footer_icon_svg( 'chevron' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><?php esc_html_e( 'Informasi Publik', 'itsi' ); ?></a></li>
+								<li><a href="<?php echo esc_url( home_url( '/informasi-publik/' ) ); ?>"><?php echo itsi_footer_icon_svg( 'chevron' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><?php esc_html_e( 'Informasi Publik', 'itsi' ); ?></a></li>
 								<li><a href="<?php echo esc_url( home_url( '/berita/?kat=agenda' ) ); ?>"><?php echo itsi_footer_icon_svg( 'chevron' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><?php esc_html_e( 'Agenda', 'itsi' ); ?></a></li>
 							</ul>
 							<?php
