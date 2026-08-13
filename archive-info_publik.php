@@ -18,6 +18,12 @@ $total_docs = wp_count_posts( 'info_publik' )->publish;
 $cat_terms  = get_terms( [ 'taxonomy' => 'kategori_info', 'hide_empty' => false ] );
 $total_cats = ! is_wp_error( $cat_terms ) ? count( $cat_terms ) : 0;
 
+// Dynamic content from theme_mods (admin: ITSI → Informasi Publik)
+$ip_form     = itsi_ip_get_form_settings();
+$ip_stats    = itsi_ip_get_stats( [ 'total_docs' => $total_docs, 'total_cats' => $total_cats ] );
+$ip_kip      = itsi_ip_get_kip_cards();
+$ppid        = itsi_ip_get_ppid_banner();
+
 // Category color map
 $kat_colors = [
 	'profil-institusi' => [ 'bg' => '#1459B31a', 'color' => '#1459B3' ],
@@ -29,19 +35,6 @@ $kat_colors = [
 	'akreditasi'       => [ 'bg' => '#BF9B301a', 'color' => '#BF9B30' ],
 	'kerja-sama'       => [ 'bg' => '#92400e1a', 'color' => '#92400e' ],
 	'ppid'             => [ 'bg' => '#3741511a', 'color' => '#374151' ],
-];
-
-// Category icon map
-$kat_icons = [
-	'profil-institusi' => '🏛️',
-	'akademik'         => '📚',
-	'keuangan'         => '💰',
-	'kemahasiswaan'    => '🎓',
-	'sdm'              => '👥',
-	'penelitian'       => '🔬',
-	'akreditasi'       => '⭐',
-	'kerja-sama'       => '🤝',
-	'ppid'             => '🏛️',
 ];
 
 // Current filter (client-side filter via data-kat)
@@ -58,7 +51,7 @@ $current_kat = isset( $_GET['kat'] ) ? sanitize_text_field( wp_unslash( $_GET['k
 		<div class="ph-blob ph-b2"></div>
 		<div class="ph-inner container">
 			<div class="bc rv">
-				<a href="<?php echo esc_url( home_url( '/' ) ); ?>">🏠 Beranda</a>
+				<a href="<?php echo esc_url( home_url( '/' ) ); ?>">Beranda</a>
 				<span>›</span>
 				<span style="color:rgba(255,255,255,.6)">Informasi Publik</span>
 			</div>
@@ -68,28 +61,32 @@ $current_kat = isset( $_GET['kat'] ) ? sanitize_text_field( wp_unslash( $_GET['k
 	</section>
 
 	<!-- ═══ STATS BAR ═══ -->
+	<?php if ( ! empty( $ip_stats ) ) : ?>
 	<div id="statsbar">
 		<div class="container">
 			<div class="sb-inner">
-				<div class="sb-item rv">
-					<div class="sb-n"><?php echo esc_html( $total_docs ); ?></div>
-					<div class="sb-l">Total Dokumen</div>
+				<?php
+				$d = 0;
+				foreach ( $ip_stats as $st ) :
+					$st_icon = isset( $st['icon'] ) ? $st['icon'] : '';
+					$st_angka = isset( $st['angka'] ) ? (string) $st['angka'] : '';
+					$st_label = isset( $st['label'] ) ? (string) $st['label'] : '';
+					?>
+				<div class="sb-item rv <?php echo $d > 0 ? 'd' . $d : ''; ?>">
+					<?php if ( '' !== $st_icon ) : ?>
+						<div class="sb-ic"><?php echo itsi_ip_render_icon_img( $st_icon, '', $st_label ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
+					<?php endif; ?>
+					<div class="sb-n"><?php echo esc_html( $st_angka ); ?></div>
+					<div class="sb-l"><?php echo esc_html( $st_label ); ?></div>
 				</div>
-				<div class="sb-item rv d1">
-					<div class="sb-n"><?php echo esc_html( $total_cats ); ?></div>
-					<div class="sb-l">Kategori</div>
-				</div>
-				<div class="sb-item rv d2">
-					<div class="sb-n">24/7</div>
-					<div class="sb-l">Akses Online</div>
-				</div>
-				<div class="sb-item rv d3">
-					<div class="sb-n">10</div>
-					<div class="sb-l">Hari Kerja Respons</div>
-				</div>
+					<?php
+					++$d;
+				endforeach;
+				?>
 			</div>
 		</div>
 	</div>
+	<?php endif; ?>
 
 	<!-- ═══ MAIN CONTENT ═══ -->
 	<div class="main-wrap">
@@ -97,14 +94,16 @@ $current_kat = isset( $_GET['kat'] ) ? sanitize_text_field( wp_unslash( $_GET['k
 
 			<!-- PPID Banner -->
 			<div class="ppid-banner rv">
-				<div class="ppid-ic">🏛️</div>
+				<div class="ppid-ic"><?php echo itsi_ip_render_icon_img( $ppid['icon'], '', $ppid['title'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
 				<div>
-					<div class="ppid-title">PPID Institut Teknologi Sawit Indonesia</div>
-					<p class="ppid-desc">Pejabat Pengelola Informasi dan Dokumentasi (PPID) ITSI melayani permohonan informasi publik sesuai UU No. 14 Tahun 2008 tentang Keterbukaan Informasi Publik. Akses dokumen resmi, laporan keuangan, akreditasi, dan regulasi secara transparan.</p>
+					<div class="ppid-title"><?php echo esc_html( $ppid['title'] ); ?></div>
+					<p class="ppid-desc"><?php echo esc_html( $ppid['desc'] ); ?></p>
 				</div>
 				<div class="ppid-btns">
-					<a href="#doc-table" class="ppid-btn ppid-btn-main">🔎 Lihat Dokumen</a>
-					<a href="#form-permohonan" class="ppid-btn ppid-btn-out">📋 Ajukan Permohonan</a>
+					<a href="#doc-table" class="ppid-btn ppid-btn-main">Lihat Dokumen</a>
+					<?php if ( $ip_form['form_enabled'] ) : ?>
+						<a href="#form-permohonan" class="ppid-btn ppid-btn-out">Ajukan Permohonan</a>
+					<?php endif; ?>
 				</div>
 			</div>
 
@@ -112,17 +111,23 @@ $current_kat = isset( $_GET['kat'] ) ? sanitize_text_field( wp_unslash( $_GET['k
 			<div class="toolbar rv">
 				<form class="search-wrap" role="search" method="get" action="<?php echo esc_url( home_url( '/' ) ); ?>">
 					<input type="hidden" name="post_type" value="info_publik">
-					<span aria-hidden="true">🔍</span>
+					<span aria-hidden="true" class="search-ic"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
 					<input type="search" name="s" placeholder="Cari dokumen, kategori, atau tahun…" value="<?php echo esc_attr( $search ); ?>">
 				</form>
 				<div class="kat-filter">
-					<button type="button" class="kf-btn <?php echo '' === $current_kat ? 'on' : ''; ?>" data-kat="">📁 Semua</button>
+					<button type="button" class="kf-btn <?php echo '' === $current_kat ? 'on' : ''; ?>" data-kat="">Semua</button>
 					<?php
 					if ( ! is_wp_error( $cat_terms ) ) :
 						foreach ( $cat_terms as $t ) :
+							$t_icon = itsi_ip_get_term_icon( $t->term_id );
 							?>
 							<button type="button" class="kf-btn <?php echo $current_kat === $t->slug ? 'on' : ''; ?>" data-kat="<?php echo esc_attr( $t->slug ); ?>">
-								<?php echo esc_html( ( $kat_icons[ $t->slug ] ?? '📄' ) . ' ' . $t->name ); ?>
+								<?php
+								if ( '' !== $t_icon ) {
+									echo itsi_ip_render_icon_img( $t_icon, 'kf-ic', $t->name ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+								}
+								echo esc_html( $t->name );
+								?>
 							</button>
 							<?php
 						endforeach;
@@ -194,7 +199,7 @@ $current_kat = isset( $_GET['kat'] ) ? sanitize_text_field( wp_unslash( $_GET['k
 								$kat_nm  = $cat ? $cat->name : 'DOKUMEN';
 								$kat_sl  = $cat ? $cat->slug : '';
 								$kat_c   = $kat_colors[ $kat_sl ] ?? [ 'bg' => '#6880A01a', 'color' => '#6880A0' ];
-								$kat_i   = $kat_icons[ $kat_sl ] ?? '📄';
+								$kat_icon = $cat ? itsi_ip_get_term_icon( $cat->term_id ) : '';
 								$file    = get_post_meta( $post_id, 'file_url', true );
 													$size    = get_post_meta( $post_id, 'ukuran_file', true );
 													$year    = get_post_meta( $post_id, 'tahun', true );
@@ -215,11 +220,14 @@ $current_kat = isset( $_GET['kat'] ) ? sanitize_text_field( wp_unslash( $_GET['k
 								<td class="doc-no"><?php echo esc_html( ( $paged - 1 ) * 12 + $i ); ?></td>
 								<td>
 									<div class="doc-nm-wrap">
-										<div class="doc-icon"><?php echo esc_html( $kat_i ); ?></div>
+										<div class="doc-icon"><?php echo itsi_ip_render_icon_img( $kat_icon, '', $kat_nm ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
 										<div>
 											<div class="doc-nm"><?php the_title(); ?></div>
 											<?php if ( $size ) : ?>
-												<div class="doc-sub">📦 <?php echo esc_html( $size ); ?></div>
+												<div class="doc-sub">
+													<span class="doc-sub-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+													<?php echo esc_html( $size ); ?>
+												</div>
 											<?php endif; ?>
 										</div>
 									</div>
@@ -231,7 +239,10 @@ $current_kat = isset( $_GET['kat'] ) ? sanitize_text_field( wp_unslash( $_GET['k
 								</td>
 								<td class="doc-thn"><?php echo esc_html( $year ); ?></td>
 								<td>
-									<a href="<?php echo esc_url( $dl_link ); ?>" target="_blank" rel="noopener" class="doc-dl-btn">⬇ Unduh</a>
+									<a href="<?php echo esc_url( $dl_link ); ?>" target="_blank" rel="noopener" class="doc-dl-btn">
+										<span aria-hidden="true" class="doc-dl-ic"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+										Unduh
+									</a>
 								</td>
 							</tr>
 							<?php endwhile; wp_reset_postdata(); ?>
@@ -269,7 +280,9 @@ $current_kat = isset( $_GET['kat'] ) ? sanitize_text_field( wp_unslash( $_GET['k
 					</div>
 				<?php else : ?>
 					<div style="padding:3rem;text-align:center">
-						<div style="font-size:3rem;margin-bottom:1rem">📂</div>
+						<div style="display:inline-flex;align-items:center;justify-content:center;width:64px;height:64px;border-radius:16px;background:#eef2f7;color:#8aa0b8;margin-bottom:1rem">
+							<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+						</div>
 						<h3 style="color:var(--tx-dark);margin-bottom:.5rem;font-family:'Cormorant Garamond',serif;font-size:1.5rem">Belum ada dokumen</h3>
 						<p style="color:var(--tx-mid)">Dokumen informasi publik akan ditampilkan di sini.</p>
 					</div>
@@ -277,27 +290,31 @@ $current_kat = isset( $_GET['kat'] ) ? sanitize_text_field( wp_unslash( $_GET['k
 			</div>
 
 			<!-- KIP Info Cards -->
+			<?php if ( ! empty( $ip_kip ) ) : ?>
 			<div class="kip-cards" id="kip-info">
-				<div class="kip-card rv">
-					<div class="kip-ic">📜</div>
-					<div class="kip-title">UU No. 14 Tahun 2008</div>
-					<p class="kip-text">Undang-Undang tentang Keterbukaan Informasi Publik yang menjamin hak masyarakat untuk memperoleh informasi publik.</p>
+				<?php
+				$d = 0;
+				foreach ( $ip_kip as $kp ) :
+					$kp_icon = isset( $kp['icon'] ) ? $kp['icon'] : '';
+					$kp_title = isset( $kp['title'] ) ? (string) $kp['title'] : '';
+					$kp_text  = isset( $kp['text'] ) ? (string) $kp['text'] : '';
+					?>
+				<div class="kip-card rv <?php echo $d > 0 ? 'd' . $d : ''; ?>">
+					<div class="kip-ic"><?php echo itsi_ip_render_icon_img( $kp_icon, '', $kp_title ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
+					<div class="kip-title"><?php echo esc_html( $kp_title ); ?></div>
+					<p class="kip-text"><?php echo esc_html( $kp_text ); ?></p>
 				</div>
-				<div class="kip-card rv d1">
-					<div class="kip-ic">⚖️</div>
-					<div class="kip-title">Hak Memperoleh Informasi</div>
-					<p class="kip-text">Setiap orang berhak memperoleh informasi publik sesuai ketentuan yang berlaku, dengan pengecualian yang diatur dalam UU.</p>
-				</div>
-				<div class="kip-card rv d2">
-					<div class="kip-ic">🤝</div>
-					<div class="kip-title">Layanan Transparan</div>
-					<p class="kip-text">ITSI melalui PPID berkomitmen memberikan layanan informasi yang transparan, akuntabel, dan dapat dipertanggungjawabkan.</p>
-				</div>
+					<?php
+					++$d;
+				endforeach;
+				?>
 			</div>
+			<?php endif; ?>
 
 			<!-- Permohonan Informasi Form -->
+			<?php if ( $ip_form['form_enabled'] ) : ?>
 			<div class="form-section rv" id="form-permohonan">
-				<h2 class="form-title">📋 Formulir <em>Permohonan</em> Informasi Publik</h2>
+				<h2 class="form-title">Formulir <em>Permohonan</em> Informasi Publik</h2>
 				<p class="form-sub">Isi formulir di bawah ini untuk mengajukan permohonan informasi publik kepada PPID Institut Teknologi Sawit Indonesia. Permohonan akan diproses dalam waktu 10 hari kerja.</p>
 
 				<form id="formPermohonan" novalidate>
@@ -358,6 +375,13 @@ $current_kat = isset( $_GET['kat'] ) ? sanitize_text_field( wp_unslash( $_GET['k
 					</div>
 				</form>
 			</div>
+			<?php else : ?>
+			<!-- Form disabled by admin: show a notice instead -->
+			<div class="form-section form-disabled rv" id="form-permohonan">
+				<h2 class="form-title">Formulir <em>Permohonan</em> Informasi Publik</h2>
+				<p class="form-sub">Formulir permohonan informasi sedang ditutup sementara. Silakan hubungi PPID Institut Teknologi Sawit Indonesia melalui kontak resmi yang tersedia.</p>
+			</div>
+			<?php endif; ?>
 
 		</div>
 	</div>

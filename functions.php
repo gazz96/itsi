@@ -589,6 +589,208 @@ function itsi_footer_grid_columns( $rows ) {
 }
 
 /**
+ * Normalize a repeater-style theme_mod into clean rows.
+ *
+ * Accepts array, serialized array (set_theme_mod auto-serializes), or JSON
+ * string (TypeRocket repeater). Drops fully-empty rows, caps at $limit, and
+ * returns rows keyed by $fields (missing keys → '').
+ *
+ * @param string $mod_key Theme mod key.
+ * @param array  $fields  Field keys to keep, in order.
+ * @param int    $limit   Max rows (0 = unlimited).
+ * @return array<int,array<string,string>>
+ */
+function itsi_ip_normalize_repeater( $mod_key, $fields, $limit = 0 ) {
+	$raw = get_theme_mod( $mod_key, null );
+
+	if ( is_string( $raw ) ) {
+		$decoded = json_decode( $raw, true );
+		if ( is_array( $decoded ) ) {
+			$raw = $decoded;
+		} else {
+			$unser = maybe_unserialize( $raw );
+			$raw   = is_array( $unser ) ? $unser : array();
+		}
+	}
+	if ( ! is_array( $raw ) ) {
+		$raw = array();
+	}
+
+	$rows = array();
+	foreach ( $raw as $row ) {
+		if ( ! is_array( $row ) ) {
+			continue;
+		}
+		$out = array();
+		foreach ( $fields as $f ) {
+			$out[ $f ] = isset( $row[ $f ] ) ? $row[ $f ] : '';
+		}
+		$is_empty = true;
+		foreach ( $out as $v ) {
+			if ( '' !== trim( (string) $v ) ) {
+				$is_empty = false;
+				break;
+			}
+		}
+		if ( $is_empty ) {
+			continue;
+		}
+		$rows[] = $out;
+		if ( $limit && count( $rows ) >= $limit ) {
+			break;
+		}
+	}
+
+	return $rows;
+}
+
+/**
+ * Get stats bar rows for the Informasi Publik archive.
+ *
+ * Rows come from theme_mod `itsi_ip_stats` (repeater: icon/angka/label).
+ * When unset, returns the default 4 rows; the first two rows' angka can be
+ * filled dynamically via $ctx (total_docs / total_cats from the template).
+ *
+ * @param array $ctx Optional context: [ 'total_docs' => int, 'total_cats' => int ].
+ * @return array<int,array{icon:string,angka:string,label:string}>
+ */
+function itsi_ip_get_stats( $ctx = array() ) {
+	$rows = itsi_ip_normalize_repeater( 'itsi_ip_stats', array( 'icon', 'angka', 'label' ), 6 );
+
+	if ( empty( $rows ) ) {
+		$total_docs = isset( $ctx['total_docs'] ) ? $ctx['total_docs'] : 0;
+		$total_cats = isset( $ctx['total_cats'] ) ? $ctx['total_cats'] : 0;
+		$rows       = array(
+			array( 'icon' => '', 'angka' => (string) $total_docs, 'label' => 'Total Dokumen' ),
+			array( 'icon' => '', 'angka' => (string) $total_cats, 'label' => 'Kategori' ),
+			array( 'icon' => '', 'angka' => '24/7', 'label' => 'Akses Online' ),
+			array( 'icon' => '', 'angka' => '10', 'label' => 'Hari Kerja Respons' ),
+		);
+	}
+
+	return $rows;
+}
+
+/**
+ * Get KIP info cards for the Informasi Publik archive.
+ *
+ * Rows come from theme_mod `itsi_ip_kip_cards` (repeater: icon/title/text).
+ * Falls back to 3 default cards when unset.
+ *
+ * @return array<int,array{icon:string,title:string,text:string}>
+ */
+function itsi_ip_get_kip_cards() {
+	$rows = itsi_ip_normalize_repeater( 'itsi_ip_kip_cards', array( 'icon', 'title', 'text' ), 8 );
+
+	if ( empty( $rows ) ) {
+		$rows = array(
+			array(
+				'icon'  => '',
+				'title' => 'UU No. 14 Tahun 2008',
+				'text'  => 'Undang-Undang tentang Keterbukaan Informasi Publik yang menjamin hak masyarakat untuk memperoleh informasi publik.',
+			),
+			array(
+				'icon'  => '',
+				'title' => 'Hak Memperoleh Informasi',
+				'text'  => 'Setiap orang berhak memperoleh informasi publik sesuai ketentuan yang berlaku, dengan pengecualian yang diatur dalam UU.',
+			),
+			array(
+				'icon'  => '',
+				'title' => 'Layanan Transparan',
+				'text'  => 'ITSI melalui PPID berkomitmen memberikan layanan informasi yang transparan, akuntabel, dan dapat dipertanggungjawabkan.',
+			),
+		);
+	}
+
+	return $rows;
+}
+
+/**
+ * Get PPID banner content (icon attachment ID, title, description).
+ *
+ * @return array{icon:string,title:string,desc:string}
+ */
+function itsi_ip_get_ppid_banner() {
+	return array(
+		'icon'  => (string) get_theme_mod( 'itsi_ip_ppid_icon', '' ),
+		'title' => (string) get_theme_mod( 'itsi_ip_ppid_title', 'PPID Institut Teknologi Sawit Indonesia' ),
+		'desc'  => (string) get_theme_mod(
+			'itsi_ip_ppid_desc',
+			'Pejabat Pengelola Informasi dan Dokumentasi (PPID) ITSI melayani permohonan informasi publik sesuai UU No. 14 Tahun 2008 tentang Keterbukaan Informasi Publik. Akses dokumen resmi, laporan keuangan, akreditasi, dan regulasi secara transparan.'
+		),
+	);
+}
+
+/**
+ * Get the Informasi Publik form + notification settings.
+ *
+ * @return array{
+ *   form_enabled:bool,
+ *   email_to:string,
+ *   email_from:string,
+ *   email_subject:string,
+ *   rate_max:int,
+ *   rate_window:int
+ * }
+ */
+function itsi_ip_get_form_settings() {
+	$admin_email = get_option( 'admin_email' );
+
+	return array(
+		'form_enabled'  => filter_var( get_theme_mod( 'itsi_ip_form_enabled', true ), FILTER_VALIDATE_BOOLEAN ),
+		'email_to'      => (string) get_theme_mod( 'itsi_ip_email_to', $admin_email ),
+		'email_from'    => (string) get_theme_mod( 'itsi_ip_email_from', $admin_email ),
+		'email_subject' => (string) get_theme_mod( 'itsi_ip_email_subject', '[ITSI] Permohonan Informasi Baru' ),
+		'rate_max'      => max( 1, (int) get_theme_mod( 'itsi_ip_rate_max', 5 ) ),
+		'rate_window'   => max( 1, (int) get_theme_mod( 'itsi_ip_rate_window', 15 ) ),
+	);
+}
+
+/**
+ * Get the icon attachment ID for a kategori_info term (term meta).
+ *
+ * @param int $term_id Term ID.
+ * @return string Attachment ID or ''.
+ */
+function itsi_ip_get_term_icon( $term_id ) {
+	$term_id = (int) $term_id;
+	if ( ! $term_id ) {
+		return '';
+	}
+	$icon = get_term_meta( $term_id, 'kategori_info_icon', true );
+	return $icon ? (string) $icon : '';
+}
+
+/**
+ * Render an icon <img> from an attachment ID, with a graceful fallback when
+ * the ID is empty/invalid (a neutral inline SVG so no emoji is ever shown).
+ *
+ * @param int|string $attachment_id Attachment ID (or '').
+ * @param string     $class         Extra CSS classes.
+ * @param string     $alt           Alt text.
+ * @return string HTML or '' if not needed.
+ */
+function itsi_ip_render_icon_img( $attachment_id, $class = '', $alt = '' ) {
+	$attachment_id = (int) $attachment_id;
+	if ( $attachment_id > 0 ) {
+		$url = (string) wp_get_attachment_image_url( $attachment_id, 'thumbnail' );
+		if ( $url ) {
+			return sprintf(
+				'<img src="%s" alt="%s" class="ip-ic-img %s" loading="lazy" decoding="async" />',
+				esc_url( $url ),
+				esc_attr( $alt ),
+				esc_attr( $class )
+			);
+		}
+	}
+	// Fallback: neutral document glyph — never an emoji.
+	return sprintf(
+		'<span class="ip-ic-img ip-ic-fallback %s" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg></span>',
+		esc_attr( $class )
+	);
+}
+
+/**
  * Register widget areas for single post / page.
  *
  * All five are scoped to the single-post / single-page layout — they only
@@ -1349,27 +1551,106 @@ add_action( 'typerocket_loaded', function () {
 
 /**
  * AJAX handler: create Permohonan Informasi from public form.
+ *
+ * Guards: nonce → form toggle → rate limit → validation.
+ * Email To/From/Subject diatur dari pengaturan "Informasi Publik" (theme_mods).
  */
 function itsi_submit_permohonan() {
 	check_ajax_referer( 'itsi-permohonan', 'nonce' );
 
-	$nama     = isset( $_POST['nama'] )     ? sanitize_text_field( wp_unslash( $_POST['nama'] ) )     : '';
-	$nik      = isset( $_POST['nik'] )      ? sanitize_text_field( wp_unslash( $_POST['nik'] ) )      : '';
-	$email    = isset( $_POST['email'] )    ? sanitize_email( wp_unslash( $_POST['email'] ) )         : '';
-	$no_hp    = isset( $_POST['no_hp'] )    ? sanitize_text_field( wp_unslash( $_POST['no_hp'] ) )    : '';
-	$tujuan   = isset( $_POST['tujuan'] )   ? sanitize_textarea_field( wp_unslash( $_POST['tujuan'] ) ) : '';
-	$pekerjaan= isset( $_POST['pekerjaan'] )? sanitize_text_field( wp_unslash( $_POST['pekerjaan'] ) ): '';
-	$deskripsi= isset( $_POST['deskripsi'] )? sanitize_textarea_field( wp_unslash( $_POST['deskripsi'] ) ) : '';
-	$cara     = isset( $_POST['cara_penerimaan'] ) ? sanitize_text_field( wp_unslash( $_POST['cara_penerimaan'] ) ) : '';
+	$settings = itsi_ip_get_form_settings();
 
-	if ( empty( $nama ) || empty( $nik ) || empty( $email ) ) {
-		wp_send_json_error( array( 'message' => 'Nama, NIK, dan Email wajib diisi.' ), 400 );
+	// 1) Form non-aktif → tolak dengan 403.
+	if ( ! $settings['form_enabled'] ) {
+		wp_send_json_error( array( 'message' => 'Formulir permohonan informasi sedang ditutup. Silakan hubungi PPID secara langsung.' ), 403 );
 	}
-	if ( ! is_email( $email ) ) {
-		wp_send_json_error( array( 'message' => 'Format email tidak valid.' ), 400 );
+
+	// 2) Rate limit per IP.
+	$ip    = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'unknown';
+	$key   = 'itsi_ip_rate_' . md5( $ip );
+	$count = (int) get_transient( $key );
+	if ( $count >= $settings['rate_max'] ) {
+		wp_send_json_error(
+			array(
+				'message' => sprintf(
+					'Terlalu banyak permohonan dari perangkat ini. Silakan coba lagi dalam %d menit.',
+					$settings['rate_window']
+				),
+			),
+			429
+		);
 	}
+	set_transient( $key, $count + 1, $settings['rate_window'] * MINUTE_IN_SECONDS );
+
+	// 3) Sanitasi input.
+	$nama      = isset( $_POST['nama'] ) ? sanitize_text_field( wp_unslash( $_POST['nama'] ) ) : '';
+	$nik       = isset( $_POST['nik'] ) ? sanitize_text_field( wp_unslash( $_POST['nik'] ) ) : '';
+	$email     = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
+	$no_hp     = isset( $_POST['no_hp'] ) ? sanitize_text_field( wp_unslash( $_POST['no_hp'] ) ) : '';
+	$tujuan    = isset( $_POST['tujuan'] ) ? sanitize_textarea_field( wp_unslash( $_POST['tujuan'] ) ) : '';
+	$pekerjaan = isset( $_POST['pekerjaan'] ) ? sanitize_text_field( wp_unslash( $_POST['pekerjaan'] ) ) : '';
+	$deskripsi = isset( $_POST['deskripsi'] ) ? sanitize_textarea_field( wp_unslash( $_POST['deskripsi'] ) ) : '';
+	$cara      = isset( $_POST['cara_penerimaan'] ) ? sanitize_text_field( wp_unslash( $_POST['cara_penerimaan'] ) ) : '';
+
+	// 4) Validasi.
+	$errors = array();
+	if ( '' === $nama ) {
+		$errors[] = 'Nama lengkap wajib diisi.';
+	} elseif ( mb_strlen( $nama ) > 120 ) {
+		$errors[] = 'Nama lengkap terlalu panjang (maks. 120 karakter).';
+	}
+
+	if ( '' === $nik ) {
+		$errors[] = 'NIK wajib diisi.';
+	} elseif ( 1 !== preg_match( '/^\d{16}$/', $nik ) ) {
+		$errors[] = 'NIK harus 16 digit angka (sesuai KTP).';
+	}
+
+	if ( '' === $email ) {
+		$errors[] = 'Alamat email wajib diisi.';
+	} elseif ( ! is_email( $email ) ) {
+		$errors[] = 'Format email tidak valid.';
+	}
+
+	if ( '' === $no_hp ) {
+		$errors[] = 'Nomor HP/WhatsApp wajib diisi.';
+	} elseif ( mb_strlen( $no_hp ) > 20 || 1 !== preg_match( '/^[0-9+()\-\s]+$/', $no_hp ) ) {
+		$errors[] = 'Format nomor HP tidak valid.';
+	}
+
+	if ( '' === $deskripsi ) {
+		$errors[] = 'Deskripsi informasi yang dimohon wajib diisi.';
+	} elseif ( mb_strlen( $deskripsi ) > 2000 ) {
+		$errors[] = 'Deskripsi terlalu panjang (maks. 2000 karakter).';
+	}
+
+	// Whitelist tujuan (opsional, tapi bila diisi harus salah satu dari daftar).
+	$tujuan_whitelist = array(
+		'Penelitian / Akademik',
+		'Jurnalisme / Media',
+		'Kebutuhan Hukum',
+		'Pengawasan Publik',
+		'Kepentingan Pribadi',
+		'Lainnya',
+	);
+	if ( '' !== $tujuan && ! in_array( $tujuan, $tujuan_whitelist, true ) ) {
+		$errors[] = 'Tujuan penggunaan informasi tidak valid.';
+	}
+	if ( mb_strlen( $tujuan ) > 200 ) {
+		$errors[] = 'Tujuan terlalu panjang (maks. 200 karakter).';
+	}
+
+	// Whitelist cara penerimaan.
 	if ( ! in_array( $cara, array( 'email', 'pos', 'langsung' ), true ) ) {
-		$cara = 'email';
+		$errors[] = 'Cara penerimaan tidak valid.';
+	}
+
+	if ( mb_strlen( $pekerjaan ) > 120 ) {
+		$errors[] = 'Pekerjaan/instansi terlalu panjang (maks. 120 karakter).';
+	}
+
+	if ( ! empty( $errors ) ) {
+		wp_send_json_error( array( 'message' => implode( ' ', $errors ) ), 400 );
 	}
 
 	$title = sprintf( 'Permohonan Informasi – %s', $nama );
@@ -1401,15 +1682,22 @@ function itsi_submit_permohonan() {
 	update_post_meta( $post_id, 'cara_penerimaan', $cara );
 	update_post_meta( $post_id, 'deskripsi', $deskripsi );
 
-	$to       = get_option( 'admin_email' );
-	$subject  = sprintf( '[ITSI] Permohonan Informasi Baru – %s', $nama );
-	$message  = sprintf(
+	// Email ke pengaturan: To/From/Subject dari theme_mods.
+	$to       = $settings['email_to'];
+	$subject  = $settings['email_subject'];
+	$from     = $settings['email_from'];
+	$headers  = array();
+	if ( is_email( $from ) ) {
+		$site_name = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
+		$headers[] = 'From: ' . $site_name . ' <' . $from . '>';
+	}
+	$message = sprintf(
 		"Permohonan informasi baru dari %s (%s) telah masuk.\n\nLihat di admin: %s",
 		$nama,
 		$email,
 		admin_url( 'post.php?post=' . $post_id . '&action=edit' )
 	);
-	wp_mail( $to, $subject, $message );
+	wp_mail( $to, $subject, $message, $headers );
 
 	wp_send_json_success(
 		array(
@@ -1802,6 +2090,107 @@ function itsi_fakultas_icon_admin_print_js() {
 	<?php
 }
 add_action( 'admin_print_footer_scripts', 'itsi_fakultas_icon_admin_print_js' );
+
+/**
+ * Kategori Informasi taxonomy term meta: image picker di form Add/Edit term.
+ *
+ * Disimpan sebagai attachment ID di term meta `kategori_info_icon`.
+ * Dipakai oleh archive-info_publik.php sebagai icon kategori (pengganti emoji)
+ * di filter bar + badge dokumen. Pola sama persis dengan fakultas_icon_image.
+ */
+function itsi_kategori_info_icon_form_field( $term = null ) {
+	$icon_id = 0;
+	if ( $term && isset( $term->term_id ) ) {
+		$icon_id = (int) get_term_meta( $term->term_id, 'kategori_info_icon', true );
+	}
+	$icon_url = $icon_id > 0 ? (string) wp_get_attachment_url( $icon_id ) : '';
+	?>
+	<tr class="form-field itsi-katinfo-icon-wrap">
+		<th scope="row" valign="top"><label for="itsi_kategori_info_icon"><?php esc_html_e( 'Icon Kategori (gambar)', 'itsi' ); ?></label></th>
+		<td>
+			<input type="hidden" name="itsi_kategori_info_icon" id="itsi_kategori_info_icon" value="<?php echo esc_attr( $icon_id > 0 ? (string) $icon_id : '' ); ?>" />
+			<div id="itsi-katinfo-icon-preview" style="margin-bottom:.6rem<?php echo $icon_url === '' ? ';display:none' : ''; ?>">
+				<img src="<?php echo esc_url( $icon_url ); ?>" alt="" style="max-width:80px;max-height:80px;border:1px solid #ddd;border-radius:4px;padding:4px;background:#fff" />
+			</div>
+			<button type="button" class="button" id="itsi-katinfo-icon-upload">
+				<?php echo $icon_id > 0 ? esc_html__( 'Ganti gambar', 'itsi' ) : esc_html__( 'Pilih gambar', 'itsi' ); ?>
+			</button>
+			<button type="button" class="button" id="itsi-katinfo-icon-clear" style="<?php echo $icon_id > 0 ? '' : 'display:none'; ?>">
+				<?php esc_html_e( 'Hapus', 'itsi' ); ?>
+			</button>
+			<p class="description"><?php esc_html_e( 'Ditampilkan sebagai icon kategori di halaman Informasi Publik (menggantikan emoji). Kosongkan jika tidak ada.', 'itsi' ); ?></p>
+		</td>
+	</tr>
+	<?php
+}
+add_action( 'kategori_info_add_form_fields', 'itsi_kategori_info_icon_form_field', 10, 1 );
+add_action( 'kategori_info_edit_form_fields', 'itsi_kategori_info_icon_form_field', 10, 1 );
+
+/**
+ * Simpan term meta kategori_info_icon. Validasi: harus numeric attachment ID.
+ */
+function itsi_kategori_info_icon_save( $term_id ) {
+	if ( ! current_user_can( 'manage_categories' ) ) {
+		return;
+	}
+	$raw = isset( $_POST['itsi_kategori_info_icon'] ) ? sanitize_text_field( wp_unslash( $_POST['itsi_kategori_info_icon'] ) ) : '';
+	if ( $raw === '' ) {
+		delete_term_meta( $term_id, 'kategori_info_icon' );
+		return;
+	}
+	if ( ! is_numeric( $raw ) ) {
+		return;
+	}
+	$att_id = (int) $raw;
+	if ( ! wp_get_attachment_url( $att_id ) ) {
+		delete_term_meta( $term_id, 'kategori_info_icon' );
+		return;
+	}
+	update_term_meta( $term_id, 'kategori_info_icon', $att_id );
+}
+add_action( 'created_kategori_info', 'itsi_kategori_info_icon_save', 10, 1 );
+add_action( 'edited_kategori_info', 'itsi_kategori_info_icon_save', 10, 1 );
+
+/**
+ * Print wp.media picker JS di footer halaman taxonomy kategori_info.
+ */
+function itsi_kategori_info_icon_admin_print_js() {
+	$screen = get_current_screen();
+	if ( ! $screen || $screen->taxonomy !== 'kategori_info' ) {
+		return;
+	}
+	wp_enqueue_media();
+	?>
+	<script type="text/javascript">
+	(function($){
+		$(function(){
+			if (typeof wp === 'undefined' || !wp.media) { return; }
+			$('#itsi-katinfo-icon-upload').on('click', function(e){
+				e.preventDefault();
+				var frame = wp.media({ title: 'Pilih Icon Kategori', button: { text: 'Pilih' }, multiple: false, library: { type: 'image' } });
+				frame.on('select', function(){
+					var att = frame.state().get('selection').first().toJSON();
+					$('#itsi_kategori_info_icon').val(att.id);
+					$('#itsi-katinfo-icon-preview img').attr('src', att.url);
+					$('#itsi-katinfo-icon-preview').show();
+					$('#itsi-katinfo-icon-clear').show();
+					$('#itsi-katinfo-icon-upload').text('Ganti gambar');
+				});
+				frame.open();
+			});
+			$('#itsi-katinfo-icon-clear').on('click', function(e){
+				e.preventDefault();
+				$('#itsi_kategori_info_icon').val('');
+				$('#itsi-katinfo-icon-preview').hide();
+				$('#itsi-katinfo-icon-clear').hide();
+				$('#itsi-katinfo-icon-upload').text('Pilih gambar');
+			});
+		});
+	})(jQuery);
+	</script>
+	<?php
+}
+add_action( 'admin_print_footer_scripts', 'itsi_kategori_info_icon_admin_print_js' );
 
 /**
  * One-shot auto-populate: assign default widgets to the 3 archive-berita sidebar

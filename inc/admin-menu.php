@@ -129,6 +129,23 @@ function itsi_handle_settings_save() {
 		'itsi_schema_social_tiktok'      => 'esc_url_raw',
 		'itsi_schema_social_twitter'     => 'esc_url_raw',
 		'itsi_schema_social_linkedin'    => 'esc_url_raw',
+
+		// Informasi Publik — PPID banner.
+		'itsi_ip_ppid_icon'  => 'absint',
+		'itsi_ip_ppid_title' => 'sanitize_text_field',
+		'itsi_ip_ppid_desc'  => 'sanitize_textarea_field',
+
+		// Informasi Publik — stats & KIP repeater.
+		'itsi_ip_stats'     => 'itsi_sanitize_ip_stats',
+		'itsi_ip_kip_cards' => 'itsi_sanitize_ip_kip_cards',
+
+		// Informasi Publik — form & email.
+		'itsi_ip_form_enabled'  => 'rest_sanitize_boolean',
+		'itsi_ip_email_to'      => 'sanitize_email',
+		'itsi_ip_email_from'    => 'sanitize_email',
+		'itsi_ip_email_subject' => 'sanitize_text_field',
+		'itsi_ip_rate_max'      => 'itsi_sanitize_rate_max',
+		'itsi_ip_rate_window'   => 'itsi_sanitize_rate_window',
 	);
 
 	// WP native theme_mod keys for logo + favicon — TR Image field posts
@@ -244,6 +261,131 @@ function itsi_sanitize_footer_layout( $value ) {
 	}
 
 	return $rows;
+}
+
+/**
+ * Sanitize the Informasi Publik stats repeater value.
+ *
+ * Each row = [ 'icon' => attachment id, 'angka' => string, 'label' => string ].
+ *  - icon: absint (attachment id) — 0/empty di-drop.
+ *  - angka: sanitize_text_field (boleh "24/7", "10").
+ *  - label: sanitize_text_field.
+ *  Baris tanpa angka & tanpa label & tanpa icon → dibuang.
+ *
+ * @param mixed $value Raw repeater value.
+ * @return array List of sanitized rows.
+ */
+function itsi_sanitize_ip_stats( $value ) {
+	if ( is_string( $value ) ) {
+		$decoded = json_decode( $value, true );
+		if ( is_array( $decoded ) ) {
+			$value = $decoded;
+		}
+	}
+	if ( ! is_array( $value ) ) {
+		return array();
+	}
+
+	$rows = array();
+	foreach ( $value as $row ) {
+		if ( ! is_array( $row ) ) {
+			continue;
+		}
+
+		$icon  = isset( $row['icon'] ) && is_numeric( $row['icon'] ) ? absint( $row['icon'] ) : 0;
+		$angka = isset( $row['angka'] ) ? sanitize_text_field( (string) $row['angka'] ) : '';
+		$label = isset( $row['label'] ) ? sanitize_text_field( (string) $row['label'] ) : '';
+
+		if ( '' === $angka && '' === $label && 0 === $icon ) {
+			continue;
+		}
+
+		$rows[] = array(
+			'icon'  => $icon,
+			'angka' => $angka,
+			'label' => $label,
+		);
+	}
+
+	return $rows;
+}
+
+/**
+ * Sanitize the Informasi Publik KIP cards repeater value.
+ *
+ * Each row = [ 'icon' => attachment id, 'title' => string, 'text' => string ].
+ * Baris tanpa title & tanpa text & tanpa icon → dibuang.
+ *
+ * @param mixed $value Raw repeater value.
+ * @return array List of sanitized rows.
+ */
+function itsi_sanitize_ip_kip_cards( $value ) {
+	if ( is_string( $value ) ) {
+		$decoded = json_decode( $value, true );
+		if ( is_array( $decoded ) ) {
+			$value = $decoded;
+		}
+	}
+	if ( ! is_array( $value ) ) {
+		return array();
+	}
+
+	$rows = array();
+	foreach ( $value as $row ) {
+		if ( ! is_array( $row ) ) {
+			continue;
+		}
+
+		$icon  = isset( $row['icon'] ) && is_numeric( $row['icon'] ) ? absint( $row['icon'] ) : 0;
+		$title = isset( $row['title'] ) ? sanitize_text_field( (string) $row['title'] ) : '';
+		$text  = isset( $row['text'] ) ? sanitize_textarea_field( (string) $row['text'] ) : '';
+
+		if ( '' === $title && '' === $text && 0 === $icon ) {
+			continue;
+		}
+
+		$rows[] = array(
+			'icon'  => $icon,
+			'title' => $title,
+			'text'  => $text,
+		);
+	}
+
+	return $rows;
+}
+
+/**
+ * Sanitize rate limit max submissions per IP (clamp 1–100, default 5).
+ *
+ * @param mixed $value Raw input.
+ * @return int
+ */
+function itsi_sanitize_rate_max( $value ) {
+	$n = is_numeric( $value ) ? (int) $value : 5;
+	if ( $n < 1 ) {
+		return 1;
+	}
+	if ( $n > 100 ) {
+		return 100;
+	}
+	return $n;
+}
+
+/**
+ * Sanitize rate limit window in minutes (clamp 1–1440, default 15).
+ *
+ * @param mixed $value Raw input.
+ * @return int
+ */
+function itsi_sanitize_rate_window( $value ) {
+	$n = is_numeric( $value ) ? (int) $value : 15;
+	if ( $n < 1 ) {
+		return 1;
+	}
+	if ( $n > 1440 ) {
+		return 1440;
+	}
+	return $n;
 }
 
 /**
@@ -530,6 +672,101 @@ function itsi_render_settings_page() {
 			->setAttribute( 'min', '0' ),
 	) );
 
+	// ═══ INFORMASI PUBLIK ═════════════════════════════════════════
+	$tabs->tab( __( 'Informasi Publik', 'itsi' ), 'dashicons-media-document', array(
+		// ── PPID Banner ─────────────────────────────────────────
+		'<h3 style="margin:.2rem 0 .9rem;border-bottom:1px solid #e5e7eb;padding-bottom:.5rem">PPID Banner</h3>',
+		\TypeRocket\Utility\Helper::form()
+			->image( 'itsi_ip_ppid_icon' )
+			->setLabel( __( 'Ikon PPID (gambar)', 'itsi' ) )
+			->setHelp( __( 'Gambar ikon di kiri banner PPID. Disarankan 96×96 px, PNG/SVG transparan. Kosongkan untuk tampil tanpa ikon.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_ip_ppid_title' )
+			->setLabel( __( 'Judul PPID', 'itsi' ) )
+			->setHelp( __( 'Mis. PPID Institut Teknologi Sawit Indonesia', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->textarea( 'itsi_ip_ppid_desc' )
+			->setLabel( __( 'Deskripsi PPID', 'itsi' ) )
+			->setHelp( __( 'Paragraf penjelasan PPID di banner.', 'itsi' ) )
+			->setAttribute( 'rows', 3 ),
+
+		// ── Stats Bar ──────────────────────────────────────────
+		'<h3 style="margin:1.4rem 0 .9rem;border-bottom:1px solid #e5e7eb;padding-bottom:.5rem">Stats Bar</h3>',
+		\TypeRocket\Utility\Helper::form()
+			->repeater( 'itsi_ip_stats' )
+			->setTitle( __( 'Statistik', 'itsi' ) )
+			->setLimit( 6 )
+			->setFields( array(
+				\TypeRocket\Utility\Helper::form()
+					->image( 'icon' )
+					->setLabel( __( 'Ikon (gambar, opsional)', 'itsi' ) )
+					->setHelp( __( 'Kosongkan jika tidak perlu ikon.', 'itsi' ) ),
+				\TypeRocket\Utility\Helper::form()
+					->text( 'angka' )
+					->setLabel( __( 'Angka', 'itsi' ) )
+					->setHelp( __( 'Mis. 22', 'itsi' ) ),
+				\TypeRocket\Utility\Helper::form()
+					->text( 'label' )
+					->setLabel( __( 'Label', 'itsi' ) )
+					->setHelp( __( 'Mis. Total Dokumen', 'itsi' ) ),
+			) ),
+
+		// ── KIP Cards ──────────────────────────────────────────
+		'<h3 style="margin:1.4rem 0 .9rem;border-bottom:1px solid #e5e7eb;padding-bottom:.5rem">KIP Info Cards</h3>',
+		\TypeRocket\Utility\Helper::form()
+			->repeater( 'itsi_ip_kip_cards' )
+			->setTitle( __( 'Kartu Info', 'itsi' ) )
+			->setLimit( 8 )
+			->setFields( array(
+				\TypeRocket\Utility\Helper::form()
+					->image( 'icon' )
+					->setLabel( __( 'Ikon (gambar)', 'itsi' ) )
+					->setHelp( __( 'Gambar ikon kartu, mis. gambar buku/kertas. Disarankan 96×96 px.', 'itsi' ) ),
+				\TypeRocket\Utility\Helper::form()
+					->text( 'title' )
+					->setLabel( __( 'Judul', 'itsi' ) )
+					->setHelp( __( 'Mis. UU No. 14 Tahun 2008', 'itsi' ) ),
+				\TypeRocket\Utility\Helper::form()
+					->textarea( 'text' )
+					->setLabel( __( 'Deskripsi', 'itsi' ) )
+					->setHelp( __( 'Teks singkat kartu.', 'itsi' ) )
+					->setAttribute( 'rows', 3 ),
+			) ),
+
+		// ── Form Permohonan ────────────────────────────────────
+		'<h3 style="margin:1.4rem 0 .9rem;border-bottom:1px solid #e5e7eb;padding-bottom:.5rem">Form Permohonan</h3>',
+		\TypeRocket\Utility\Helper::form()
+			->checkbox( 'itsi_ip_form_enabled' )
+			->setLabel( __( 'Aktifkan form permohonan informasi', 'itsi' ) )
+			->setHelp( __( 'Jika nonaktif, form tidak ditampilkan di halaman dan submit via AJAX ditolak (403).', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->input( 'itsi_ip_email_to' )->setTypeEmail()
+			->setLabel( __( 'Email penerima notifikasi (To)', 'itsi' ) )
+			->setHelp( __( 'Email yang menerima pemberitahuan permohonan baru. Default: Email Admin situs.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->input( 'itsi_ip_email_from' )->setTypeEmail()
+			->setLabel( __( 'Email pengirim (From)', 'itsi' ) )
+			->setHelp( __( 'Alamat pengirim notifikasi. Default: Email Admin situs.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()
+			->text( 'itsi_ip_email_subject' )
+			->setLabel( __( 'Subjek email', 'itsi' ) )
+			->setHelp( __( 'Default: [ITSI] Permohonan Informasi Baru', 'itsi' ) ),
+		'<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:.5rem">',
+		\TypeRocket\Utility\Helper::form()
+			->number( 'itsi_ip_rate_max' )
+			->setLabel( __( 'Rate limit — maks. submit per IP', 'itsi' ) )
+			->setHelp( __( 'Batas kirim form per IP dalam jendela waktu di bawah. Default 5.', 'itsi' ) )
+			->setAttribute( 'min', '1' )
+			->setAttribute( 'max', '100' ),
+		\TypeRocket\Utility\Helper::form()
+			->number( 'itsi_ip_rate_window' )
+			->setLabel( __( 'Rate limit — jendela waktu (menit)', 'itsi' ) )
+			->setHelp( __( 'Berapa menit jendela rate limit. Default 15.', 'itsi' ) )
+			->setAttribute( 'min', '1' )
+			->setAttribute( 'max', '1440' ),
+		'</div>',
+	) );
+
 	$tabs->setTitle( __( 'ITSI Theme Settings', 'itsi' ) )
 		->layoutTopEnclosed();
 
@@ -618,6 +855,21 @@ function itsi_populate_tabs_from_theme_mods( $node ) {
 				}
 			}
 
+			// Repeater `itsi_ip_stats` / `itsi_ip_kip_cards`: normalisasi sama
+			// (null → default; string → JSON/unserialize → array). Kosong dibiarkan
+			// kosong supaya admin yang sengaja menghapus semua baris tetap lihat repeater kosong.
+			if ( 'itsi_ip_stats' === $key || 'itsi_ip_kip_cards' === $key ) {
+				if ( is_string( $mod ) ) {
+					$decoded = json_decode( $mod, true );
+					if ( is_array( $decoded ) ) {
+						$mod = $decoded;
+					} else {
+						$unser = maybe_unserialize( $mod );
+						$mod   = is_array( $unser ) ? $unser : array();
+					}
+				}
+			}
+
 			if ( null === $mod ) {
 				continue;
 			}
@@ -638,7 +890,7 @@ function itsi_populate_tabs_from_theme_mods( $node ) {
 			//     render ($form->super($k, $this)) bisa resolve nilainya lewat group
 			//     path `itsi_footer_layout.0.label` dst.
 			// Format: [ 'itsi_footer_layout' => [ ['label'=>'…','width'=>'…'], … ] ]
-			if ( 'itsi_footer_layout' === $key && is_array( $mod ) ) {
+			if ( in_array( $key, array( 'itsi_footer_layout', 'itsi_ip_stats', 'itsi_ip_kip_cards' ), true ) && is_array( $mod ) ) {
 				if ( method_exists( $field, 'setModel' ) ) {
 					$field->setModel( array( $key => $mod ) );
 				}

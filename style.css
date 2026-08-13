@@ -1531,13 +1531,21 @@ footer { background:var(--ink); border-top:1px solid rgba(255,255,255,.05); }
 .sb-item:hover { background:rgba(255,255,255,.03); }
 .sb-n { font-family:'Cormorant Garamond',serif; font-size:1.85rem; font-weight:700; color:var(--gold-lt); line-height:1; }
 .sb-l { font-size:.67rem; font-weight:600; color:rgba(255,255,255,.42); margin-top:.25rem; }
+/* Icon gambar di stats bar */
+.sb-ic { display:flex; align-items:center; justify-content:center; margin-bottom:.45rem; }
+.sb-ic .ip-ic-img { width:34px; height:34px; object-fit:contain; border-radius:8px; }
+.sb-ic .ip-ic-fallback { color:rgba(255,255,255,.5); }
+.sb-ic .ip-ic-fallback svg { width:30px; height:30px; }
 
 /* Main wrap */
 .main-wrap { padding:clamp(2.5rem,4.5vw,4.5rem) 0; }
 
 /* PPID Banner */
 .ppid-banner { background:linear-gradient(135deg,var(--deep),var(--royal)); border-radius:22px; padding:2rem 2.2rem; margin-bottom:2.5rem; display:flex; align-items:center; gap:2rem; flex-wrap:wrap; }
-.ppid-ic { font-size:2.8rem; flex-shrink:0; }
+.ppid-ic { flex-shrink:0; display:flex; align-items:center; justify-content:center; width:64px; height:64px; }
+.ppid-ic .ip-ic-img { width:64px; height:64px; object-fit:contain; }
+.ppid-ic .ip-ic-fallback { width:64px; height:64px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.12); border-radius:16px; color:#fff; }
+.ppid-ic .ip-ic-fallback svg { width:34px; height:34px; }
 .ppid-title { font-family:'Cormorant Garamond',serif; font-size:1.35rem; font-weight:700; color:#fff; margin-bottom:.4rem; }
 .ppid-desc { font-size:.88rem; color:rgba(255,255,255,.55); line-height:1.7; max-width:500px; margin:0; }
 .ppid-btns { display:flex; gap:.65rem; flex-wrap:wrap; margin-left:auto; }
@@ -1553,10 +1561,13 @@ footer { background:var(--ink); border-top:1px solid rgba(255,255,255,.05); }
 .search-wrap:focus-within { border-color:var(--azure); box-shadow:0 0 0 3px rgba(30,114,212,.1); }
 .search-wrap input { border:none; background:transparent; font-family:inherit; font-size:.85rem; color:var(--tx-body); width:100%; outline:none; }
 .search-wrap input::placeholder { color:var(--tx-soft); }
+.search-ic { display:inline-flex; color:var(--tx-soft); flex-shrink:0; }
 .kat-filter { display:flex; gap:.4rem; flex-wrap:wrap; flex:1; }
-.kf-btn { padding:.4rem .9rem; border-radius:30px; font-size:.76rem; font-weight:700; background:var(--white); border:1.5px solid #C8DEFF; color:var(--tx-mid); cursor:pointer; transition:all .2s; white-space:nowrap; }
+.kf-btn { display:inline-flex; align-items:center; gap:.35rem; padding:.4rem .9rem; border-radius:30px; font-size:.76rem; font-weight:700; background:var(--white); border:1.5px solid #C8DEFF; color:var(--tx-mid); cursor:pointer; transition:all .2s; white-space:nowrap; }
 .kf-btn.on { background:var(--cobalt); border-color:var(--cobalt); color:#fff; }
 .kf-btn:hover:not(.on) { border-color:var(--azure); color:var(--cobalt); }
+.kf-ic { width:16px; height:16px; object-fit:contain; border-radius:4px; }
+.kf-btn.on .kf-ic { filter:brightness(0) invert(1); }
 
 /* Document table */
 .doc-table-wrap { background:var(--white); border:1px solid #C8DEFF; border-radius:20px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,.04); }
@@ -1570,24 +1581,33 @@ footer { background:var(--ink); border-top:1px solid rgba(255,255,255,.05); }
 .doc-tbl tbody tr:hover { background:var(--frost); }
 .doc-no { font-weight:800; color:var(--cobalt); font-size:.75rem; text-align:center; width:44px; }
 .doc-nm-wrap { display:flex; align-items:center; gap:.85rem; }
-.doc-icon { font-size:1.3rem; flex-shrink:0; }
+.doc-icon { flex-shrink:0; display:flex; align-items:center; justify-content:center; width:36px; height:36px; }
+.doc-icon .ip-ic-img { width:32px; height:32px; object-fit:contain; border-radius:8px; }
+.doc-icon .ip-ic-fallback { width:32px; height:32px; display:flex; align-items:center; justify-content:center; background:var(--frost); border-radius:8px; color:var(--cobalt); }
+.doc-icon .ip-ic-fallback svg { width:18px; height:18px; }
 .doc-nm { font-size:.86rem; font-weight:700; color:var(--tx-dark); line-height:1.38; margin-bottom:.18rem; }
-.doc-sub { font-size:.7rem; color:var(--tx-soft); }
+.doc-sub { display:flex; align-items:center; gap:.35rem; font-size:.7rem; color:var(--tx-soft); }
+.doc-sub-ic { display:inline-flex; color:var(--tx-soft); }
 .doc-kat-badge { font-size:.64rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:.2rem .6rem; border-radius:6px; white-space:nowrap; display:inline-block; }
 .doc-thn { font-size:.82rem; font-weight:600; color:var(--tx-mid); white-space:nowrap; }
 .doc-dl-btn { display:inline-flex; align-items:center; gap:.4rem; padding:.38rem .88rem; border-radius:8px; font-size:.77rem; font-weight:700; background:var(--frost); color:var(--cobalt); border:1px solid var(--pale); transition:all .22s; white-space:nowrap; text-decoration:none; }
 .doc-dl-btn:hover { background:var(--cobalt); color:#fff; border-color:var(--cobalt); }
+.doc-dl-ic { display:inline-flex; }
 
 /* KIP Info cards (archive) */
 .kip-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:1.1rem; margin-top:2.5rem; }
 .kip-card { background:var(--white); border:1px solid #C8DEFF; border-radius:18px; padding:1.5rem; transition:all .28s var(--ease); }
 .kip-card:hover { box-shadow:0 8px 28px rgba(12,61,122,.1); transform:translateY(-3px); border-color:#ADDAFF; }
-.kip-ic { font-size:1.8rem; margin-bottom:.7rem; }
+.kip-ic { margin-bottom:.7rem; display:flex; }
+.kip-ic .ip-ic-img { width:44px; height:44px; object-fit:contain; }
+.kip-ic .ip-ic-fallback { width:44px; height:44px; display:flex; align-items:center; justify-content:center; background:var(--frost); border-radius:12px; color:var(--cobalt); }
+.kip-ic .ip-ic-fallback svg { width:24px; height:24px; }
 .kip-title { font-size:.9rem; font-weight:700; color:var(--tx-dark); margin-bottom:.45rem; }
 .kip-text { font-size:.83rem; color:var(--tx-mid); line-height:1.68; margin:0; }
 
 /* Permohonan form (archive) */
 .form-section { background:var(--white); border:1px solid #C8DEFF; border-radius:22px; padding:2rem; margin-top:2.5rem; }
+.form-section.form-disabled { text-align:center; border-style:dashed; background:var(--surface); }
 .form-title { font-family:'Cormorant Garamond',serif; font-size:1.45rem; font-weight:700; color:var(--tx-dark); margin-bottom:.45rem; }
 .form-title em { font-style:italic; color:var(--azure); }
 .form-sub { font-size:.88rem; color:var(--tx-mid); line-height:1.7; margin-bottom:1.6rem; }
