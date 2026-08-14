@@ -1220,10 +1220,6 @@ add_action( 'typerocket_loaded', function () {
 													) );
 
 				/* ─── TAB 2: Hero & Sidebar ─── */
-				$cat_opts = array();
-				foreach ( get_categories( array( 'hide_empty' => false ) ) as $cat ) {
-					$cat_opts[ $cat->term_id ] = $cat->name;
-				}
 				$tabs->tab( 'Hero & Sidebar', 'dashicons-cover-image', array(
 					'<div style="padding:1rem;background:#f6f8fc;border-radius:8px;margin-bottom:1rem">'
 					. '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1rem">'
@@ -1244,9 +1240,9 @@ add_action( 'typerocket_loaded', function () {
 					. '</div>'
 					. '<div style="padding:1rem;background:#eef7ff;border-radius:8px;border-left:3px solid #0d6efd;margin-bottom:1rem">'
 					. '<h4 style="margin:.2rem 0 .6rem">📰 Panel Berita &amp; Kegiatan Prodi</h4>'
-					. '<p style="margin:0 0 .8rem;font-size:.85em;color:#666">Pilih kategori berita (post type <strong>Post</strong>) yang tampil di panel <em>Kegiatan Prodi</em> pada halaman prodi. Tekan Ctrl/Cmd lalu klik untuk memilih lebih dari satu. <strong>Kosongkan = 3 berita terbaru</strong> (tanpa filter kategori).</p>'
+					. '<p style="margin:0 0 .8rem;font-size:.85em;color:#666">Pilih kategori berita (taxonomy <strong>Kategori</strong> dari post type <strong>Post</strong>) yang tampil di panel <em>Kegiatan Prodi</em> pada halaman prodi. Ketik untuk mencari, lalu klik hasilnya untuk menambah (bisa lebih dari satu, urutkan/drag untuk prioritas). <strong>Kosongkan = 3 berita terbaru</strong> (tanpa filter kategori).</p>'
 					. '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">'
-					. '<div>' . $form->select( 'berita_kategori' )->setLabel( 'Kategori Berita' )->setOptions( $cat_opts )->setAttribute( 'multiple', 'multiple' )->setAttribute( 'style', 'width:100%;min-height:110px' ) . '</div>'
+					. '<div>' . $form->search( 'berita_kategori' )->setLabel( 'Kategori Berita' )->multiple()->setTaxonomyOptions( 'category' ) . '</div>'
 					. '<div>' . $form->number( 'berita_jumlah' )->setLabel( 'Jumlah Berita' )->setAttribute( 'min', '1' )->setAttribute( 'max', '12' )->setAttribute( 'placeholder', '3' )->setHelp( 'Kosongkan untuk 3 berita terbaru.' ) . '</div>'
 					. '</div>'
 					. '</div>'
