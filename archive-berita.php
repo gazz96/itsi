@@ -60,7 +60,7 @@ if ( $show_featured ) {
     ) );
 }
 
-/* ── Visual assets: gradient fallbacks + emoji map per category ── */
+/* ── Visual assets: gradient fallbacks + icon map per category ── */
 $gradients = array(
     'linear-gradient(135deg,#04162E,#1E72D4)',
     'linear-gradient(135deg,#08274F,#0C3D7A)',
@@ -71,26 +71,26 @@ $gradients = array(
     'linear-gradient(135deg,#052e16,#15803d)',
     'linear-gradient(135deg,#451a03,#d97706)',
 );
-$emojis_by_cat = array(
-    'kegiatan'         => '🏭',
-    'kegiatan-akademik'=> '🎓',
-    'pengabdian'       => '🤝',
-    'kerja-sama'       => '🤝',
-    'penelitian'       => '🔬',
-    'akademik'         => '🎓',
-    'agribisnis'       => '🌾',
-    'teknologi'        => '⚙️',
-    'lingkungan'       => '♻️',
-    'berita'           => '📰',
-    'agenda'           => '📅',
-    'hot-news'         => '🔥',
-    'pengumuman'       => '📢',
-    'prestasi-mahasiswa'=> '🏆',
-    'info-pendaftaran' => '🎓',
-    'lowongan-kerja'   => '💼',
-    'seputar-sawit'    => '🌴',
-    'kompetisi'        => '🥇',
-    'pendidikan'       => '📚',
+$icons_by_cat = array(
+    'kegiatan'           => 'bi-buildings',
+    'kegiatan-akademik'  => 'bi-mortarboard',
+    'pengabdian'         => 'bi-people',
+    'kerja-sama'         => 'bi-diagram-3',
+    'penelitian'         => 'bi-search',
+    'akademik'           => 'bi-mortarboard',
+    'agribisnis'         => 'bi-tree',
+    'teknologi'          => 'bi-gear',
+    'lingkungan'         => 'bi-recycle',
+    'berita'             => 'bi-newspaper',
+    'agenda'             => 'bi-calendar-event',
+    'hot-news'           => 'bi-fire',
+    'pengumuman'         => 'bi-megaphone',
+    'prestasi-mahasiswa' => 'bi-trophy',
+    'info-pendaftaran'   => 'bi-mortarboard',
+    'lowongan-kerja'     => 'bi-briefcase',
+    'seputar-sawit'      => 'bi-tree',
+    'kompetisi'          => 'bi-trophy',
+    'pendidikan'         => 'bi-book',
 );
 
 /* ── Categories for sidebar filter ── */
@@ -154,13 +154,13 @@ $schema_featured_id = null;
 
       <!-- Hero header -->
       <header class="arc-berita-hero rv">
-        <span class="at-art-hdr-cat" style="background:rgba(20,89,179,.1);color:#1459B3">📰 Kabar Kampus</span>
+        <span class="at-art-hdr-cat" style="background:rgba(20,89,179,.1);color:#1459B3"><i class="bi bi-newspaper"></i> Kabar Kampus</span>
         <h1 class="arc-berita-title">Berita &amp; <em>Kegiatan</em> Terkini</h1>
         <p class="arc-berita-sub">Liputan terbaru tentang kegiatan, riset, dan pencapaian sivitas akademika Institut Teknologi Sawit Indonesia.</p>
 
         <form role="search" method="get" action="<?php echo esc_url( home_url( '/index.php/berita/' ) ); ?>" class="arc-berita-search">
           <input type="hidden" name="post_type" value="post">
-          <span class="arc-berita-search-ic">🔍</span>
+          <span class="arc-berita-search-ic"><i class="bi bi-search"></i></span>
           <input type="search" name="s" placeholder="Cari berita, topik, atau kata kunci…" value="<?php echo esc_attr( $search ); ?>">
           <button type="submit">Cari</button>
         </form>
@@ -197,14 +197,14 @@ $schema_featured_id = null;
                 $f_cats      = get_the_category( $f_id );
                 $f_cat_name  = ( ! empty( $f_cats ) && ! is_wp_error( $f_cats ) ) ? $f_cats[0]->name : 'Berita';
                 $f_cat_slug  = ( ! empty( $f_cats ) ) ? $f_cats[0]->slug : '';
-                $f_emoji     = isset( $emojis_by_cat[ $f_cat_slug ] ) ? $emojis_by_cat[ $f_cat_slug ] : '📰';
+                $f_icon      = isset( $icons_by_cat[ $f_cat_slug ] ) ? $icons_by_cat[ $f_cat_slug ] : 'bi-newspaper';
                 $f_grad      = $gradients[ $f_id % count( $gradients ) ];
                 $f_date_long = get_the_date( 'd F Y', $f_id );
                 $f_content   = $featured_post->post_content;
                 $f_word      = str_word_count( wp_strip_all_tags( $f_content ) );
                 $f_read_min  = max( 1, (int) ceil( $f_word / 200 ) );
                 $f_views_raw = (int) get_post_meta( $f_id, 'post_views_count', true );
-                $f_views_disp= $f_views_raw > 0 ? number_format_i18n( $f_views_raw ) . ' views' : '— views';
+                $f_views_disp= itsi_format_views( $f_views_raw );
                 $f_author_id = (int) $featured_post->post_author;
                 $f_author    = get_the_author_meta( 'display_name', $f_author_id );
                 $f_role      = get_the_author_meta( 'description', $f_author_id );
@@ -250,9 +250,9 @@ $schema_featured_id = null;
                       </div>
                     </div>
                     <div class="at-meta-info">
-                      <span class="at-meta-tag">📅 <?php echo esc_html( $f_date_long ); ?></span>
-                      <span class="at-meta-tag">⏱ <?php echo (int) $f_read_min; ?> menit membaca</span>
-                      <span class="at-meta-tag">👁 <?php echo esc_html( $f_views_disp ); ?></span>
+                      <span class="at-meta-tag"><i class="bi bi-calendar3"></i> <?php echo esc_html( $f_date_long ); ?></span>
+                      <span class="at-meta-tag"><i class="bi bi-clock"></i> <?php echo (int) $f_read_min; ?> menit membaca</span>
+                      <span class="at-meta-tag"><i class="bi bi-eye"></i> <?php echo esc_html( $f_views_disp ); ?></span>
                     </div>
                   </div>
                 </header>
@@ -280,7 +280,7 @@ $schema_featured_id = null;
                     </a>
                   <?php else : ?>
                     <a href="<?php echo esc_url( $f_permalink ); ?>" style="display:block;font-size:5rem;background:<?php echo esc_attr( $f_grad ); ?>;min-height:320px;display:flex;align-items:center;justify-content:center;border-radius:20px">
-                      <?php echo esc_html( $f_emoji ); ?>
+                      <i class="bi <?php echo esc_attr( $f_icon ); ?>"></i>
                     </a>
                   <?php endif; ?>
                 </figure>
@@ -320,11 +320,11 @@ $schema_featured_id = null;
                   $pcats     = get_the_category();
                   $pcat_name = ( ! empty( $pcats ) && ! is_wp_error( $pcats ) ) ? $pcats[0]->name : 'Berita';
                   $pcat_slug = ( ! empty( $pcats ) ) ? $pcats[0]->slug : '';
-                  $pemoji    = isset( $emojis_by_cat[ $pcat_slug ] ) ? $emojis_by_cat[ $pcat_slug ] : '📰';
+                  $picon     = isset( $icons_by_cat[ $pcat_slug ] ) ? $icons_by_cat[ $pcat_slug ] : 'bi-newspaper';
                   $pgrad     = $gradients[ ( $pid + $i ) % count( $gradients ) ];
                   $pdate     = get_the_date( 'd M Y' );
                   $pviews    = (int) get_post_meta( $pid, 'post_views_count', true );
-                  $pviews_d  = $pviews > 0 ? number_format_i18n( $pviews ) . ' views' : '—';
+                  $pviews_d  = itsi_format_views( $pviews );
                   $i++;
                   /* Collect for JSON-LD ItemList. position = $i (1-based, after featured). */
                   $schema_items[] = array(
@@ -368,16 +368,16 @@ $schema_featured_id = null;
                       <?php if ( $p_has_img ) : ?>
                         <?php echo $p_thumb_html; ?>
                       <?php else : ?>
-                        <span class="arc-berita-fallback" style="background:<?php echo esc_attr( $pgrad ); ?>"><?php echo esc_html( $pemoji ); ?></span>
+                        <span class="arc-berita-fallback" style="background:<?php echo esc_attr( $pgrad ); ?>"><i class="bi <?php echo esc_attr( $picon ); ?>"></i></span>
                       <?php endif; ?>
                       <span class="arc-berita-card-cat"><?php echo esc_html( strtoupper( $pcat_name ) ); ?></span>
                     </a>
                     <?php endif; ?>
                     <div class="arc-berita-body">
                       <div class="arc-berita-meta">
-                        <span>📅 <?php echo esc_html( $pdate ); ?></span>
-                        <span>👤 <?php the_author(); ?></span>
-                        <span>👁 <?php echo esc_html( $pviews_d ); ?></span>
+                        <span><i class="bi bi-calendar3"></i> <?php echo esc_html( $pdate ); ?></span>
+                        <span><i class="bi bi-person"></i> <?php the_author(); ?></span>
+                        <span><i class="bi bi-eye"></i> <?php echo esc_html( $pviews_d ); ?></span>
                       </div>
                       <h3 class="arc-berita-title-sm"><a href="<?php the_permalink(); ?>"><?php the_title(); ?></a></h3>
                       <p class="arc-berita-excerpt"><?php echo esc_html( wp_trim_words( wp_strip_all_tags( get_the_excerpt() ), 22, '…' ) ); ?></p>

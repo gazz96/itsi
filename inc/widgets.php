@@ -188,7 +188,7 @@ class ITSI_Popular_Widget extends WP_Widget {
 					<span class="at-pop-num"><?php echo esc_html( $n ); ?></span>
 					<div>
 						<div class="at-pop-title"><?php echo esc_html( wp_trim_words( wp_strip_all_tags( get_the_title() ), 12, '…' ) ); ?></div>
-						<span class="at-pop-meta">👁 <?php echo $v > 0 ? esc_html( number_format_i18n( $v ) ) : '—'; ?></span>
+						<span class="at-pop-meta"><i class="bi bi-eye"></i> <?php echo esc_html( itsi_format_views( $v ) ); ?></span>
 					</div>
 				</div>
 			<?php endwhile; wp_reset_postdata(); ?>

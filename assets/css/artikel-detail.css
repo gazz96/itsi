@@ -286,3 +286,52 @@
   .arc-berita-thumb{height:140px}
   .at-art-featured-img{aspect-ratio:4/3}
 }
+
+/* ═══════════════════════════════════════════
+   BOOTSTRAP ICONS — sizing/alignment (scoped)
+   Icons replace emoji in meta tags, share bar,
+   category fallbacks, and popular posts. All
+   rules are scoped to existing containers so
+   the global <i> element is never restyled.
+═══════════════════════════════════════════ */
+
+/* Meta tags (single post + featured) — icon sits inline with text */
+.at-meta-tag .bi,
+.at-pop-meta .bi,
+.arc-berita-meta .bi,
+.at-result-date .bi{
+  font-size:.85em;
+  line-height:1;
+  display:inline-block;
+  vertical-align:-1px;
+}
+
+/* Share buttons — slightly larger so the brand icon is visible */
+.at-share-btn .bi,
+.at-share-copy .bi{
+  font-size:1.05em;
+  line-height:1;
+}
+
+/* Category label chips (hero "Kabar Kampus" etc.) */
+.at-art-hdr-cat .bi{
+  font-size:.85em;
+  line-height:1;
+  margin-right:.28rem;
+  vertical-align:-1px;
+}
+
+/* Category fallback placeholders (featured image / grid / search cards) */
+.at-rel-thumb .bi,
+.arc-berita-fallback .bi,
+.at-result-thumb .bi{
+  color:#fff;
+  display:block;
+}
+
+/* Search icon inside the berita search box */
+.arc-berita-search-ic .bi{
+  font-size:1rem;
+  line-height:1;
+  display:block;
+}

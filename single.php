@@ -43,9 +43,9 @@ while ( have_posts() ) :
     $word_count   = str_word_count( wp_strip_all_tags( get_the_content() ) );
     $reading_time = max( 1, (int) ceil( $word_count / 200 ) );
     $views_raw    = (int) get_post_meta( $post_id, 'post_views_count', true );
-    $views_disp   = $views_raw > 0 ? number_format_i18n( $views_raw ) . ' views' : '— views';
+    $views_disp   = itsi_format_views( $views_raw );
 
-    /* ── Featured image / fallback gradient + emoji ────────── */
+    /* ── Featured image / fallback gradient + icon ────────── */
     $gradients = array(
         'linear-gradient(135deg,#04162E,#1E72D4)',
         'linear-gradient(135deg,#08274F,#0C3D7A)',
@@ -54,20 +54,29 @@ while ( have_posts() ) :
         'linear-gradient(135deg,#04162E,#0C3D7A)',
         'linear-gradient(135deg,#08274F,#1459B3)',
     );
-    $emojis_by_cat = array(
-        'kegiatan'         => '🏭',
-        'kegiatan akademik'=> '🎓',
-        'pengabdian'       => '🤝',
-        'kerjasama'        => '🤝',
-        'penelitian'       => '🔬',
-        'akademik'         => '🎓',
-        'agribisnis'       => '🌾',
-        'teknologi'        => '⚙️',
-        'lingkungan'       => '♻️',
-        'berita'           => '📰',
+    $icons_by_cat = array(
+        'kegiatan'           => 'bi-buildings',
+        'kegiatan-akademik'  => 'bi-mortarboard',
+        'pengabdian'         => 'bi-people',
+        'kerjasama'          => 'bi-diagram-3',
+        'penelitian'         => 'bi-search',
+        'akademik'           => 'bi-mortarboard',
+        'agribisnis'         => 'bi-tree',
+        'teknologi'          => 'bi-gear',
+        'lingkungan'         => 'bi-recycle',
+        'berita'             => 'bi-newspaper',
+        'agenda'             => 'bi-calendar-event',
+        'hot-news'           => 'bi-fire',
+        'pengumuman'         => 'bi-megaphone',
+        'prestasi-mahasiswa' => 'bi-trophy',
+        'info-pendaftaran'   => 'bi-mortarboard',
+        'lowongan-kerja'     => 'bi-briefcase',
+        'seputar-sawit'      => 'bi-tree',
+        'kompetisi'          => 'bi-trophy',
+        'pendidikan'         => 'bi-book',
     );
     $cat_slug   = ( ! empty( $cats ) ) ? $cats[0]->slug : '';
-    $emoji      = isset( $emojis_by_cat[ $cat_slug ] ) ? $emojis_by_cat[ $cat_slug ] : '📝';
+    $cat_icon   = isset( $icons_by_cat[ $cat_slug ] ) ? $icons_by_cat[ $cat_slug ] : 'bi-pencil';
     $grad       = $gradients[ $post_id % count( $gradients ) ];
 
     /* ── TOC: parse <h2> from content ──────────────────────── */
@@ -120,7 +129,7 @@ while ( have_posts() ) :
                     'permalink' => get_the_permalink(),
                     'title'     => get_the_title(),
                     'cat'       => ( ! empty( $rcats ) ) ? $rcats[0]->name : 'Berita',
-                    'emoji'     => '📰',
+                    'icon'      => 'bi-newspaper',
                 );
             }
             wp_reset_postdata();
@@ -168,9 +177,9 @@ while ( have_posts() ) :
                     </div>
                   </div>
                   <div class="at-meta-info">
-                    <span class="at-meta-tag">📅 <?php echo esc_html( $publish_long ); ?></span>
-                    <span class="at-meta-tag">⏱ <?php echo (int) $reading_time; ?> menit membaca</span>
-                    <span class="at-meta-tag">👁 <?php echo esc_html( $views_disp ); ?></span>
+                    <span class="at-meta-tag"><i class="bi bi-calendar3"></i> <?php echo esc_html( $publish_long ); ?></span>
+                    <span class="at-meta-tag"><i class="bi bi-clock"></i> <?php echo (int) $reading_time; ?> menit membaca</span>
+                    <span class="at-meta-tag"><i class="bi bi-eye"></i> <?php echo esc_html( $views_disp ); ?></span>
                   </div>
                 </div>
               </header>
@@ -181,7 +190,7 @@ while ( have_posts() ) :
                   <?php the_post_thumbnail( 'large', array( 'style' => 'width:100%;height:auto;border-radius:20px;display:block' ) ); ?>
                 <?php else : ?>
                   <div style="font-size:5rem;background:<?php echo esc_attr( $grad ); ?>;min-height:320px;display:flex;align-items:center;justify-content:center;border-radius:20px">
-                    <?php echo esc_html( $emoji ); ?>
+                    <i class="bi <?php echo esc_attr( $cat_icon ); ?>"></i>
                   </div>
                 <?php endif; ?>
                 <figcaption class="at-cap"><?php echo esc_html( wp_strip_all_tags( $lead_text ) ); ?></figcaption>
@@ -220,10 +229,10 @@ while ( have_posts() ) :
               <!-- Share bar -->
               <div class="at-share-bar rv">
                 <span class="at-share-lbl">Bagikan:</span>
-                <button type="button" class="at-share-btn" data-share="wa">📱 WhatsApp</button>
-                <button type="button" class="at-share-btn" data-share="fb">📘 Facebook</button>
-                <button type="button" class="at-share-btn" data-share="tw">🐦 Twitter / X</button>
-                <button type="button" class="at-share-copy" data-share="copy">🔗 Salin Tautan</button>
+                <button type="button" class="at-share-btn" data-share="wa"><i class="bi bi-whatsapp"></i> WhatsApp</button>
+                <button type="button" class="at-share-btn" data-share="fb"><i class="bi bi-facebook"></i> Facebook</button>
+                <button type="button" class="at-share-btn" data-share="tw"><i class="bi bi-twitter-x"></i> Twitter / X</button>
+                <button type="button" class="at-share-copy" data-share="copy"><i class="bi bi-link-45deg"></i> Salin Tautan</button>
               </div>
 
               <!-- Post-article Ad (Rectangle) — converted to widget area -->
@@ -242,7 +251,7 @@ while ( have_posts() ) :
                   <div class="at-related-grid">
                     <?php foreach ( $related as $i => $r ) : ?>
                       <a href="<?php echo esc_url( $r['permalink'] ); ?>" class="at-rel-card rv d<?php echo esc_attr( ( $i % 3 ) + 1 ); ?>">
-                        <div class="at-rel-thumb" style="background:<?php echo esc_attr( $gradients[ $i % count( $gradients ) ] ); ?>"><?php echo esc_html( $r['emoji'] ); ?></div>
+                        <div class="at-rel-thumb" style="background:<?php echo esc_attr( $gradients[ $i % count( $gradients ) ] ); ?>"><i class="bi <?php echo esc_attr( $r['icon'] ); ?>"></i></div>
                         <div class="at-rel-body">
                           <div class="at-rel-cat"><?php echo esc_html( $r['cat'] ); ?></div>
                           <div class="at-rel-title"><?php echo esc_html( $r['title'] ); ?></div>
@@ -297,8 +306,8 @@ while ( have_posts() ) :
             if (ch === 'tw') { window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) + '&url=' + u, '_blank'); return; }
             if (ch === 'copy') {
               if (navigator.clipboard) { navigator.clipboard.writeText(url).then(function(){
-                btn.textContent = '✅ Tersalin';
-                setTimeout(function(){ btn.textContent = '🔗 Salin Tautan'; }, 1800);
+                btn.innerHTML = '<i class="bi bi-check2"></i> Tersalin';
+                setTimeout(function(){ btn.innerHTML = '<i class="bi bi-link-45deg"></i> Salin Tautan'; }, 1800);
               }); }
               else { var ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
             }

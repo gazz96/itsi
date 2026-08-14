@@ -25,17 +25,17 @@ $gradients = array(
     'linear-gradient(135deg,#08274F,#1459B3)',
 );
 
-$emojis_by_cat = array(
-    'kegiatan'         => '🏭',
-    'kegiatan akademik'=> '🎓',
-    'pengabdian'       => '🤝',
-    'kerjasama'        => '🤝',
-    'penelitian'       => '🔬',
-    'akademik'         => '🎓',
-    'agribisnis'       => '🌾',
-    'teknologi'        => '⚙️',
-    'lingkungan'       => '♻️',
-    'berita'           => '📰',
+$icons_by_cat = array(
+    'kegiatan'           => 'bi-buildings',
+    'kegiatan-akademik'  => 'bi-mortarboard',
+    'pengabdian'         => 'bi-people',
+    'kerja-sama'         => 'bi-diagram-3',
+    'penelitian'         => 'bi-search',
+    'akademik'           => 'bi-mortarboard',
+    'agribisnis'         => 'bi-tree',
+    'teknologi'          => 'bi-gear',
+    'lingkungan'         => 'bi-recycle',
+    'berita'             => 'bi-newspaper',
 );
 ?>
 
@@ -58,7 +58,7 @@ $emojis_by_cat = array(
       <p><?php echo esc_html( $total > 0 ? sprintf( '%d artikel ditemukan', $total ) : 'Coba kata kunci lain untuk menemukan artikel yang relevan.' ); ?></p>
       <form role="search" method="get" class="at-search-form" action="<?php echo esc_url( home_url( '/' ) ); ?>">
         <input type="search" name="s" placeholder="Cari artikel, berita, penelitian…" value="<?php echo esc_attr( $query ); ?>" aria-label="Search">
-        <button type="submit">🔎 Cari</button>
+        <button type="submit"><i class="bi bi-search"></i> Cari</button>
       </form>
     </div>
   </section>
@@ -97,7 +97,7 @@ $emojis_by_cat = array(
             $pcats      = get_the_category();
             $pcat_name  = ( ! empty( $pcats ) && ! is_wp_error( $pcats ) ) ? $pcats[0]->name : 'Berita';
             $pcat_slug  = ( ! empty( $pcats ) ) ? $pcats[0]->slug : '';
-            $pemoji     = isset( $emojis_by_cat[ $pcat_slug ] ) ? $emojis_by_cat[ $pcat_slug ] : '📰';
+            $picon      = isset( $icons_by_cat[ $pcat_slug ] ) ? $icons_by_cat[ $pcat_slug ] : 'bi-newspaper';
             $pgrad      = $gradients[ ( $pid + $i ) % count( $gradients ) ];
             $ptitle_h   = the_title( '', '', false );
             // Highlight query in title
@@ -112,18 +112,18 @@ $emojis_by_cat = array(
             $pexcerpt    = wp_trim_words( wp_strip_all_tags( get_the_excerpt() ), 22, '…' );
             $pdate_disp  = get_the_date( 'd M Y' );
             $pviews_raw  = (int) get_post_meta( $pid, 'post_views_count', true );
-            $pviews_disp = $pviews_raw > 0 ? number_format_i18n( $pviews_raw ) . ' views' : '—';
+            $pviews_disp = itsi_format_views( $pviews_raw );
             $i++;
           ?>
             <a href="<?php the_permalink(); ?>" class="at-result-card rv d<?php echo esc_attr( ( $i % 3 ) + 1 ); ?>">
               <div class="at-result-thumb" style="background:<?php echo esc_attr( $pgrad ); ?>">
                 <?php if ( has_post_thumbnail() ) : the_post_thumbnail( 'medium' ); else : ?>
-                  <span style="font-size:2.6rem"><?php echo esc_html( $pemoji ); ?></span>
+                  <span style="font-size:2.6rem"><i class="bi <?php echo esc_attr( $picon ); ?>"></i></span>
                 <?php endif; ?>
                 <span class="at-result-cat"><?php echo esc_html( $pcat_name ); ?></span>
               </div>
               <div class="at-result-body">
-                <div class="at-result-date">📅 <?php echo esc_html( $pdate_disp ); ?> · 👁 <?php echo esc_html( $pviews_disp ); ?></div>
+                <div class="at-result-date"><i class="bi bi-calendar3"></i> <?php echo esc_html( $pdate_disp ); ?> · <i class="bi bi-eye"></i> <?php echo esc_html( $pviews_disp ); ?></div>
                 <h3 class="at-result-title"><?php echo wp_kses_post( $ptitle_disp ); ?></h3>
                 <p class="at-result-excerpt"><?php echo esc_html( $pexcerpt ); ?></p>
                 <div class="at-result-foot"><span><?php echo esc_html( get_the_author() ); ?></span><span>Baca →</span></div>
