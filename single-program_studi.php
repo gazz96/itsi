@@ -769,11 +769,6 @@ unset( $dr );
             <div class="pg-dosen-grid" id="pg-dGrid">
               <?php foreach ( $dosen as $i => $d ) :
 
-                echo "<pre>";
-                var_dump($d);
-                echo "</pre>";
-                
-
                 $name = isset( $d['name'] ) ? $d['name'] : ( isset( $d['name'] ) ? $d['name'] : '' );
                 $nidn = isset( $d['nidn'] ) ? $d['nidn'] : '';
                 $jab  = isset( $d['jabatan'] ) ? $d['jabatan'] : '';
@@ -803,7 +798,7 @@ unset( $dr );
                   </div>
                   <div class="pg-dc-name"><?php echo esc_html( $name ); ?></div>
                   <div class="pg-dc-nidn">NIDN: <?php echo esc_html( $nidn ); ?></div>
-                  <?php if ( $univ !== '' ) : ?>
+                  <?php if ( false ) : ?>
                   <div class="pg-dc-univ"><?php echo esc_html( $univ ); ?></div>
                   <?php else : ?>
                   <div class="pg-dc-univ" style="visibility:hidden">&nbsp;</div>
