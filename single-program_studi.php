@@ -145,6 +145,10 @@ if ( ! is_array( $dosen ) ) {
     $dosen = array();
 }
 
+echo "<pre>";
+var_dump($dosen);
+die();
+
 /* ----- Repeater sections (Fasilitas, Mitra, Prestasi, Testimoni) ----- */
 $itsi_load_repeater = function ( $key ) use ( $post_id ) {
     $v = get_post_meta( $post_id, $key, true );
@@ -768,10 +772,8 @@ unset( $dr );
             <div class="pg-dosen-grid" id="pg-dGrid">
               <?php foreach ( $dosen as $i => $d ) :
 
-                echo "<pre>";
-                var_dump($d);
-                die();
                 
+
                 $name = isset( $d['nama_lengka_gelar'] ) ? $d['nama_lengka_gelar'] : ( isset( $d['nama_lengka_gelar'] ) ? $d['nama_lengka_gelar'] : '' );
                 $nidn = isset( $d['nidn'] ) ? $d['nidn'] : '';
                 $jab  = isset( $d['jabatan'] ) ? $d['jabatan'] : '';
