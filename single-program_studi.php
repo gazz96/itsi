@@ -27,12 +27,10 @@ $prodi_degree          = (string) get_post_meta( $post_id, 'prodi_degree', true 
 if ( $prodi_degree === '' ) {
     $prodi_degree = (string) get_post_meta( $post_id, 'gelar', true ); // legacy key fallback
 }
-$prodi_jenjang         = (string) get_post_meta( $post_id, 'jenjang', true );
 $prodi_accreditation   = (string) get_post_meta( $post_id, 'akreditasi', true );
 if ( $prodi_accreditation === '' ) {
     $prodi_accreditation = (string) get_post_meta( $post_id, 'prodi_accreditation', true ); // legacy key fallback
 }
-$prodi_graduate_title  = (string) get_post_meta( $post_id, 'prodi_graduate_title', true );
 $prodi_founding_year   = (string) get_post_meta( $post_id, 'tahun_berdiri', true );
 if ( $prodi_founding_year === '' ) {
     $prodi_founding_year = (string) get_post_meta( $post_id, 'prodi_founding_year', true ); // legacy key fallback
@@ -97,6 +95,13 @@ $visi = (string) get_post_meta( $post_id, 'visi', true );
 if ( $visi === '' ) {
     $visi = (string) get_post_meta( $post_id, 'prodi_vision', true );
 }
+
+/* ----- Profil Singkat (panel Profil Prodi, di atas Sejarah) ----- */
+$profil = (string) get_post_meta( $post_id, 'profil', true );
+if ( $profil === '' ) {
+    $profil = (string) get_post_meta( $post_id, 'prodi_profile', true ); // legacy key fallback
+}
+
 $misi_raw = (string) get_post_meta( $post_id, 'misi', true );
 if ( $misi_raw === '' ) {
     $misi_raw = (string) get_post_meta( $post_id, 'prodi_mission', true );
@@ -167,16 +172,9 @@ $cpl_sikap         = $itsi_sanitize_wp( 'cpl_sikap' );
 $mk_semesters_raw = $itsi_load_repeater( 'mk_semesters' );
 $mk_use_repeater  = ! empty( $mk_semesters_raw );
 
-/* ----- Mata Kuliah ----- */
-$mk_ids_raw = (string) get_post_meta( $post_id, 'prodi_courses', true );
-$mk_ids    = maybe_unserialize( $mk_ids_raw );
-if ( ! is_array( $mk_ids ) ) {
-    $mk_ids = array();
-}
-
 $akreditasi_value = (string) get_post_meta( $post_id, 'akreditasi_value', true );
 $akreditasi_sub   = (string) get_post_meta( $post_id, 'akreditasi_sub', true );
-$sk_akreditasi    = (string) get_post_meta( $post_id, '***', true );
+$sk_akreditasi    = (string) get_post_meta( $post_id, 'sk_akreditasi', true );
 $pmb_url          = (string) get_post_meta( $post_id, 'pmb_url', true );
 $pmb_label        = (string) get_post_meta( $post_id, 'pmb_label', true );
 
@@ -363,7 +361,7 @@ unset( $dr );
     </nav>
     <div class="pg-ph-layout">
       <div>
-        <div class="pg-ph-badge"><?php echo esc_html( $hero_badge_icon . ' ' . $hero_badge_text ); ?></div>
+        <div class="pg-ph-badge"><?php echo itsi_prodi_icon_html( $hero_badge_icon ); ?><?php if ( $hero_badge_text !== '' ) : ?> <span><?php echo esc_html( $hero_badge_text ); ?></span><?php endif; ?></div>
         <h1 class="pg-ph-title">Program Studi<br><em><?php echo esc_html( $hero_title ); ?></em></h1>
         <p class="pg-ph-sub"><?php echo esc_html( $hero_subtitle ); ?></p>
         <div class="pg-ph-chips">
@@ -443,7 +441,7 @@ unset( $dr );
           </div>
           <div class="pg-side-akred">
             <div class="pg-sa-lbl">Akreditasi BAN-PT</div>
-            <div class="pg-sa-val"><?php echo esc_html( $prodi_accreditation ); ?></div>
+            <div class="pg-sa-val"><?php echo esc_html( $akreditasi_value !== '' ? $akreditasi_value : $prodi_accreditation ); ?></div>
             <div class="pg-sa-sub"><?php echo esc_html( $akreditasi_sub ); ?></div>
             <?php if ( $sk_akreditasi !== '' ) : ?>
               <div class="pg-sa-sk">No. SK: <?php echo esc_html( $sk_akreditasi ); ?></div>
@@ -461,6 +459,15 @@ unset( $dr );
         <!-- ▌ PROFIL ▌ -->
         <div id="pg-panel-profil" class="pg-panel on">
           <div class="pg-block pg-rv">
+            <?php if ( $profil !== '' ) : ?>
+            <div class="p-head" style="margin-bottom:1.3rem">
+              <span class="pg-sec-label">Profil Singkat</span>
+              <h2 class="pg-sec-title">Profil <em>Prodi <?php echo esc_html( $hero_title ); ?></em></h2>
+            </div>
+            <div class="pg-hist-box">
+              <div class="pg-hist-text"><?php echo wpautop( wp_kses_post( $profil ) ); ?></div>
+            </div>
+            <?php endif; ?>
             <div class="p-head" style="margin-bottom:1.3rem">
               <span class="pg-sec-label">Sejarah Singkat</span>
               <h2 class="pg-sec-title">Perjalanan <em>Prodi <?php echo esc_html( $hero_title ); ?></em></h2>
@@ -519,7 +526,7 @@ unset( $dr );
             <h2 class="pg-sec-title" style="margin-bottom:1.2rem">Visi <em><?php echo esc_html( $hero_title ); ?> 2030</em></h2>
             <div class="pg-visi-card">
               <div class="pg-vc-lbl">Visi</div>
-              <div class="pg-vc-text"><?php echo esc_html( $visi ); ?></div>
+              <div class="pg-vc-text"><?php echo wpautop( wp_kses_post( $visi ) ); ?></div>
             </div>
           </div>
           <div class="pg-block pg-rv pg-d2">
@@ -825,7 +832,8 @@ unset( $dr );
 
             <?php
             /* Default BDP curriculum: 8 semesters / 144 SKS.
-               mk_ids (prodi_courses meta) is reserved for custom overrides; when empty we render canonical. */
+               Jika repeater mk_semesters diisi admin, konten di bawah ini diabaikan
+               dan tabel dirender dari data repeater (lihat $mk_semesters_normalized). */
             $mk_semesters = array(
                 'ganjil' => array(
                     array( 'no' => 1, 'year' => 1, 'sks' => 20, 'courses' => array(

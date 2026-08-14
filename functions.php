@@ -1225,7 +1225,8 @@ add_action( 'typerocket_loaded', function () {
 					. '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1rem">'
 					. '<div>' . $form->text( 'akreditasi_value' )->setLabel( 'Akreditasi BAN-PT (kode)' )->setAttribute( 'placeholder', 'mis. B / Unggul / A' ) . '</div>'
 					. '<div>' . $form->text( 'akreditasi_sub' )->setLabel( 'Status Akreditasi' )->setAttribute( 'placeholder', 'Terakreditasi Baik' ) . '</div>'
-					. '<div>' . $form->select( '_use_default_content' )->setLabel( 'Gunakan Konten Default BDP' )->setOptions( array( '1' => 'Ya (fallback BDP)', '0' => 'Tidak (kosong jika belum diisi)' ) )->setAttribute( 'style', 'width:100%' ) . '</div>'
+					. '<div>' . $form->text( 'sk_akreditasi' )->setLabel( 'No. SK Akreditasi' )->setAttribute( 'placeholder', 'mis. 5828/D/T/K-I/2011' ) . '</div>'
+					. '<div>' . $form->select( '_use_default_content' )->setLabel( 'Gunakan Konten Default BDP (LEGACY — tidak digunakan lagi)' )->setOptions( array( '1' => 'Ya (fallback BDP)', '0' => 'Tidak (kosong jika belum diisi)' ) )->setAttribute( 'style', 'width:100%' ) . '</div>'
 					. '</div>'
 					. '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">'
 					. '<div>' . $form->text( 'pmb_label' )->setLabel( 'PMB — Label Tombol' )->setAttribute( 'placeholder', '🎓 Daftar Mahasiswa Baru 2025/2026' ) . '</div>'
@@ -1233,7 +1234,7 @@ add_action( 'typerocket_loaded', function () {
 					. '</div>'
 					. '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-top:1rem">'
 					. '<div>' . $form->textarea( 'hero_subtitle' )->setLabel( 'Hero Subtitle' )->setAttribute( 'rows', 3 )->setAttribute( 'placeholder', 'Mencetak Sarjana Terapan…' ) . '</div>'
-					. '<div>' . $form->text( 'hero_badge_icon' )->setLabel( 'Hero Badge Icon (emoji)' )->setAttribute( 'placeholder', '🌴' ) . '</div>'
+					. '<div>' . $form->text( 'hero_badge_icon' )->setLabel( 'Hero Badge Icon (bi-* atau emoji)' )->setHelp( 'Isi class Bootstrap Icons (mis. bi-tree) untuk icon, atau emoji legacy. Render mendukung keduanya.' )->setAttribute( 'placeholder', 'bi-tree' ) . '</div>'
 					. '<div>' . $form->text( 'hero_badge_text' )->setLabel( 'Hero Badge Text' )->setAttribute( 'placeholder', 'D4 · Fakultas Vokasi' ) . '</div>'
 					. '</div>'
 					. '</div>'
@@ -1246,33 +1247,33 @@ add_action( 'typerocket_loaded', function () {
 
 				/* ─── TAB 3: Profil & Visi ─── */
 				$tabs->tab( 'Profil & Visi', 'dashicons-text-page', array(
-					'<div style="margin-bottom:.6rem">' . $form->wpEditor( 'profil' )->setLabel( 'Profil Singkat' ) . '</div>'
-					. '<div style="margin-bottom:.6rem">' . $form->wpEditor( 'visi' )->setLabel( 'Visi (rich text)' ) . '</div>'
-					. '<div style="margin-bottom:.8rem">' . $form->textarea( 'tujuan_text' )->setLabel( 'Tujuan & Kompetensi (legacy, free text)' ) . '</div>'
+					'<div style="margin-bottom:.6rem">' . $form->wpEditor( 'profil' )->setLabel( 'Profil Singkat' )->setHelp( 'Tampil di panel Profil Prodi, di atas Sejarah & Timeline.' ) . '</div>'
+					. '<div style="margin-bottom:.6rem">' . $form->wpEditor( 'visi' )->setLabel( 'Visi (rich text)' )->setHelp( 'Tampil di panel Visi & Misi. Boleh pakai bold/paragraf.' ) . '</div>'
+					. '<div style="margin-bottom:.8rem">' . $form->textarea( 'tujuan_text' )->setLabel( 'Tujuan & Kompetensi (LEGACY — tidak dirender, pakai repeater Tujuan di tab Misi & Lulusan)' ) . '</div>'
 				) );
 
 				/* ─── TAB 4: Misi, Tujuan, Kompetensi, Lulusan ─── */
 				$misi = $form->repeater( 'misi' )->setFields(
 					array(
-						$form->text( 'Icon' )->setAttribute( 'placeholder', '🎓' ),
+						$form->text( 'Icon' )->setAttribute( 'placeholder', 'bi-bullseye' ),
 						$form->textarea( 'Teks Misi' )->setAttribute( 'rows', 3 ),
 					)
 				);
 				$tujuan = $form->repeater( 'tujuan' )->setFields(
 					array(
-						$form->text( 'Icon' )->setAttribute( 'placeholder', '🎯' ),
+						$form->text( 'Icon' )->setAttribute( 'placeholder', 'bi-bullseye' ),
 						$form->textarea( 'Teks Tujuan' )->setAttribute( 'rows', 3 ),
 					)
 				);
 				$kompetensi = $form->repeater( 'kompetensi' )->setFields(
 					array(
-						$form->text( 'Icon' )->setAttribute( 'placeholder', '🌴' ),
+						$form->text( 'Icon' )->setAttribute( 'placeholder', 'bi-patch-check' ),
 						$form->text( 'Nama Kompetensi' )->setAttribute( 'placeholder', 'Pengelolaan Budidaya Tanaman Kelapa Sawit' ),
 					)
 				);
 				$lulusan = $form->repeater( 'lulusan' )->setFields(
 					array(
-						$form->text( 'Icon' )->setAttribute( 'placeholder', '🌱' ),
+						$form->text( 'Icon' )->setAttribute( 'placeholder', 'bi-briefcase' ),
 						$form->text( 'Nama Karir' )->setAttribute( 'placeholder', 'Asisten Kebun Kelapa Sawit' ),
 						$form->textarea( 'Deskripsi' )->setAttribute( 'rows', 2 ),
 					)
@@ -1338,7 +1339,7 @@ add_action( 'typerocket_loaded', function () {
 				/* ─── TAB 8: Fasilitas & Mitra ─── */
 				$fas = $form->repeater( 'fasilitas' )->setFields(
 					array(
-						$form->text( 'Icon' )->setAttribute( 'placeholder', '🔬' ),
+						$form->text( 'Icon' )->setAttribute( 'placeholder', 'bi-buildings' ),
 						$form->text( 'Nama Fasilitas' )->setAttribute( 'placeholder', 'Laboratorium Kultur Jaringan' ),
 						$form->textarea( 'Deskripsi' )->setAttribute( 'rows', 2 ),
 					)
