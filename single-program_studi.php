@@ -52,6 +52,9 @@ $hero_subtitle   = (string) get_post_meta( $post_id, 'hero_subtitle', true );
 $hero_badge_icon = (string) get_post_meta( $post_id, 'hero_badge_icon', true );
 $hero_badge_text = (string) get_post_meta( $post_id, 'hero_badge_text', true );
 
+// Hero background = featured image (thumbnail) bila tersedia; fallback gradient navy.
+$pg_hero_img = has_post_thumbnail( $post_id ) ? (string) get_the_post_thumbnail_url( $post_id, 'large' ) : '';
+
 $faks = wp_get_post_terms( $post_id, 'fakultas', array( 'fields' => 'all' ) );
 $fakultas_name = ( ! empty( $faks ) && ! is_wp_error( $faks ) ) ? $faks[0]->name : 'Fakultas Vokasi';
 
@@ -379,7 +382,12 @@ unset( $dr );
 
 <!-- ══════════════ PAGE HERO ══════════════ -->
 <section id="pg-phero">
-  <div class="pg-ph-bg"></div>
+  <?php if ( $pg_hero_img !== '' ) : ?>
+    <div class="pg-ph-bg pg-ph-img" style="background-image:url('<?php echo esc_url( $pg_hero_img ); ?>')"></div>
+    <div class="pg-ph-overlay"></div>
+  <?php else : ?>
+    <div class="pg-ph-bg"></div>
+  <?php endif; ?>
   <div class="pg-ph-dots"></div>
   <div class="pg-ph-blob pg-ph-b1"></div>
   <div class="pg-ph-blob pg-ph-b2"></div>

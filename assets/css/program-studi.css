@@ -31,6 +31,8 @@
 /* ─── PAGE HERO ─── */
 #pg-phero{position:relative;overflow:hidden;background:var(--ink);padding:clamp(4.5rem,9vh,7.5rem) 0 clamp(3rem,5.5vh,5rem)}
 .pg-ph-bg{position:absolute;inset:0;background:radial-gradient(ellipse 70% 60% at 55% 35%,rgba(12,61,122,.5),transparent 65%),radial-gradient(ellipse 35% 45% at 8% 85%,rgba(8,39,79,.65),transparent 55%),linear-gradient(170deg,var(--ink) 0%,var(--navy) 100%)}
+.pg-ph-img{background-size:cover;background-position:center}
+.pg-ph-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,26,53,.75),rgba(7,26,53,.55))}
 .pg-ph-dots{position:absolute;inset:0;opacity:.025;background-image:radial-gradient(circle,rgba(117,192,245,1) 1px,transparent 1px);background-size:44px 44px}
 .pg-ph-blob{position:absolute;border-radius:50%;filter:blur(90px)}
 .pg-ph-b1{width:480px;height:480px;background:radial-gradient(circle,rgba(20,89,179,.2),transparent 70%);top:-15%;right:-5%;animation:pg-floatA 13s ease-in-out infinite}
