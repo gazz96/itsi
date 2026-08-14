@@ -196,7 +196,7 @@ $current_kat = isset( $_GET['kat'] ) ? sanitize_text_field( wp_unslash( $_GET['k
 
 								$cats    = get_the_terms( $post_id, 'kategori_info' );
 								$cat     = ( ! empty( $cats ) && ! is_wp_error( $cats ) ) ? $cats[0] : null;
-								$kat_nm  = $cat ? $cat->name : 'DOKUMEN';
+								$kat_nm  = $cat ? $cat->name : '-';
 								$kat_sl  = $cat ? $cat->slug : '';
 								$kat_c   = $kat_colors[ $kat_sl ] ?? [ 'bg' => '#6880A01a', 'color' => '#6880A0' ];
 								$kat_icon = $cat ? itsi_ip_get_term_icon( $cat->term_id ) : '';
