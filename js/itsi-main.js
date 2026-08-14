@@ -365,16 +365,16 @@
 
   // ── Share buttons (single post) ─────────────────────────
   window.doShare2 = window.doShare; // alias
-  window.doShare = function (network, e) {
+  window.doShare = function (network, e, url) {
     if (e && e.preventDefault) e.preventDefault();
     if (e && e.stopPropagation) e.stopPropagation();
-    var url = encodeURIComponent(window.location.href);
+    var shareUrl = encodeURIComponent(url || window.location.href);
     var text = encodeURIComponent(document.title || '');
     var target = '';
-    if (network === 'wa')  target = 'https://wa.me/?text=' + text + '%20' + url;
-    if (network === 'fb')  target = 'https://www.facebook.com/sharer/sharer.php?u=' + url;
-    if (network === 'tw')  target = 'https://twitter.com/intent/tweet?url=' + url + '&text=' + text;
-    if (network === 'li')  target = 'https://www.linkedin.com/sharing/share-offsite/?url=' + url;
+    if (network === 'wa')  target = 'https://wa.me/?text=' + text + '%20' + shareUrl;
+    if (network === 'fb')  target = 'https://www.facebook.com/sharer/sharer.php?u=' + shareUrl;
+    if (network === 'tw')  target = 'https://twitter.com/intent/tweet?url=' + shareUrl + '&text=' + text;
+    if (network === 'li')  target = 'https://www.linkedin.com/sharing/share-offsite/?url=' + shareUrl;
     if (target) window.open(target, '_blank', 'noopener,noreferrer');
   };
 
