@@ -1183,7 +1183,7 @@ unset( $dr );
               <div class="pg-empty" style="background:#f6f8fc;padding:1rem;border-radius:8px;color:var(--tx-mid);font-style:italic">Belum ada berita untuk ditampilkan di panel ini. Silakan tambahkan berita di admin → Post, atau pilih kategori pada Detail Program Studi → Hero &amp; Sidebar.</div>
             <?php endif; ?>
             <div style="text-align:center;margin-top:2rem">
-              <a href="<?php echo esc_url( home_url( '/berita/' ) ); ?>" style="display:inline-flex;align-items:center;gap:.5rem;padding:.75rem 1.6rem;border-radius:11px;border:1.5px solid #CEE2FF;color:var(--royal);font-size:.85rem;font-weight:700;transition:all .25s" onmouseover="this.style.background='var(--frost)';this.style.borderColor='var(--azure)'" onmouseout="this.style.background='';this.style.borderColor='#CEE2FF'">Lihat Semua Berita &amp; Kegiatan →</a>
+              <a href="<?php echo esc_url( home_url( '/index.php/berita/' ) ); ?>" style="display:inline-flex;align-items:center;gap:.5rem;padding:.75rem 1.6rem;border-radius:11px;border:1.5px solid #CEE2FF;color:var(--royal);font-size:.85rem;font-weight:700;transition:all .25s" onmouseover="this.style.background='var(--frost)';this.style.borderColor='var(--azure)'" onmouseout="this.style.background='';this.style.borderColor='#CEE2FF'">Lihat Semua Berita &amp; Kegiatan →</a>
             </div>
           </div>
         </div>
