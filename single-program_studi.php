@@ -309,7 +309,7 @@ $map_misi        = [ 'icon' => ['icon','Icon'], 'text' => ['text','teks_misi','T
 $map_tujuan      = [ 'icon' => ['icon','Icon'], 'text' => ['text','teks_tujuan','Teks Tujuan','Text'] ];
 $map_kompetensi  = [ 'icon' => ['icon','Icon'], 'name' => ['name','nama_kompetensi','Nama Kompetensi','Name'] ];
 $map_lulusan     = [ 'icon' => ['icon','Icon'], 'name' => ['name','nama_karir','Nama Karir','Name'], 'desc' => ['desc','deskripsi','Deskripsi','Desc'] ];
-$map_dosen       = [ 'initials' => ['initials','inisial_(2_huruf)','Inisial (2 huruf)','Initials'], 'name' => ['name','nama','nama_lengkap_+_gelar','Nama Lengkap + Gelar','Name'], 'nidn' => ['nidn','NIDN'], 'univ' => ['univ','universitas','Universitas','Univ'], 'bid' => ['bid','bidang_keilmuan','Bidang Keilmuan','Bid'], 'deg' => ['deg','jenjang','Jenjang','Deg'], 'foto' => ['foto','foto_dosen','Foto Dosen','photo','Photo','image','Image','Foto'] ];
+$map_dosen       = [ 'initials' => ['initials','inisial_2_huruf','Inisial (2 huruf)','Initials'], 'name' => ['name','nama','nama_lengkap_gelar','Nama Lengkap + Gelar','Name'], 'nidn' => ['nidn','NIDN'], 'univ' => ['univ','universitas','Universitas','Univ'], 'bid' => ['bid','bidang_keilmuan','Bidang Keilmuan','Bid'], 'deg' => ['deg','jenjang','Jenjang','Deg'], 'foto' => ['foto','foto_dosen','Foto Dosen','photo','Photo','image','Image','Foto'] ];
 $map_fasilitas   = [ 'icon' => ['icon','Icon'], 'name' => ['name','nama_fasilitas','Nama Fasilitas','Name'], 'desc' => ['desc','deskripsi','Deskripsi','Desc'] ];
 $map_mitra       = [ 'name' => ['name','nama_mitra','Nama Mitra','Name'], 'image' => ['image','url_logo','URL Logo','Image','logo'], 'website' => ['website','Website'] ];
 $map_prestasi    = [ 'year' => ['year','tahun','Tahun','Year'], 'title' => ['title','judul_prestasi','Judul Prestasi','Title'], 'desc' => ['desc','deskripsi','Deskripsi','Desc'] ];
@@ -774,13 +774,13 @@ unset( $dr );
                 echo "</pre>";
                 
 
-                $name = isset( $d['nama_lengkap_gelar'] ) ? $d['nama_lengkap_gelar'] : ( isset( $d['nama_lengkap_gelar'] ) ? $d['nama_lengkap_gelar'] : '' );
+                $name = isset( $d['name'] ) ? $d['name'] : ( isset( $d['name'] ) ? $d['name'] : '' );
                 $nidn = isset( $d['nidn'] ) ? $d['nidn'] : '';
                 $jab  = isset( $d['jabatan'] ) ? $d['jabatan'] : '';
                 $bid  = isset( $d['bid'] ) ? $d['bid'] : $jab;
                 $univ = isset( $d['univ'] ) ? $d['univ'] : '';
                 $deg  = isset( $d['deg'] ) ? strtolower( $d['deg'] ) : 's2';
-                $init = isset( $d['inisial_2_huruf'] ) ? $d['inisial_2_huruf'] : strtoupper( mb_substr( $name !== '' ? $name : 'X', 0, 2 ) );
+                $init = isset( $d['initials'] ) ? $d['initials'] : strtoupper( mb_substr( $name !== '' ? $name : 'X', 0, 2 ) );
                 ?>
                 <?php
                 $d_foto_id  = 0;
