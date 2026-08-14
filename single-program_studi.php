@@ -383,7 +383,7 @@ unset( $dr );
 <!-- ══════════════ PAGE HERO ══════════════ -->
 <section id="pg-phero">
   <?php if ( $pg_hero_img !== '' ) : ?>
-    <div class="pg-ph-bg pg-ph-img" style="background-image:url('<?php echo esc_url( $pg_hero_img ); ?>')"></div>
+    <div class="pg-ph-bg pg-ph-img" style="background-image:url('<?php echo esc_url( $pg_hero_img ); ?>'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
     <div class="pg-ph-overlay"></div>
   <?php else : ?>
     <div class="pg-ph-bg"></div>
