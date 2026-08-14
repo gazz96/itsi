@@ -767,13 +767,13 @@ unset( $dr );
             </div>
             <div class="pg-dosen-grid" id="pg-dGrid">
               <?php foreach ( $dosen as $i => $d ) :
-                $name = isset( $d['nama'] ) ? $d['nama'] : ( isset( $d['name'] ) ? $d['name'] : '' );
+                $name = isset( $d['nama_lengka_gelar'] ) ? $d['nama_lengka_gelar'] : ( isset( $d['nama_lengka_gelar'] ) ? $d['nama_lengka_gelar'] : '' );
                 $nidn = isset( $d['nidn'] ) ? $d['nidn'] : '';
                 $jab  = isset( $d['jabatan'] ) ? $d['jabatan'] : '';
                 $bid  = isset( $d['bid'] ) ? $d['bid'] : $jab;
                 $univ = isset( $d['univ'] ) ? $d['univ'] : '';
                 $deg  = isset( $d['deg'] ) ? strtolower( $d['deg'] ) : 's2';
-                $init = isset( $d['initials'] ) ? $d['initials'] : strtoupper( mb_substr( $name !== '' ? $name : 'X', 0, 2 ) );
+                $init = isset( $d['inisial_2_huruf'] ) ? $d['inisial_2_huruf'] : strtoupper( mb_substr( $name !== '' ? $name : 'X', 0, 2 ) );
                 ?>
                 <?php
                 $d_foto_id  = 0;
