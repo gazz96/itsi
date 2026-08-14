@@ -1046,6 +1046,7 @@ add_action( 'typerocket_loaded', function () {
 	$kat_info->setId( 'kategori_info' );
 	$kat_info->setSlug( 'kategori-info' );
 	$kat_info->setHierarchical( true );
+	$kat_info->setRest( 'kategori_info' );
 	$kat_info->addPostType( 'info_publik' );
 
 	$kat_hibah = tr_taxonomy( 'Kategori Hibah', 'Kategori Hibah' );
