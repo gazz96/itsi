@@ -46,14 +46,14 @@ $title_text = get_the_archive_title();
 						<article class="arc-card rv d<?php echo esc_attr( $i % 4 ); ?>">
 							<a href="<?php the_permalink(); ?>" class="arc-card-img">
 								<?php if ( has_post_thumbnail() ) : the_post_thumbnail( 'medium_large' ); else : ?>
-									<div class="arc-card-fallback">📰</div>
+									<div class="arc-card-fallback"><i class="bi bi-newspaper" aria-hidden="true"></i></div>
 								<?php endif; ?>
 								<span class="arc-card-cat"><?php echo esc_html( $lbl ); ?></span>
 							</a>
 							<div class="arc-card-body">
 								<div class="arc-card-meta">
-									<span>📅 <?php echo esc_html( get_the_date( 'd M Y' ) ); ?></span>
-									<span>👤 <?php the_author(); ?></span>
+									<span><i class="bi bi-calendar3" aria-hidden="true"></i> <?php echo esc_html( get_the_date( 'd M Y' ) ); ?></span>
+									<span><i class="bi bi-person" aria-hidden="true"></i> <?php the_author(); ?></span>
 								</div>
 								<h3 class="arc-card-title"><a href="<?php the_permalink(); ?>"><?php the_title(); ?></a></h3>
 								<p class="arc-card-excerpt"><?php echo esc_html( wp_trim_words( get_the_excerpt(), 18 ) ); ?></p>
@@ -73,7 +73,7 @@ $title_text = get_the_archive_title();
 				</div>
 			<?php else : ?>
 				<div class="arc-empty">
-					<div class="arc-empty-ic">🔍</div>
+					<div class="arc-empty-ic"><i class="bi bi-search" aria-hidden="true"></i></div>
 					<h3>Tidak ada konten</h3>
 				</div>
 			<?php endif; ?>

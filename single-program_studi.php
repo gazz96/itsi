@@ -242,6 +242,20 @@ if ( ! function_exists( 'itsi_prodi_field' ) ) {
     }
 }
 
+/* Render cerdas untuk nilai icon data-driven: nilai yang diawali `bi-`
+ * dirender sebagai <i class="bi ...">, nilai lain (emoji legacy) di-escape
+ * apa adanya agar data lama di DB tetap tampil. */
+if ( ! function_exists( 'itsi_prodi_icon_html' ) ) {
+    function itsi_prodi_icon_html( $value, $fallback = '' ) {
+        $val = trim( (string) ( ( $value !== '' && $value !== null ) ? $value : $fallback ) );
+        if ( $val === '' ) { return ''; }
+        if ( strpos( $val, 'bi-' ) === 0 ) {
+            return '<i class="bi ' . esc_attr( $val ) . '" aria-hidden="true"></i>';
+        }
+        return esc_html( $val );
+    }
+}
+
 /* Normalize repeater-array rows so templates can rely on canonical keys. */
 $itsi_normalize_repeater = function ( array $rows, array $map ) {
     $out = [];
@@ -491,7 +505,7 @@ unset( $dr );
             </div>
             <?php if ( $sk_akreditasi !== '' ) : ?>
               <div class="pg-sk-row">
-                <span class="pg-sk-lbl">📜 No. SK Akreditasi</span>
+                <span class="pg-sk-lbl"><i class="bi bi-file-earmark-text" aria-hidden="true"></i> No. SK Akreditasi</span>
                 <span class="pg-sk-val"><?php echo esc_html( $sk_akreditasi ); ?></span>
               </div>
             <?php endif; ?>
@@ -513,12 +527,12 @@ unset( $dr );
             <h2 class="pg-sec-title" style="margin-bottom:1.2rem">Misi <em>Prodi <?php echo esc_html( $hero_title ); ?></em></h2>
             <div class="pg-misi-list">
               <?php foreach ( $misi as $i => $m ) :
-                $icon = isset( $m['icon'] ) ? $m['icon'] : '🎯';
+                $icon = isset( $m['icon'] ) ? $m['icon'] : 'bi-bullseye';
                 $text = isset( $m['text'] ) ? $m['text'] : ( is_string( $m ) ? $m : '' );
                 $n    = sprintf( '%02d', $i + 1 );
                 ?>
                 <div class="pg-mi-item pg-rv pg-d<?php echo esc_attr( ( $i % 6 ) + 1 ); ?>">
-                  <div class="pg-mi-ic"><?php echo esc_html( $icon ); ?></div>
+                  <div class="pg-mi-ic"><?php echo itsi_prodi_icon_html( $icon ); ?></div>
                   <div class="pg-mi-body">
                     <div class="pg-mi-n">Misi <?php echo esc_html( $n ); ?></div>
                     <p class="pg-mi-t"><?php echo esc_html( $text ); ?></p>
@@ -536,11 +550,11 @@ unset( $dr );
             <h2 class="pg-sec-title" style="margin-bottom:1.3rem">Tujuan <em>Prodi <?php echo esc_html( $hero_title ); ?></em></h2>
             <div class="pg-tj-grid">
               <?php foreach ( $tujuan as $i => $t ) :
-                $icon = isset( $t['icon'] ) ? $t['icon'] : '🎯';
+                $icon = isset( $t['icon'] ) ? $t['icon'] : 'bi-bullseye';
                 $text = isset( $t['text'] ) ? $t['text'] : ( is_string( $t ) ? $t : '' );
                 ?>
                 <div class="pg-tj-card pg-rv pg-d<?php echo esc_attr( ( $i % 6 ) + 1 ); ?>">
-                  <div class="pg-tj-ic"><?php echo esc_html( $icon ); ?></div>
+                  <div class="pg-tj-ic"><?php echo itsi_prodi_icon_html( $icon ); ?></div>
                   <p class="pg-tj-text"><?php echo esc_html( $text ); ?></p>
                 </div>
               <?php endforeach; ?>
@@ -551,12 +565,12 @@ unset( $dr );
             <h2 class="pg-sec-title" style="margin-bottom:1.3rem"><?php echo count( $kompetensi ); ?> Kompetensi <em>Utama</em></h2>
             <div class="pg-km-grid">
               <?php foreach ( $kompetensi as $i => $k ) :
-                $icon = isset( $k['icon'] ) ? $k['icon'] : '✅';
+                $icon = isset( $k['icon'] ) ? $k['icon'] : 'bi-patch-check';
                 $name = isset( $k['name'] ) ? $k['name'] : ( is_string( $k ) ? $k : '' );
                 $n    = sprintf( '%02d', $i + 1 );
                 ?>
                 <div class="pg-km-card pg-rv pg-d<?php echo esc_attr( ( $i % 6 ) + 1 ); ?>">
-                  <div class="pg-km-ic"><?php echo esc_html( $icon ); ?></div>
+                  <div class="pg-km-ic"><?php echo itsi_prodi_icon_html( $icon ); ?></div>
                   <div>
                     <div class="pg-km-num">Kompetensi <?php echo esc_html( $n ); ?></div>
                     <div class="pg-km-name"><?php echo esc_html( $name ); ?></div>
@@ -575,12 +589,12 @@ unset( $dr );
             <p style="font-size:.93rem;color:var(--tx-mid);margin-bottom:1.5rem;line-height:1.78">Lulusan <?php echo esc_html( $prodi_degree ); ?> <?php echo esc_html( $hero_title ); ?> ITSI disiapkan untuk berkarir profesional di berbagai sektor industri perkebunan dan agroindustri kelapa sawit nasional maupun internasional.</p>
             <div class="pg-lul-grid">
               <?php foreach ( $lulusan as $i => $l ) :
-                $icon = isset( $l['icon'] ) ? $l['icon'] : '🌱';
+                $icon = isset( $l['icon'] ) ? $l['icon'] : 'bi-briefcase';
                 $name = isset( $l['name'] ) ? $l['name'] : ( is_string( $l ) ? $l : '' );
                 $desc = isset( $l['desc'] ) ? $l['desc'] : '';
                 ?>
                 <div class="pg-lul-card pg-rv pg-d<?php echo esc_attr( ( $i % 6 ) + 1 ); ?>">
-                  <div class="pg-lul-ic"><?php echo esc_html( $icon ); ?></div>
+                  <div class="pg-lul-ic"><?php echo itsi_prodi_icon_html( $icon ); ?></div>
                   <div class="pg-lul-name"><?php echo esc_html( $name ); ?></div>
                   <p class="pg-lul-desc"><?php echo esc_html( $desc ); ?></p>
                 </div>
@@ -670,15 +684,15 @@ unset( $dr );
             </div>
             <div class="pg-org-info">
               <div class="pg-oi-card">
-                <div class="pg-oi-ttl">👨‍🏫 Tim Dosen</div>
+                <div class="pg-oi-ttl"><i class="bi bi-person-video" aria-hidden="true"></i> Tim Dosen</div>
                 <p class="pg-oi-text"><?php echo esc_html( $prodi_lecturers_count ); ?> dosen aktif berkualifikasi S2 dan S3 dari universitas terkemuka nasional dan internasional, mengampu seluruh mata kuliah program studi.</p>
               </div>
               <div class="pg-oi-card">
-                <div class="pg-oi-ttl">🏢 Tenaga Kependidikan</div>
+                <div class="pg-oi-ttl"><i class="bi bi-buildings" aria-hidden="true"></i> Tenaga Kependidikan</div>
                 <p class="pg-oi-text">Staf administrasi akademik, teknisi laboratorium, dan tenaga penunjang pendidikan yang profesional dan berdedikasi tinggi.</p>
               </div>
               <div class="pg-oi-card">
-                <div class="pg-oi-ttl">🎓 Mahasiswa</div>
+                <div class="pg-oi-ttl"><i class="bi bi-mortarboard" aria-hidden="true"></i> Mahasiswa</div>
                 <p class="pg-oi-text">Himpunan Mahasiswa Prodi <?php echo esc_html( $hero_title ); ?> (HIMAPRODI) aktif dalam kegiatan akademik, riset lapangan, dan pengembangan kompetensi industri.</p>
               </div>
             </div>
@@ -760,7 +774,7 @@ unset( $dr );
               <div class="pg-fs-grid">
                 <?php foreach ( $fasilitas as $i => $f ) : ?>
                   <div class="pg-fs-card pg-rv pg-d<?php echo esc_attr( ( $i % 6 ) + 1 ); ?>">
-                    <div class="pg-fs-ic"><?php echo esc_html( $f['icon'] !== '' ? $f['icon'] : '🏢' ); ?></div>
+                    <div class="pg-fs-ic"><?php echo itsi_prodi_icon_html( $f['icon'], 'bi-buildings' ); ?></div>
                     <div class="pg-fs-name"><?php echo esc_html( $f['name'] ); ?></div>
                     <p class="pg-fs-desc"><?php echo esc_html( $f['desc'] ); ?></p>
                   </div>
@@ -805,8 +819,8 @@ unset( $dr );
             <p style="font-size:.93rem;color:var(--tx-mid);margin-bottom:1.6rem;line-height:1.78">Kurikulum berbasis Outcome-Based Education (OBE) dengan total <strong><?php echo esc_html( $prodi_total_credits ); ?> SKS</strong> selama <?php echo esc_html( $prodi_duration ); ?> semester, dirancang untuk menghasilkan lulusan kompeten di industri perkebunan kelapa sawit nasional.</p>
 
             <div class="pg-mk-tabs">
-              <button class="pg-mk-tab on" onclick="pgSwMK('ganjil',this)">📘 Semester Ganjil (1, 3, 5, 7)</button>
-              <button class="pg-mk-tab" onclick="pgSwMK('genap',this)">📗 Semester Genap (2, 4, 6, 8)</button>
+              <button class="pg-mk-tab on" onclick="pgSwMK('ganjil',this)"><i class="bi bi-book-half" aria-hidden="true"></i> Semester Ganjil (1, 3, 5, 7)</button>
+              <button class="pg-mk-tab" onclick="pgSwMK('genap',this)"><i class="bi bi-book" aria-hidden="true"></i> Semester Genap (2, 4, 6, 8)</button>
             </div>
 
             <?php
@@ -903,7 +917,7 @@ unset( $dr );
                 ?>
                   <div class="pg-mk-sem">
                     <div class="pg-mk-sem-head pg-msh-g">
-                      <div class="pg-mk-sem-ic">📘</div>
+                      <div class="pg-mk-sem-ic"><i class="bi bi-book-half" aria-hidden="true"></i></div>
                       <div>
                         <div class="pg-mk-sem-title">Semester <?php echo (int) ( $sem['no'] ?? 0 ); ?></div>
                         <div class="pg-mk-sem-sub">Tahun <?php echo (int) $_year; ?> · Semester Ganjil · <?php echo (int) $_sks; ?> SKS</div>
@@ -934,7 +948,7 @@ unset( $dr );
                 <?php foreach ( $mk_semesters['ganjil'] as $sem ) : ?>
                   <div class="pg-mk-sem">
                     <div class="pg-mk-sem-head pg-msh-g">
-                      <div class="pg-mk-sem-ic">📘</div>
+                      <div class="pg-mk-sem-ic"><i class="bi bi-book-half" aria-hidden="true"></i></div>
                       <div>
                         <div class="pg-mk-sem-title">Semester <?php echo (int) $sem['no']; ?></div>
                         <div class="pg-mk-sem-sub">Tahun <?php echo (int) $sem['year']; ?> · Semester Ganjil · <?php echo (int) $sem['sks']; ?> SKS</div>
@@ -975,7 +989,7 @@ unset( $dr );
                 ?>
                   <div class="pg-mk-sem">
                     <div class="pg-mk-sem-head pg-msh-e">
-                      <div class="pg-mk-sem-ic">📗</div>
+                      <div class="pg-mk-sem-ic"><i class="bi bi-book" aria-hidden="true"></i></div>
                       <div>
                         <div class="pg-mk-sem-title">Semester <?php echo (int) ( $sem['no'] ?? 0 ); ?></div>
                         <div class="pg-mk-sem-sub">Tahun <?php echo (int) $_year; ?> · Semester Genap · <?php echo (int) $_sks; ?> SKS</div>
@@ -1006,7 +1020,7 @@ unset( $dr );
                 <?php foreach ( $mk_semesters['genap'] as $sem ) : ?>
                   <div class="pg-mk-sem">
                     <div class="pg-mk-sem-head pg-msh-e">
-                      <div class="pg-mk-sem-ic">📗</div>
+                      <div class="pg-mk-sem-ic"><i class="bi bi-book" aria-hidden="true"></i></div>
                       <div>
                         <div class="pg-mk-sem-title">Semester <?php echo (int) $sem['no']; ?></div>
                         <div class="pg-mk-sem-sub">Tahun <?php echo (int) $sem['year']; ?> · Semester Genap · <?php echo (int) $sem['sks']; ?> SKS</div>
@@ -1052,46 +1066,46 @@ unset( $dr );
             <h2 class="pg-sec-title" style="margin-bottom:1.3rem">Kegiatan <em>Prodi <?php echo esc_html( $hero_title ); ?></em></h2>
             <div class="pg-bn-grid">
               <div class="pg-bn-card pg-rv pg-d1">
-                <div class="pg-bn-img" style="background:linear-gradient(135deg,#04162E,#1459B3)">🏭<span class="pg-bn-cat">Kegiatan</span></div>
+                <div class="pg-bn-img" style="background:linear-gradient(135deg,#04162E,#1459B3)"><i class="bi bi-buildings" aria-hidden="true"></i><span class="pg-bn-cat">Kegiatan</span></div>
                 <div class="pg-bn-body">
-                  <div class="pg-bn-date">📅 1–2 November 2023</div>
+                  <div class="pg-bn-date"><i class="bi bi-calendar3" aria-hidden="true"></i> 1–2 November 2023</div>
                   <div class="pg-bn-title">Siapkan Mahasiswa Terjun ke Industri, ITSI Gelar Bimbingan Teknis PKL II TA 2023/2024</div>
                   <div class="pg-bn-foot">
-                    <div class="pg-bn-meta">👤 Tim Humas ITSI</div>
-                    <div class="pg-bn-meta">👁 1.245 views</div>
+                    <div class="pg-bn-meta"><i class="bi bi-person" aria-hidden="true"></i> Tim Humas ITSI</div>
+                    <div class="pg-bn-meta"><i class="bi bi-eye" aria-hidden="true"></i> 1.245 views</div>
                     <div class="pg-shr">
-                      <button class="pg-shr-btn" title="Share WhatsApp" onclick="pgShare('wa',event)">📱</button>
-                      <button class="pg-shr-btn" title="Copy link" onclick="pgCopyLnk(event)">🔗</button>
+                      <button class="pg-shr-btn" title="Share WhatsApp" onclick="pgShare('wa',event)"><i class="bi bi-whatsapp" aria-hidden="true"></i></button>
+                      <button class="pg-shr-btn" title="Copy link" onclick="pgCopyLnk(event)"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
                     </div>
                   </div>
                 </div>
               </div>
               <div class="pg-bn-card pg-rv pg-d2">
-                <div class="pg-bn-img" style="background:linear-gradient(135deg,#08274F,#0C3D7A)">🌱<span class="pg-bn-cat">Kegiatan</span></div>
+                <div class="pg-bn-img" style="background:linear-gradient(135deg,#08274F,#0C3D7A)"><i class="bi bi-tree" aria-hidden="true"></i><span class="pg-bn-cat">Kegiatan</span></div>
                 <div class="pg-bn-body">
-                  <div class="pg-bn-date">📅 6–7 November 2024</div>
+                  <div class="pg-bn-date"><i class="bi bi-calendar3" aria-hidden="true"></i> 6–7 November 2024</div>
                   <div class="pg-bn-title">ITSI Selenggarakan Bimbingan Teknis PKL II Semester Ganjil TA 2024/2025 untuk Penguatan Kompetensi Mahasiswa</div>
                   <div class="pg-bn-foot">
-                    <div class="pg-bn-meta">👤 Tim Humas ITSI</div>
-                    <div class="pg-bn-meta">👁 987 views</div>
+                    <div class="pg-bn-meta"><i class="bi bi-person" aria-hidden="true"></i> Tim Humas ITSI</div>
+                    <div class="pg-bn-meta"><i class="bi bi-eye" aria-hidden="true"></i> 987 views</div>
                     <div class="pg-shr">
-                      <button class="pg-shr-btn" title="Share WhatsApp" onclick="pgShare('wa',event)">📱</button>
-                      <button class="pg-shr-btn" title="Copy link" onclick="pgCopyLnk(event)">🔗</button>
+                      <button class="pg-shr-btn" title="Share WhatsApp" onclick="pgShare('wa',event)"><i class="bi bi-whatsapp" aria-hidden="true"></i></button>
+                      <button class="pg-shr-btn" title="Copy link" onclick="pgCopyLnk(event)"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
                     </div>
                   </div>
                 </div>
               </div>
               <div class="pg-bn-card pg-rv pg-d3">
-                <div class="pg-bn-img" style="background:linear-gradient(135deg,#032b14,#0a5c2e)">🤝<span class="pg-bn-cat" style="background:#0a5c2e">Pengabdian</span></div>
+                <div class="pg-bn-img" style="background:linear-gradient(135deg,#032b14,#0a5c2e)"><i class="bi bi-diagram-3" aria-hidden="true"></i><span class="pg-bn-cat" style="background:#0a5c2e">Pengabdian</span></div>
                 <div class="pg-bn-body">
-                  <div class="pg-bn-date">📅 20 Juni 2024</div>
+                  <div class="pg-bn-date"><i class="bi bi-calendar3" aria-hidden="true"></i> 20 Juni 2024</div>
                   <div class="pg-bn-title">Perkuat Kompetensi dan Kepedulian Sosial, Fakultas Vokasi Laksanakan Pembekalan Pengabdian Masyarakat TA 2024/2025</div>
                   <div class="pg-bn-foot">
-                    <div class="pg-bn-meta">👤 Humas Fak. Vokasi</div>
-                    <div class="pg-bn-meta">👁 832 views</div>
+                    <div class="pg-bn-meta"><i class="bi bi-person" aria-hidden="true"></i> Humas Fak. Vokasi</div>
+                    <div class="pg-bn-meta"><i class="bi bi-eye" aria-hidden="true"></i> 832 views</div>
                     <div class="pg-shr">
-                      <button class="pg-shr-btn" title="Share WhatsApp" onclick="pgShare('wa',event)">📱</button>
-                      <button class="pg-shr-btn" title="Copy link" onclick="pgCopyLnk(event)">🔗</button>
+                      <button class="pg-shr-btn" title="Share WhatsApp" onclick="pgShare('wa',event)"><i class="bi bi-whatsapp" aria-hidden="true"></i></button>
+                      <button class="pg-shr-btn" title="Copy link" onclick="pgCopyLnk(event)"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
                     </div>
                   </div>
                 </div>
@@ -1138,21 +1152,21 @@ unset( $dr );
               <div class="pg-cpl-grid">
                 <?php if ( $cpl_pengetahuan !== '' ) : ?>
                   <div class="pg-cpl-card pg-rv pg-d1">
-                    <div class="pg-cpl-ic">📚</div>
+                    <div class="pg-cpl-ic"><i class="bi bi-book" aria-hidden="true"></i></div>
                     <div class="pg-cpl-title">Pengetahuan</div>
                     <div class="pg-cpl-body"><?php echo wpautop( wp_kses_post( $cpl_pengetahuan ) ); ?></div>
                   </div>
                 <?php endif; ?>
                 <?php if ( $cpl_keterampilan !== '' ) : ?>
                   <div class="pg-cpl-card pg-rv pg-d2">
-                    <div class="pg-cpl-ic">🛠️</div>
+                    <div class="pg-cpl-ic"><i class="bi bi-tools" aria-hidden="true"></i></div>
                     <div class="pg-cpl-title">Keterampilan Khusus</div>
                     <div class="pg-cpl-body"><?php echo wpautop( wp_kses_post( $cpl_keterampilan ) ); ?></div>
                   </div>
                 <?php endif; ?>
                 <?php if ( $cpl_sikap !== '' ) : ?>
                   <div class="pg-cpl-card pg-rv pg-d3">
-                    <div class="pg-cpl-ic">🌟</div>
+                    <div class="pg-cpl-ic"><i class="bi bi-star" aria-hidden="true"></i></div>
                     <div class="pg-cpl-title">Sikap &amp; Tanggung Jawab</div>
                     <div class="pg-cpl-body"><?php echo wpautop( wp_kses_post( $cpl_sikap ) ); ?></div>
                   </div>

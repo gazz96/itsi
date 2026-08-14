@@ -18,7 +18,7 @@ $label = ( 'info_publik' === $type ? 'DOKUMEN' : 'BERITA' );
 		<?php if ( has_post_thumbnail() ) : ?>
 			<?php the_post_thumbnail( 'medium_large' ); ?>
 		<?php else : ?>
-			<div class="itsi-post-fallback">📰</div>
+			<div class="itsi-post-fallback"><i class="bi bi-newspaper" aria-hidden="true"></i></div>
 		<?php endif; ?>
 		<span class="itsi-post-cat"><?php echo esc_html( $label ); ?></span>
 	</a>
