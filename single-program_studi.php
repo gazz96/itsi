@@ -769,6 +769,9 @@ unset( $dr );
             <div class="pg-dosen-grid" id="pg-dGrid">
               <?php foreach ( $dosen as $i => $d ) :
 
+                echo "<pre>";
+                var_dump($d);
+                echo "</pre>";
                 
 
                 $name = isset( $d['nama_lengkap_gelar'] ) ? $d['nama_lengkap_gelar'] : ( isset( $d['nama_lengkap_gelar'] ) ? $d['nama_lengkap_gelar'] : '' );
