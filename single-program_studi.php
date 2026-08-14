@@ -145,9 +145,6 @@ if ( ! is_array( $dosen ) ) {
     $dosen = array();
 }
 
-echo "<pre>";
-var_dump($dosen);
-die();
 
 /* ----- Repeater sections (Fasilitas, Mitra, Prestasi, Testimoni) ----- */
 $itsi_load_repeater = function ( $key ) use ( $post_id ) {
@@ -774,7 +771,7 @@ unset( $dr );
 
                 
 
-                $name = isset( $d['nama_lengka_gelar'] ) ? $d['nama_lengka_gelar'] : ( isset( $d['nama_lengka_gelar'] ) ? $d['nama_lengka_gelar'] : '' );
+                $name = isset( $d['nama_lengkap_gelar'] ) ? $d['nama_lengkap_gelar'] : ( isset( $d['nama_lengkap_gelar'] ) ? $d['nama_lengkap_gelar'] : '' );
                 $nidn = isset( $d['nidn'] ) ? $d['nidn'] : '';
                 $jab  = isset( $d['jabatan'] ) ? $d['jabatan'] : '';
                 $bid  = isset( $d['bid'] ) ? $d['bid'] : $jab;
