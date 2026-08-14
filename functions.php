@@ -1220,6 +1220,10 @@ add_action( 'typerocket_loaded', function () {
 													) );
 
 				/* ─── TAB 2: Hero & Sidebar ─── */
+				$cat_opts = array();
+				foreach ( get_categories( array( 'hide_empty' => false ) ) as $cat ) {
+					$cat_opts[ $cat->term_id ] = $cat->name;
+				}
 				$tabs->tab( 'Hero & Sidebar', 'dashicons-cover-image', array(
 					'<div style="padding:1rem;background:#f6f8fc;border-radius:8px;margin-bottom:1rem">'
 					. '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1rem">'
@@ -1236,6 +1240,14 @@ add_action( 'typerocket_loaded', function () {
 					. '<div>' . $form->textarea( 'hero_subtitle' )->setLabel( 'Hero Subtitle' )->setAttribute( 'rows', 3 )->setAttribute( 'placeholder', 'Mencetak Sarjana Terapan…' ) . '</div>'
 					. '<div>' . $form->text( 'hero_badge_icon' )->setLabel( 'Hero Badge Icon (bi-* atau emoji)' )->setHelp( 'Isi class Bootstrap Icons (mis. bi-tree) untuk icon, atau emoji legacy. Render mendukung keduanya.' )->setAttribute( 'placeholder', 'bi-tree' ) . '</div>'
 					. '<div>' . $form->text( 'hero_badge_text' )->setLabel( 'Hero Badge Text' )->setAttribute( 'placeholder', 'D4 · Fakultas Vokasi' ) . '</div>'
+					. '</div>'
+					. '</div>'
+					. '<div style="padding:1rem;background:#eef7ff;border-radius:8px;border-left:3px solid #0d6efd;margin-bottom:1rem">'
+					. '<h4 style="margin:.2rem 0 .6rem">📰 Panel Berita &amp; Kegiatan Prodi</h4>'
+					. '<p style="margin:0 0 .8rem;font-size:.85em;color:#666">Pilih kategori berita (post type <strong>Post</strong>) yang tampil di panel <em>Kegiatan Prodi</em> pada halaman prodi. Tekan Ctrl/Cmd lalu klik untuk memilih lebih dari satu. <strong>Kosongkan = 3 berita terbaru</strong> (tanpa filter kategori).</p>'
+					. '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">'
+					. '<div>' . $form->select( 'berita_kategori' )->setLabel( 'Kategori Berita' )->setOptions( $cat_opts )->setAttribute( 'multiple', 'multiple' )->setAttribute( 'style', 'width:100%;min-height:110px' ) . '</div>'
+					. '<div>' . $form->number( 'berita_jumlah' )->setLabel( 'Jumlah Berita' )->setAttribute( 'min', '1' )->setAttribute( 'max', '12' )->setAttribute( 'placeholder', '3' )->setHelp( 'Kosongkan untuk 3 berita terbaru.' ) . '</div>'
 					. '</div>'
 					. '</div>'
 					. '<div style="padding:1rem;background:#fff8e1;border-radius:8px;border-left:3px solid #f0b429">'
@@ -1319,7 +1331,7 @@ add_action( 'typerocket_loaded', function () {
 				);
 				$tabs->tab( 'Mata Kuliah', 'dashicons-book', array(
 					'<h4 style="margin:.4rem 0 .5rem">📚 Mata Kuliah per Semester</h4>' . $mk
-					. '<p style="font-size:.85em;color:#666;margin-top:.6rem"><em>Catatan: bila kosong, template memuat fallback BDP default (8 semester / 144 SKS). Tipe semester Ganjil/Genap dikelompokkan via field Tipe Semester.</em></p>'
+					. '<p style="font-size:.85em;color:#666;margin-top:.6rem"><em>Catatan: isi repeater ini untuk menampilkan kurikulum dari data admin (per semester: No, Tipe Ganjil/Genap, Total SKS, daftar Kode/Nama/SKS/Jenis). Bila repeater <strong>kosong</strong>, template otomatis memuat fallback kurikulum BDP default (8 semester / 144 SKS) sehingga halaman tidak pernah kosong.</em></p>'
 				) );
 
 				/* ─── TAB 7: Sejarah & Timeline ─── */

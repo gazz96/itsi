@@ -172,6 +172,38 @@ $cpl_sikap         = $itsi_sanitize_wp( 'cpl_sikap' );
 $mk_semesters_raw = $itsi_load_repeater( 'mk_semesters' );
 $mk_use_repeater  = ! empty( $mk_semesters_raw );
 
+/* ----- Panel Berita & Kegiatan Prodi ----- */
+$berita_cats_raw = get_post_meta( $post_id, 'berita_kategori', true );
+$berita_cats     = array();
+if ( is_array( $berita_cats_raw ) ) {
+    foreach ( $berita_cats_raw as $bc ) {
+        $bc_id = (int) $bc;
+        if ( $bc_id > 0 ) { $berita_cats[] = $bc_id; }
+    }
+} elseif ( is_string( $berita_cats_raw ) && $berita_cats_raw !== '' ) {
+    // TR v6 multiple select stores an array; tolerate comma/JSON just in case.
+    $decoded = json_decode( $berita_cats_raw, true );
+    $parts   = is_array( $decoded ) ? $decoded : explode( ',', $berita_cats_raw );
+    foreach ( $parts as $bc ) {
+        $bc_id = (int) trim( (string) $bc );
+        if ( $bc_id > 0 ) { $berita_cats[] = $bc_id; }
+    }
+}
+$berita_count = (int) get_post_meta( $post_id, 'berita_jumlah', true );
+if ( $berita_count < 1 ) { $berita_count = 3; }
+$berita_count = min( $berita_count, 12 );
+
+$berita_args = array(
+    'post_type'           => 'post',
+    'post_status'         => 'publish',
+    'posts_per_page'      => $berita_count,
+    'ignore_sticky_posts' => true,
+);
+if ( ! empty( $berita_cats ) ) {
+    $berita_args['category__in'] = $berita_cats;
+}
+$berita_q = new WP_Query( $berita_args );
+
 $akreditasi_value = (string) get_post_meta( $post_id, 'akreditasi_value', true );
 $akreditasi_sub   = (string) get_post_meta( $post_id, 'akreditasi_sub', true );
 $sk_akreditasi    = (string) get_post_meta( $post_id, 'sk_akreditasi', true );
@@ -920,7 +952,6 @@ unset( $dr );
                   if ( ! $is_ganjil ) { continue; }
                   $_sem_courses = is_array( $sem['courses'] ?? null ) ? $sem['courses'] : array();
                   $_sks          = isset( $sem['sks'] ) ? (int) $sem['sks'] : 0;
-                  $_year         = (int) ( $sem['no'] ?? 1 ) <= 4 ? 1 : 0;
                   $_year         = (int) ceil( ( (int) ( $sem['no'] ?? 1 ) ) / 2 );
                 ?>
                   <div class="pg-mk-sem">
@@ -938,7 +969,7 @@ unset( $dr );
                         <tbody>
                           <?php foreach ( $_sem_courses as $c ) :
                             $sks_class_outer = 'pg-sks-g';
-                            $jenis_class_outer = ( ( $c['jenis'] ?? '' ) === 'Wajib' ) ? 'pg-mkw' : ( ( $c['jenis'] ?? '' === 'Pilihan' ) ? 'pg-mkp' : 'pg-mkl' );
+                            $jenis_class_outer = ( ( $c['jenis'] ?? '' ) === 'Wajib' ) ? 'pg-mkw' : ( ( ( $c['jenis'] ?? '' ) === 'Pilihan' ) ? 'pg-mkp' : 'pg-mkl' );
                           ?>
                             <tr>
                               <td class="pg-mk-kode"><?php echo esc_html( (string) ( $c['kode'] ?? '' ) ); ?></td>
@@ -1072,53 +1103,85 @@ unset( $dr );
           <div class="pg-block pg-rv">
             <span class="pg-sec-label">Berita &amp; Dokumentasi</span>
             <h2 class="pg-sec-title" style="margin-bottom:1.3rem">Kegiatan <em>Prodi <?php echo esc_html( $hero_title ); ?></em></h2>
+            <?php if ( $berita_q->have_posts() ) : ?>
             <div class="pg-bn-grid">
-              <div class="pg-bn-card pg-rv pg-d1">
-                <div class="pg-bn-img" style="background:linear-gradient(135deg,#04162E,#1459B3)"><i class="bi bi-buildings" aria-hidden="true"></i><span class="pg-bn-cat">Kegiatan</span></div>
+              <?php
+              /* Ikon + gradient fallback per kategori (sinkron dengan archive-berita.php). */
+              $bn_icons = array(
+                  'kegiatan'           => 'bi-buildings',
+                  'kegiatan-akademik'  => 'bi-mortarboard',
+                  'pengabdian'         => 'bi-people',
+                  'kerja-sama'         => 'bi-diagram-3',
+                  'penelitian'         => 'bi-search',
+                  'akademik'           => 'bi-mortarboard',
+                  'agribisnis'         => 'bi-tree',
+                  'teknologi'          => 'bi-gear',
+                  'lingkungan'         => 'bi-recycle',
+                  'berita'             => 'bi-newspaper',
+                  'agenda'             => 'bi-calendar-event',
+                  'hot-news'           => 'bi-fire',
+                  'pengumuman'         => 'bi-megaphone',
+                  'prestasi-mahasiswa' => 'bi-trophy',
+                  'pendidikan'         => 'bi-book',
+              );
+              $bn_grads = array(
+                  'linear-gradient(135deg,#04162E,#1E72D4)',
+                  'linear-gradient(135deg,#08274F,#0C3D7A)',
+                  'linear-gradient(135deg,#010D1E,#08274F)',
+                  'linear-gradient(135deg,#0a2540,#1459B3)',
+                  'linear-gradient(135deg,#04162E,#0C3D7A)',
+                  'linear-gradient(135deg,#08274F,#1459B3)',
+                  'linear-gradient(135deg,#052e16,#15803d)',
+                  'linear-gradient(135deg,#451a03,#d97706)',
+              );
+              $bn_i = 0;
+              while ( $berita_q->have_posts() ) :
+                  $berita_q->the_post();
+                  $bn_i++;
+                  $bn_id      = get_the_ID();
+                  $bn_url     = get_permalink( $bn_id );
+                  $bn_title   = get_the_title();
+                  $bn_date    = get_the_date();
+                  $bn_author  = get_the_author();
+                  $bn_views   = (int) get_post_meta( $bn_id, 'post_views_count', true );
+                  $bn_views_f = $bn_views > 0 ? number_format_i18n( $bn_views ) . ' views' : '0 views';
+                  $bn_cats    = get_the_category( $bn_id );
+                  $bn_cat     = ! empty( $bn_cats ) ? $bn_cats[0] : null;
+                  $bn_cat_name = $bn_cat ? $bn_cat->name : '';
+                  $bn_cat_slug = $bn_cat ? $bn_cat->slug : '';
+                  $bn_icon    = isset( $bn_icons[ $bn_cat_slug ] ) ? $bn_icons[ $bn_cat_slug ] : 'bi-newspaper';
+                  $bn_grad    = $bn_grads[ ( $bn_i - 1 ) % count( $bn_grads ) ];
+                  $bn_thumb   = get_the_post_thumbnail_url( $bn_id, 'medium_large' );
+              ?>
+              <article class="pg-bn-card pg-rv pg-d<?php echo esc_attr( ( $bn_i % 3 ) + 1 ); ?>">
+                <a class="pg-bn-img" href="<?php echo esc_url( $bn_url ); ?>" style="background:<?php echo esc_attr( $bn_grad ); ?>">
+                  <?php if ( $bn_thumb ) : ?>
+                    <img src="<?php echo esc_url( $bn_thumb ); ?>" alt="<?php echo esc_attr( $bn_title ); ?>" loading="lazy" />
+                  <?php else : ?>
+                    <i class="bi <?php echo esc_attr( $bn_icon ); ?>" aria-hidden="true"></i>
+                  <?php endif; ?>
+                  <?php if ( $bn_cat_name !== '' ) : ?>
+                    <span class="pg-bn-cat"><?php echo esc_html( $bn_cat_name ); ?></span>
+                  <?php endif; ?>
+                </a>
                 <div class="pg-bn-body">
-                  <div class="pg-bn-date"><i class="bi bi-calendar3" aria-hidden="true"></i> 1–2 November 2023</div>
-                  <div class="pg-bn-title">Siapkan Mahasiswa Terjun ke Industri, ITSI Gelar Bimbingan Teknis PKL II TA 2023/2024</div>
+                  <div class="pg-bn-date"><i class="bi bi-calendar3" aria-hidden="true"></i> <?php echo esc_html( $bn_date ); ?></div>
+                  <a class="pg-bn-title" href="<?php echo esc_url( $bn_url ); ?>"><?php echo esc_html( $bn_title ); ?></a>
                   <div class="pg-bn-foot">
-                    <div class="pg-bn-meta"><i class="bi bi-person" aria-hidden="true"></i> Tim Humas ITSI</div>
-                    <div class="pg-bn-meta"><i class="bi bi-eye" aria-hidden="true"></i> 1.245 views</div>
+                    <div class="pg-bn-meta"><i class="bi bi-person" aria-hidden="true"></i> <?php echo esc_html( $bn_author ); ?></div>
+                    <div class="pg-bn-meta"><i class="bi bi-eye" aria-hidden="true"></i> <?php echo esc_html( $bn_views_f ); ?></div>
                     <div class="pg-shr">
-                      <button class="pg-shr-btn" title="Share WhatsApp" onclick="pgShare('wa',event)"><i class="bi bi-whatsapp" aria-hidden="true"></i></button>
-                      <button class="pg-shr-btn" title="Copy link" onclick="pgCopyLnk(event)"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
+                      <button class="pg-shr-btn" title="Share WhatsApp" data-url="<?php echo esc_url( $bn_url ); ?>" onclick="pgShare('wa',event)"><i class="bi bi-whatsapp" aria-hidden="true"></i></button>
+                      <button class="pg-shr-btn" title="Copy link" data-url="<?php echo esc_url( $bn_url ); ?>" onclick="pgCopyLnk(event)"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
                     </div>
                   </div>
                 </div>
-              </div>
-              <div class="pg-bn-card pg-rv pg-d2">
-                <div class="pg-bn-img" style="background:linear-gradient(135deg,#08274F,#0C3D7A)"><i class="bi bi-tree" aria-hidden="true"></i><span class="pg-bn-cat">Kegiatan</span></div>
-                <div class="pg-bn-body">
-                  <div class="pg-bn-date"><i class="bi bi-calendar3" aria-hidden="true"></i> 6–7 November 2024</div>
-                  <div class="pg-bn-title">ITSI Selenggarakan Bimbingan Teknis PKL II Semester Ganjil TA 2024/2025 untuk Penguatan Kompetensi Mahasiswa</div>
-                  <div class="pg-bn-foot">
-                    <div class="pg-bn-meta"><i class="bi bi-person" aria-hidden="true"></i> Tim Humas ITSI</div>
-                    <div class="pg-bn-meta"><i class="bi bi-eye" aria-hidden="true"></i> 987 views</div>
-                    <div class="pg-shr">
-                      <button class="pg-shr-btn" title="Share WhatsApp" onclick="pgShare('wa',event)"><i class="bi bi-whatsapp" aria-hidden="true"></i></button>
-                      <button class="pg-shr-btn" title="Copy link" onclick="pgCopyLnk(event)"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="pg-bn-card pg-rv pg-d3">
-                <div class="pg-bn-img" style="background:linear-gradient(135deg,#032b14,#0a5c2e)"><i class="bi bi-diagram-3" aria-hidden="true"></i><span class="pg-bn-cat" style="background:#0a5c2e">Pengabdian</span></div>
-                <div class="pg-bn-body">
-                  <div class="pg-bn-date"><i class="bi bi-calendar3" aria-hidden="true"></i> 20 Juni 2024</div>
-                  <div class="pg-bn-title">Perkuat Kompetensi dan Kepedulian Sosial, Fakultas Vokasi Laksanakan Pembekalan Pengabdian Masyarakat TA 2024/2025</div>
-                  <div class="pg-bn-foot">
-                    <div class="pg-bn-meta"><i class="bi bi-person" aria-hidden="true"></i> Humas Fak. Vokasi</div>
-                    <div class="pg-bn-meta"><i class="bi bi-eye" aria-hidden="true"></i> 832 views</div>
-                    <div class="pg-shr">
-                      <button class="pg-shr-btn" title="Share WhatsApp" onclick="pgShare('wa',event)"><i class="bi bi-whatsapp" aria-hidden="true"></i></button>
-                      <button class="pg-shr-btn" title="Copy link" onclick="pgCopyLnk(event)"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              </article>
+              <?php endwhile; wp_reset_postdata(); ?>
             </div>
+            <?php else : ?>
+              <div class="pg-empty" style="background:#f6f8fc;padding:1rem;border-radius:8px;color:var(--tx-mid);font-style:italic">Belum ada berita untuk ditampilkan di panel ini. Silakan tambahkan berita di admin → Post, atau pilih kategori pada Detail Program Studi → Hero &amp; Sidebar.</div>
+            <?php endif; ?>
             <div style="text-align:center;margin-top:2rem">
               <a href="<?php echo esc_url( home_url( '/berita/' ) ); ?>" style="display:inline-flex;align-items:center;gap:.5rem;padding:.75rem 1.6rem;border-radius:11px;border:1.5px solid #CEE2FF;color:var(--royal);font-size:.85rem;font-weight:700;transition:all .25s" onmouseover="this.style.background='var(--frost)';this.style.borderColor='var(--azure)'" onmouseout="this.style.background='';this.style.borderColor='#CEE2FF'">Lihat Semua Berita &amp; Kegiatan →</a>
             </div>
@@ -1246,13 +1309,16 @@ function pgFD(btn, lvl){
 }
 function pgShare(channel, e){
   if (e) e.stopPropagation();
-  var url = encodeURIComponent(window.location.href);
+  var btn = e && e.currentTarget ? e.currentTarget : null;
+  var base = btn && btn.getAttribute('data-url') ? btn.getAttribute('data-url') : window.location.href;
+  var url = encodeURIComponent(base);
   var text = encodeURIComponent(document.title);
   if (channel === 'wa') window.open('https://wa.me/?text=' + text + '%20' + url, '_blank');
 }
 function pgCopyLnk(e){
   if (e) e.stopPropagation();
-  var url = window.location.href;
+  var btn = e && e.currentTarget ? e.currentTarget : null;
+  var url = btn && btn.getAttribute('data-url') ? btn.getAttribute('data-url') : window.location.href;
   if (navigator.clipboard) { navigator.clipboard.writeText(url); }
   else { var t = document.createElement('textarea'); t.value = url; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); }
 }
