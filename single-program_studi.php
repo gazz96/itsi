@@ -211,8 +211,46 @@ $berita_q = new WP_Query( $berita_args );
 $akreditasi_value = (string) get_post_meta( $post_id, 'akreditasi_value', true );
 $akreditasi_sub   = (string) get_post_meta( $post_id, 'akreditasi_sub', true );
 $sk_akreditasi    = (string) get_post_meta( $post_id, 'sk_akreditasi', true );
-$pmb_url          = (string) get_post_meta( $post_id, 'pmb_url', true );
 $pmb_label        = (string) get_post_meta( $post_id, 'pmb_label', true );
+if ( $pmb_label === '' ) {
+    $pmb_label = 'Brosur / Formulir PMB';
+}
+
+/* ----- PMB file (TR ->file() stores attachment ID) -----
+ * Resolve ID → URL + MIME. Nilai non-numeric (URL string legacy) diabaikan
+ * — tanpa fallback, sesuai keputusan. Preview dirender di hero.
+ */
+$pmb_raw  = get_post_meta( $post_id, 'pmb_url', true );
+$pmb_url  = '';
+$pmb_mime = '';
+$pmb_name = '';
+$pmb_file = '';
+$pmb_icon = 'bi-file-earmark';
+if ( is_numeric( $pmb_raw ) ) {
+    $pmb_id = (int) $pmb_raw;
+    if ( $pmb_id > 0 ) {
+        $pmb_url = (string) wp_get_attachment_url( $pmb_id );
+    }
+    if ( $pmb_url !== '' ) {
+        $pmb_mime = (string) get_post_mime_type( $pmb_id );
+        $pmb_name = (string) get_the_title( $pmb_id );
+        if ( $pmb_name === '' ) {
+            $pmb_name = (string) basename( $pmb_url );
+        }
+        if ( 'application/pdf' === $pmb_mime ) {
+            $pmb_icon = 'bi-file-earmark-pdf';
+        } elseif ( strpos( $pmb_mime, 'image/' ) === 0 ) {
+            $pmb_icon = 'bi-file-earmark-image';
+        } elseif ( false !== strpos( $pmb_mime, 'word' ) || false !== strpos( $pmb_mime, 'document' ) ) {
+            $pmb_icon = 'bi-file-earmark-word';
+        } elseif ( false !== strpos( $pmb_mime, 'excel' ) || false !== strpos( $pmb_mime, 'spreadsheet' ) ) {
+            $pmb_icon = 'bi-file-earmark-spreadsheet';
+        } elseif ( strpos( $pmb_mime, 'text/' ) === 0 ) {
+            $pmb_icon = 'bi-file-earmark-text';
+        }
+        $pmb_file = $pmb_url;
+    }
+}
 
 /* ----- Struktur Organisasi image (optional override) ----- */
 // TR ->image() stores an attachment ID. If set + valid, render the uploaded image
@@ -231,7 +269,9 @@ if ( $struktur_img_id > 0 ) {
  * Template sekarang pure data-driven: kalau admin kosongkan field, ya kosong.
  * Tidak ada fallback otomatis untuk subtitle, badge icon, badge text,
  * akreditasi, founding_year, duration, total_sks, lecturers_count,
- * akreditasi_sub, pmb_label, pmb_url, visi.
+ * akreditasi_sub, visi.
+ * (pmb_label: fallback teks default saat kosong; pmb_url: file attachment —
+ *  lihat blok "PMB file" di atas; nilai non-numeric diabaikan.)
  */
 
 /* ----- Chip list (override manual only — tidak ada fallback) -----
@@ -411,20 +451,21 @@ unset( $dr );
           <?php endforeach; ?>
         </div>
       </div>
-      <div class="pg-ph-stats">
-        <div class="pg-ph-stat">
-          <div class="pg-ph-stat-n"><?php echo esc_html( $prodi_founding_year ); ?></div>
-          <div class="pg-ph-stat-l">Tahun Berdiri</div>
-        </div>
-        <div class="pg-ph-stat">
-          <div class="pg-ph-stat-n"><?php echo esc_html( $prodi_lecturers_count ); ?></div>
-          <div class="pg-ph-stat-l">Dosen Pengampu</div>
-        </div>
-        <div class="pg-ph-stat">
-          <div class="pg-ph-stat-n"><?php echo esc_html( $prodi_total_credits ); ?></div>
-          <div class="pg-ph-stat-l">Total SKS</div>
-        </div>
+      <?php if ( $pmb_file !== '' ) : ?>
+      <div class="pg-ph-file">
+        <?php if ( strpos( $pmb_mime, 'image/' ) === 0 ) : ?>
+          <a class="pg-ph-file-img" href="<?php echo esc_url( $pmb_url ); ?>" target="_blank" rel="noopener">
+            <img src="<?php echo esc_url( $pmb_url ); ?>" alt="<?php echo esc_attr( $pmb_name ); ?>" loading="lazy" decoding="async" />
+          </a>
+        <?php else : ?>
+          <div class="pg-ph-file-ico"><i class="bi <?php echo esc_attr( $pmb_icon ); ?>" aria-hidden="true"></i></div>
+        <?php endif; ?>
+        <a class="pg-ph-file-btn" href="<?php echo esc_url( $pmb_url ); ?>" target="_blank" rel="noopener" download>
+          <i class="bi bi-download" aria-hidden="true"></i> Unduh
+        </a>
+        <div class="pg-ph-file-lbl"><?php echo esc_html( $pmb_label ); ?></div>
       </div>
+      <?php endif; ?>
     </div>
   </div>
 </section>
@@ -488,9 +529,13 @@ unset( $dr );
               <div class="pg-sa-sk">No. SK: <?php echo esc_html( $sk_akreditasi ); ?></div>
             <?php endif; ?>
           </div>
+          <?php if ( $pmb_file !== '' ) : ?>
           <div class="pg-side-pmb">
-            <a href="<?php echo esc_url( $pmb_url ); ?>"><?php echo esc_html( $pmb_label ); ?></a>
+            <a href="<?php echo esc_url( $pmb_url ); ?>" target="_blank" rel="noopener" download>
+              <i class="bi bi-download" aria-hidden="true"></i> <?php echo esc_html( $pmb_label ); ?>
+            </a>
           </div>
+          <?php endif; ?>
         </div>
       </aside>
 
