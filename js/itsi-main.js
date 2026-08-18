@@ -158,6 +158,7 @@
   // ── Share / copy link helpers ───────────────────────────
   window.copyLink = function (e, url) {
     if (e && e.stopPropagation) e.stopPropagation();
+    if (e && e.preventDefault) e.preventDefault();
     url = url || window.location.href;
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(function () {
@@ -169,6 +170,34 @@
       try { document.execCommand('copy'); flashTooltip('Tautan disalin'); } catch (_) {}
       document.body.removeChild(t);
     }
+  };
+
+  // ── Download article / announcement as a plain-text file ──
+  // Uses the post URL (target=_blank) so the user gets the real page; the
+  // Blob fallback generates a .txt file of the page title + URL. Stops event
+  // propagation so `.peng[data-href]` / `.art-card[data-href]` card-click
+  // navigation does not hijack the button.
+  window.downloadArticle = function (e, url, title) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    if (e && e.preventDefault) e.preventDefault();
+    url   = url || window.location.href;
+    title = title || (document.title || 'Artikel');
+    // Primary: open the real article in a new tab so the reader can
+    // print / save-as PDF from the browser (this is the most reliable
+    // "download" for web content).
+    window.open(url, '_blank', 'noopener');
+    // Secondary: offer the plain-text file directly for offline use.
+    var blob = new Blob([title + '\n' + url + '\n\n' + (document.title || '')], { type: 'text/plain;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (title.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'artikel') + '.txt';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () {
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    }, 400);
+    flashTooltip('Artikel dibuka di tab baru');
   };
   window.doShare = function (network, e) {
     if (e && e.stopPropagation) e.stopPropagation();

@@ -8,7 +8,7 @@
  */
 
 if ( ! defined( '_S_VERSION' ) ) {
-	define( '_S_VERSION', '1.0.0' );
+	define( '_S_VERSION', '1.0.1' );
 }
 
 if ( ! function_exists( 'itsi_setup' ) ) :
@@ -453,6 +453,16 @@ require_once get_template_directory() . '/inc/rest-api-hibah.php';
 require_once get_template_directory() . '/inc/lp2m-settings.php';
 require_once get_template_directory() . '/inc/lp2m-pendaftaran.php';
 require_once get_template_directory() . '/inc/lp2m-smtp.php';
+
+/**
+ * TypeRocket jQuery 3.x compatibility shim (admin).
+ *
+ * Mutes jquery-migrate warnings and re-implements deprecated static APIs
+ * (`$.isFunction`, `$.type`, `$.trim`, `$.parseJSON`, `$.now`) so the
+ * TypeRocket page builder loads cleanly under WP 6.9.1 — without touching
+ * the shared plugin itself. See inc/typerocket-compat.php.
+ */
+require_once get_template_directory() . '/inc/typerocket-compat.php';
 
 /**
  * LP2M Auth — fallback autentikasi REST dengan password akun.

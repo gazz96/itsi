@@ -603,11 +603,20 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; }
 .nf-excerpt { font-size:.84rem; color:var(--tx-mid); line-height:1.72; margin-bottom:1.2rem; }
 .nf-meta { display:flex; align-items:center; gap:1.2rem; padding-top:1rem; border-top:1px solid var(--frost); flex-wrap:wrap; }
 .nf-meta-i { display:flex; align-items:center; gap:.35rem; font-size:.73rem; color:var(--tx-soft); }
+.nf-meta-ico { display:inline-flex; font-size:.85rem; line-height:1; color:var(--cobalt); }
 .nf-share { display:flex; align-items:center; gap:.45rem; margin-top:1rem; padding-top:1rem; border-top:1px solid var(--frost); }
 .nf-share-lbl { font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--tx-soft); margin-right:auto; }
 .share-btn { width:32px;height:32px;border-radius:9px;background:var(--frost);border:none;color:var(--tx-dark);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .2s var(--ease); text-decoration:none; }
 .share-btn:hover { background:var(--cobalt); color:#fff; transform:translateY(-2px); box-shadow:0 6px 16px rgba(12,61,122,.22); }
 .share-ico { width:15px; height:15px; flex-shrink:0; }
+/* Small icon-only share/download buttons (Berita featured card + Artikel meta).
+   Force icon colour for contrast and ensure the bare `.share-btn` rule from the
+   single-post `.share-bar` block (which sets color:#fff + pill padding) can never
+   leak into these compact square buttons. */
+.nf-share .share-btn,
+.art-meta .share-btn { color:var(--tx-dark); font-size:1rem; }
+.nf-share .share-btn:hover,
+.art-meta .share-btn:hover { color:#fff; }
 
 .nside { display:flex; flex-direction:column; gap:.9rem; }
 .ns-card { display:flex; gap:.95rem; align-items:flex-start; background:#fff; border:1px solid #dbe9ff; border-radius:15px; padding:1.05rem; cursor:pointer; transition:all .25s var(--ease); }
@@ -631,8 +640,10 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; }
 .peng-foot { display:flex; align-items:center; justify-content:space-between; padding-top:.85rem; border-top:1px solid var(--frost); }
 .peng-author { display:flex; align-items:center; gap:.4rem; font-size:.72rem; color:var(--tx-soft); }
 .peng-actions { display:flex; gap:.35rem; }
-.peng-btn { width:28px;height:28px;border-radius:7px;background:var(--frost);border:none;font-size:.78rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s; }
-.peng-btn:hover { background:var(--azure); transform:scale(1.1); }
+.peng-btn { width:28px;height:28px;border-radius:7px;background:var(--frost);border:none;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;color:var(--tx-dark); }
+.peng-btn:hover { background:var(--azure); color:#fff; transform:scale(1.1); }
+.peng-date-tag .bi { color:var(--royal); }
+.peng-author .bi { color:var(--tx-soft); }
 
 /* ═══════════════════════════
    ARTIKEL
@@ -648,6 +659,7 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; }
 .art-excerpt { font-size:.81rem; color:var(--tx-mid); line-height:1.65; margin-bottom:.95rem; display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden; }
 .art-meta { display:flex; align-items:center; gap:.85rem; padding-top:.85rem; border-top:1px solid var(--frost); flex-wrap:wrap; }
 .art-meta-i { display:flex; align-items:center; gap:.3rem; font-size:.71rem; color:var(--tx-soft); }
+.art-meta-i .bi { font-size:.85rem; color:var(--cobalt); }
 
 /* Empty state when no posts match the selected categories.
    Mirrors .berita-empty styling so section_artikel behaves consistently
@@ -1711,17 +1723,21 @@ select.form-inp { cursor:pointer; }
   object-fit: cover;
   z-index: 2;
 }
-/* When a real thumbnail is rendered, hide the fallback emoji (it sits over
+/* When a real thumbnail is rendered, hide the fallback icon (it sits over
    the gradient). The `.has-thumb` class is added by the component when a
    non-empty thumbnail URL was resolved. */
-.nfeat .nf-img.has-thumb .nf-emoji,
-.ns-card .ns-img.has-thumb .ns-emoji,
+.nfeat .nf-img.has-thumb .nf-ico,
+.ns-card .ns-img.has-thumb .ns-ico,
 .art-card .art-img.has-thumb > :not(.art-img-cat):not(img) {
   display: none;
 }
-/* Emoji fallback (no thumb): center the emoji over the gradient. */
-.nfeat .nf-img .nf-emoji,
-.ns-card .ns-img .ns-emoji,
+/* Icon fallback (no thumb): center the Bootstrap icon over the gradient.
+   The gradient stops are dark navy (#04162E → #1459B3), so the icon gets an
+   explicit light colour — `var(--sky)` (#75C0F5) — to keep contrast high
+   (WCAG-ish ~7:1 against #04162E). `text-shadow` adds a subtle halo so the
+   glyph stays legible even over the lighter end of the gradient. */
+.nfeat .nf-img .nf-ico,
+.ns-card .ns-img .ns-ico,
 .art-card .art-img {
   position: relative;
   z-index: 1;
@@ -1731,6 +1747,22 @@ select.form-inp { cursor:pointer; }
   width: 100%;
   height: 100%;
   font-size: clamp(2.4rem, 4vw, 3.2rem);
+  color: var(--sky);
+  text-shadow: 0 3px 18px rgba(1, 13, 30, .65);
+}
+/* Fallback icon inside the small sidebar cards: slightly smaller, same colour. */
+.ns-card .ns-img .ns-ico {
+  font-size: 1.7rem;
+  color: #fff;
+  text-shadow: 0 2px 10px rgba(1, 13, 30, .6);
+}
+/* Featured card icon keeps `--sky` (light blue) even with the dark ::after
+   overlay — no change needed, but ensure it is never affected by the body
+   text colour: */
+.nfeat .nf-img .nf-ico i,
+.ns-card .ns-img .ns-ico i {
+  font-style: normal;
+  line-height: 1;
 }
 
 /* ns-card small thumbnails */
@@ -1752,6 +1784,8 @@ select.form-inp { cursor:pointer; }
   font-size: 3rem;
   min-height: 80px;
 }
+.ns-card .ns-img .ns-ico i { color: #fff; }
+.nfeat .nf-img .nf-ico i { color: var(--sky); }
 
 /* art-img thumb */
 .art-card .art-img {
