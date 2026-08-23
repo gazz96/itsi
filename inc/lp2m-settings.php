@@ -62,10 +62,6 @@ function lp2m_render() {
 		\TypeRocket\Utility\Helper::form()->input( 'lp2m_site_frontend_url' )->setTypeUrl()
 			->setLabel( __( 'URL Situs Frontend (LP2M)', 'itsi' ) )
 			->setHelp( __( 'URL situs publik LP2M (mis. https://lp2m.pages.dev). Dipakai untuk link \"Cek Status\" di email konfirmasi.', 'itsi' ) ),
-		\TypeRocket\Utility\Helper::form()->checkbox( 'lp2m_hibah_allow_after_deadline' )
-			->setLabel( __( 'Izinkan pendaftaran setelah deadline', 'itsi' ) )
-			->setHelp( __( 'Jika dicentang, formulir pendaftaran hibah TETAP terbuka meski sudah melewati deadline event. Berguna saat perpanjangan / keadaan darurat. Jika tidak dicentang, pendaftaran ditutup otomatis setelah deadline.', 'itsi' ) )
-			->setAttribute( 'style', 'width:auto' ),
 	) );
 
 	// ── DOKUMEN ─────────────────────────────────────────────────────
@@ -400,12 +396,6 @@ function lp2m_handle_settings_save() {
 	$posted = isset( $_POST['tr'] ) && is_array( $_POST['tr'] )
 		? wp_unslash( $_POST['tr'] )
 		: array();
-
-	// Checkbox boolean: selalu simpan 1/0 (unchecked → 0, bukan menyisakan stale).
-	$bool_keys = array( 'lp2m_hibah_allow_after_deadline' );
-	foreach ( $bool_keys as $key ) {
-		update_option( $key, ! empty( $posted[ $key ] ) ? '1' : '0' );
-	}
 
 	// Daftar option key → sanitizer.
 	$text_keys = array(
@@ -759,7 +749,6 @@ function lp2m_site_data() {
 		'telepon'        => lp2m_opt( 'site_telepon' ),
 		'alamat'         => lp2m_opt( 'site_alamat' ),
 		'frontend_url'   => lp2m_opt( 'site_frontend_url' ),
-		'allow_after_deadline' => '1' === (string) lp2m_opt( 'hibah_allow_after_deadline' ),
 	);
 }
 function lp2m_dok_data() {

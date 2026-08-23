@@ -19,6 +19,7 @@ function itsi_hibah_register_rest_fields() {
 		'info_tambahan',
 		'link_panduan',
 		'program_studi_id',
+		'allow_after_deadline',
 	);
 
 	foreach ( $meta_fields as $field ) {
@@ -416,6 +417,13 @@ function itsi_hibah_sync_metabox_files_on_save( $post_id, $post, $update ) {
 	// Field metabox dikirim dalam $_POST['tr'] (prefix TypeRocket).
 	if ( empty( $_POST['tr'] ) || ! is_array( $_POST['tr'] ) ) { return; }
 
+	// Checkbox boolean metabox: selalu simpan 1/0 (unchecked → 0, bukan stale).
+	// Nilai 0/1 per-event; kalau kosong (= belum pernah diatur) dibiarkan kosong
+	// agar frontend fallback ke pengaturan global LP2M.
+	if ( array_key_exists( 'allow_after_deadline', $_POST['tr'] ) ) {
+		update_post_meta( $post_id, 'allow_after_deadline', ! empty( $_POST['tr']['allow_after_deadline'] ) ? '1' : '0' );
+	}
+
 	$file_keys = array( 'file_panduan', 'file_template', 'file_kelompok_keahlian' );
 	foreach ( $file_keys as $key ) {
 		if ( ! array_key_exists( $key, $_POST['tr'] ) ) {
@@ -541,6 +549,17 @@ function itsi_hibah_metabox_file_note( $key ) {
  *  GET /wp-json/itsi/v1/hibah/nearest-deadline
  * ──────────────────────────────────────────────────────────── */
 
+/**
+ * Property per-event "boleh daftar setelah deadline" (checkbox di metabox
+ * Detail Hibah). Tanpa fallback ke pengaturan global — murni dari data hibah.
+ *
+ * @param int $post_id ID post hibah.
+ * @return bool
+ */
+function itsi_hibah_allow_after_deadline( $post_id ) {
+	return '1' === (string) get_post_meta( (int) $post_id, 'allow_after_deadline', true );
+}
+
 function itsi_hibah_register_routes() {
 	register_rest_route( 'itsi/v1', '/hibah/nearest-deadline', array(
 		'methods'             => WP_REST_Server::READABLE,
@@ -633,8 +652,8 @@ function itsi_hibah_get_nearest_deadline( WP_REST_Request $request ) {
 		'file_kelompok_keahlian' => itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $id, 'file_kelompok_keahlian' ) ),
 		'timeline_items' => $timeline,
 		'category_names' => is_array( $cats ) ? $cats : array(),
-		// Pengaturan global LP2M: boleh daftar setelah deadline (perpanjangan/darurat).
-		'allow_after_deadline' => '1' === (string) get_option( 'lp2m_hibah_allow_after_deadline', '0' ),
+		// Pengaturan LP2M: boleh daftar setelah deadline (per-event → fallback global).
+		'allow_after_deadline' => itsi_hibah_allow_after_deadline( $id ),
 	);
 
 	return new WP_REST_Response( array(

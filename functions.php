@@ -1456,6 +1456,10 @@ add_action( 'typerocket_loaded', function () {
 						->setHelp( 'Tanggal terakhir pendaftaran.' ) . '</div>'
 					. '<div>' . $form->time( 'deadline_time' )->setLabel( 'Deadline Jam' )
 						->setHelp( 'Opsional. Kosongkan = 23:59:59.' ) . '</div>'
+					. '<div>' . $form->checkbox( 'allow_after_deadline' )
+						->setLabel( 'Boleh Daftar Setelah Deadline' )
+						->setHelp( 'Centang jika event ini TETAP menerima pendaftaran meski sudah lewat deadline (perpanjangan/darurat). Tidak dicentang = ikuti pengaturan global di LP2M → Settings.' )
+						->setAttribute( 'style', 'width:auto' ) . '</div>'
 					. '<div>' . $form->text( 'event_eyebrow' )->setLabel( 'Tahun Akademik' )
 						->setAttribute( 'placeholder', 'mis. TA 2026/2027' ) . '</div>'
 					. '<div>' . $form->text( 'dana_maks' )->setLabel( 'Dana Maksimal' )

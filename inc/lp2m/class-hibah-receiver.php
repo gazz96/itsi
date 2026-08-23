@@ -380,6 +380,8 @@ class ITSI_LP2M_Hibah_Receiver {
 		return new \WP_REST_Response( [
 			'success'          => true,
 			'hibah_id'         => $id,
+			// Boleh daftar setelah deadline — nilai efektif (per-event → fallback global).
+			'allow_after_deadline' => itsi_hibah_allow_after_deadline( $id ),
 			'prodi_options'    => $prodi_options,
 			'skema_options'    => $skema_options,
 			'jenis_options'    => $jenis_options,
@@ -577,10 +579,10 @@ class ITSI_LP2M_Hibah_Receiver {
 		$errors = $this->validate( $params );
 
 		// Deadline gate — pendaftaran hanya boleh sebelum deadline event hibah,
-		// KECUALI pengaturan "izinkan setelah deadline" aktif (perpanjangan/darurat).
-		$allow_after_deadline = '1' === (string) get_option( 'lp2m_hibah_allow_after_deadline', '0' );
+		// KECUALI pengaturan "izinkan setelah deadline" aktif (per-event di
+		// metabox hibah, atau global di LP2M → Settings → Site).
 		$hibah_id = (int) $params['hibah_id'];
-		if ( ! $allow_after_deadline && $hibah_id > 0 ) {
+		if ( $hibah_id > 0 && ! itsi_hibah_allow_after_deadline( $hibah_id ) ) {
 			$deadline = (string) get_post_meta( $hibah_id, 'deadline', true );
 			if ( '' !== trim( $deadline ) ) {
 				$ts = strtotime( $deadline );
