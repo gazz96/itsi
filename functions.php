@@ -465,6 +465,16 @@ require_once get_template_directory() . '/inc/lp2m-smtp.php';
 require_once get_template_directory() . '/inc/typerocket-compat.php';
 
 /**
+ * LP2M CORS — izinkan akses lintas-origin dari SPA LP2M.
+ *
+ * SPA LP2M (lp2m.bagistudio.com / lp2m-102.pages.dev / lp2m.itsi.ac.id)
+ * memanggil REST API itsi.ac.id secara langsung lintas-origin. WordPress core
+ * hanya mengirim header CORS untuk origin same-site, jadi tanpa filter ini
+ * semua request /wp-json dari domain LP2M diblokir browser.
+ */
+require_once get_template_directory() . '/inc/lp2m-cors.php';
+
+/**
  * LP2M Auth — fallback autentikasi REST dengan password akun.
  *
  * WordPress core hanya menerima Application Password via Basic Auth; filter

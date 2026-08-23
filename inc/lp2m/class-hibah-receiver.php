@@ -576,6 +576,18 @@ class ITSI_LP2M_Hibah_Receiver {
 
 		$errors = $this->validate( $params );
 
+		// Deadline gate — pendaftaran hanya boleh sebelum deadline event hibah.
+		$hibah_id = (int) $params['hibah_id'];
+		if ( $hibah_id > 0 ) {
+			$deadline = (string) get_post_meta( $hibah_id, 'deadline', true );
+			if ( '' !== trim( $deadline ) ) {
+				$ts = strtotime( $deadline );
+				if ( false !== $ts && $ts < time() ) {
+					$errors['deadline'] = 'Pendaftaran telah ditutup.';
+				}
+			}
+		}
+
 		// File proposal (multipart/form-data) — validasi PDF + ukuran.
 		$proposal_file = $request->get_file_params()['proposal'] ?? null;
 		if ( is_array( $proposal_file ) && isset( $proposal_file['error'] ) && UPLOAD_ERR_OK === (int) $proposal_file['error'] ) {
@@ -595,7 +607,6 @@ class ITSI_LP2M_Hibah_Receiver {
 		$hibah_id = (int) $params['hibah_id'];
 		$reg_no   = $this->generate_reg_no();
 		$post_id  = $this->save_submission( $params, $reg_no, $hibah_id );
-
 		if ( is_wp_error( $post_id ) || ! $post_id ) {
 			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Gagal menyimpan data.' ], 500 );
 		}
