@@ -576,9 +576,11 @@ class ITSI_LP2M_Hibah_Receiver {
 
 		$errors = $this->validate( $params );
 
-		// Deadline gate — pendaftaran hanya boleh sebelum deadline event hibah.
+		// Deadline gate — pendaftaran hanya boleh sebelum deadline event hibah,
+		// KECUALI pengaturan "izinkan setelah deadline" aktif (perpanjangan/darurat).
+		$allow_after_deadline = '1' === (string) get_option( 'lp2m_hibah_allow_after_deadline', '0' );
 		$hibah_id = (int) $params['hibah_id'];
-		if ( $hibah_id > 0 ) {
+		if ( ! $allow_after_deadline && $hibah_id > 0 ) {
 			$deadline = (string) get_post_meta( $hibah_id, 'deadline', true );
 			if ( '' !== trim( $deadline ) ) {
 				$ts = strtotime( $deadline );

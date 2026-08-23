@@ -633,6 +633,8 @@ function itsi_hibah_get_nearest_deadline( WP_REST_Request $request ) {
 		'file_kelompok_keahlian' => itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $id, 'file_kelompok_keahlian' ) ),
 		'timeline_items' => $timeline,
 		'category_names' => is_array( $cats ) ? $cats : array(),
+		// Pengaturan global LP2M: boleh daftar setelah deadline (perpanjangan/darurat).
+		'allow_after_deadline' => '1' === (string) get_option( 'lp2m_hibah_allow_after_deadline', '0' ),
 	);
 
 	return new WP_REST_Response( array(
