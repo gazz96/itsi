@@ -560,6 +560,21 @@ function itsi_hibah_allow_after_deadline( $post_id ) {
 	return '1' === (string) get_post_meta( (int) $post_id, 'allow_after_deadline', true );
 }
 
+/**
+ * Apakah deadline event masih di masa depan (masih aktif).
+ *
+ * @param int $post_id ID post hibah.
+ * @return bool
+ */
+function itsi_hibah_is_event_active( $post_id ) {
+	$deadline = get_post_meta( (int) $post_id, 'deadline', true );
+	if ( empty( $deadline ) ) {
+		return true;
+	}
+	$today = current_time( 'Y-m-d' );
+	return strtotime( $deadline ) >= strtotime( $today . ' 00:00:00' );
+}
+
 function itsi_hibah_register_routes() {
 	register_rest_route( 'itsi/v1', '/hibah/nearest-deadline', array(
 		'methods'             => WP_REST_Server::READABLE,
@@ -586,6 +601,7 @@ function itsi_hibah_lines( $value ) {
 function itsi_hibah_get_nearest_deadline( WP_REST_Request $request ) {
 	$today = current_time( 'Y-m-d' );
 
+	// 1) Prioritaskan hibah yang masih aktif (deadline >= hari ini), deadline terdekat dulu.
 	$query = new WP_Query( array(
 		'post_type'      => 'hibah',
 		'post_status'    => 'publish',
@@ -602,6 +618,26 @@ function itsi_hibah_get_nearest_deadline( WP_REST_Request $request ) {
 			),
 		),
 	) );
+
+	// 2) Kalau tidak ada yang aktif, pakai hibah terakhir (deadline terbaru yang
+	//    sudah lewat) agar halaman tetap menampilkan event terakhir — bukan kosong.
+	if ( ! $query->have_posts() ) {
+		$query = new WP_Query( array(
+			'post_type'      => 'hibah',
+			'post_status'    => 'publish',
+			'posts_per_page' => 1,
+			'meta_key'       => 'deadline',
+			'orderby'        => 'meta_value',
+			'order'          => 'DESC',
+			'meta_query'     => array(
+				array(
+					'key'     => 'deadline',
+					'compare' => 'EXISTS',
+					'type'    => 'DATE',
+				),
+			),
+		) );
+	}
 
 	if ( ! $query->have_posts() ) {
 		return new WP_REST_Response( array(
@@ -652,6 +688,8 @@ function itsi_hibah_get_nearest_deadline( WP_REST_Request $request ) {
 		'file_kelompok_keahlian' => itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $id, 'file_kelompok_keahlian' ) ),
 		'timeline_items' => $timeline,
 		'category_names' => is_array( $cats ) ? $cats : array(),
+		// Apakah event masih aktif (deadline belum lewat). False = event terakhir yang sudah berakhir.
+		'is_active'      => itsi_hibah_is_event_active( $id ),
 		// Pengaturan LP2M: boleh daftar setelah deadline (per-event → fallback global).
 		'allow_after_deadline' => itsi_hibah_allow_after_deadline( $id ),
 	);
