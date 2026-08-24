@@ -1233,7 +1233,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			// Jenis hibah (hierarkis: "PENELITIAN" atau "PENELITIAN — Skema X").
 			$jenis = trim( (string) get_post_meta( $post_id, '_jenis_hibah', true ) );
 			if ( '' !== $jenis ) {
-				$parts = array_map( 'trim', preg_split( '/\s*[—-]\s*/', $jenis, 2 ) );
+				$parts = array_map( 'trim', preg_split( '/\s*[—-]\s*/u', $jenis, 2 ) );
 				$parent = $parts[0];
 				if ( '' === $parent ) { $parent = $jenis; }
 				$jenis_counts[ $parent ] = $jenis_counts[ $parent ] ?? [ 'count' => 0, 'children' => [] ];
