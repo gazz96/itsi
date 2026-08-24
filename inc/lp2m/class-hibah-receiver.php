@@ -169,7 +169,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		register_rest_route( 'lp2m/v1', '/hibah/(?P<id>\d+)/form-config', [
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'handle_form_config' ],
-			'permission_callback' => [ $this, 'check_rate_limit_read' ],
+			'permission_callback' => '__return_true',
 			'args'                => [
 				'id' => [
 					'required'          => true,
@@ -217,7 +217,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		register_rest_route( 'lp2m/v1', '/statistik', [
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'handle_statistik' ],
-			'permission_callback' => [ $this, 'check_rate_limit_read' ],
+			'permission_callback' => '__return_true',
 			'args'                => [
 				'tahun' => [
 					'required'          => false,
@@ -253,6 +253,15 @@ class ITSI_LP2M_Hibah_Receiver {
 		$id = (int) $request->get_param( 'id' );
 		if ( ! get_post( $id ) || 'hibah' !== get_post_type( $id ) ) {
 			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Hibah tidak ditemukan.' ], 404 );
+		}
+
+		$cache_key = 'lp2m_form_config_' . $id;
+		$cached    = get_transient( $cache_key );
+		if ( false !== $cached && is_array( $cached ) ) {
+			$response = new \WP_REST_Response( $cached, 200 );
+			$response->header( 'Cache-Control', 'public, max-age=600, stale-while-revalidate=60' );
+			$response->header( 'X-LP2M-Cache', 'HIT' );
+			return $response;
 		}
 
 		// Program studi: CPT program_studi → id + nama.
@@ -377,7 +386,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			}
 		}
 
-		return new \WP_REST_Response( [
+		$data = [
 			'success'          => true,
 			'hibah_id'         => $id,
 			// Boleh daftar setelah deadline — nilai efektif (per-event → fallback global).
@@ -388,7 +397,13 @@ class ITSI_LP2M_Hibah_Receiver {
 			'sdgs_options'     => $sdgs_options,
 			'kk_options'       => $kk_options,
 			'kelompok_options' => $kk_options,
-		], 200 );
+		];
+		set_transient( $cache_key, $data, 10 * MINUTE_IN_SECONDS );
+
+		$response = new \WP_REST_Response( $data, 200 );
+		$response->header( 'Cache-Control', 'public, max-age=600, stale-while-revalidate=60' );
+		$response->header( 'X-LP2M-Cache', 'MISS' );
+		return $response;
 	}
 
 	/* ────────────────────────────────────────────────────────────
@@ -1169,7 +1184,10 @@ class ITSI_LP2M_Hibah_Receiver {
 		$cache_key = 'lp2m_statistik_' . ( $tahun ?: 'all' );
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached && is_array( $cached ) ) {
-			return rest_ensure_response( $cached );
+			$response = rest_ensure_response( $cached );
+			$response->header( 'Cache-Control', 'public, max-age=300, stale-while-revalidate=60' );
+			$response->header( 'X-LP2M-Cache', 'HIT' );
+			return $response;
 		}
 
 		$args = [
@@ -1313,7 +1331,10 @@ class ITSI_LP2M_Hibah_Receiver {
 
 		set_transient( $cache_key, $data, 5 * MINUTE_IN_SECONDS );
 
-		return rest_ensure_response( $data );
+		$response = rest_ensure_response( $data );
+		$response->header( 'Cache-Control', 'public, max-age=300, stale-while-revalidate=60' );
+		$response->header( 'X-LP2M-Cache', 'MISS' );
+		return $response;
 	}
 }
 
