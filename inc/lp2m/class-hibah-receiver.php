@@ -1152,6 +1152,7 @@ class ITSI_LP2M_Hibah_Receiver {
 	 *   "mahasiswa_unik": int,
 	 *   "jumlah_skema": int,
 	 *   "skema_distribusi": [{ "label": string, "count": int }],
+	 *   "jenis_distribusi": [{ "label": string, "count": int, "children": [{ "label": string, "count": int }] }],
 	 *   "sdgs_trend": [{ "label": string, "count": int }],
 	 *   "tahun_tersedia": ["2026","2025","2024"],
 	 *   "tahun": "2026" | null
@@ -1190,6 +1191,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		$dosen_set       = [];
 		$mahasiswa_set   = [];
 		$skema_counts    = [];
+		$jenis_counts    = [];   // parent → children counts
 		$sdgs_counts     = [];
 		$tahun_set       = [];
 
@@ -1228,6 +1230,21 @@ class ITSI_LP2M_Hibah_Receiver {
 				$skema_counts[ $skema ] = ( $skema_counts[ $skema ] ?? 0 ) + 1;
 			}
 
+			// Jenis hibah (hierarkis: "PENELITIAN" atau "PENELITIAN — Skema X").
+			$jenis = trim( (string) get_post_meta( $post_id, '_jenis_hibah', true ) );
+			if ( '' !== $jenis ) {
+				$parts = array_map( 'trim', preg_split( '/\s*[—-]\s*/', $jenis, 2 ) );
+				$parent = $parts[0];
+				if ( '' === $parent ) { $parent = $jenis; }
+				$jenis_counts[ $parent ] = $jenis_counts[ $parent ] ?? [ 'count' => 0, 'children' => [] ];
+				$jenis_counts[ $parent ]['count']++;
+
+				$child = $parts[1] ?? '';
+				if ( '' !== $child ) {
+					$jenis_counts[ $parent ]['children'][ $child ] = ( $jenis_counts[ $parent ]['children'][ $child ] ?? 0 ) + 1;
+				}
+			}
+
 			// SDGs.
 			$sdgs = trim( (string) get_post_meta( $post_id, '_sdgs', true ) );
 			if ( '' !== $sdgs ) {
@@ -1249,6 +1266,22 @@ class ITSI_LP2M_Hibah_Receiver {
 		}
 		usort( $skema_distribusi, $sort_by_count );
 
+		// Jenis hibah hierarkis: parent (PENELITIAN/PENGABDIAN) + children (Skema X).
+		$jenis_distribusi = [];
+		foreach ( $jenis_counts as $parent => $info ) {
+			$children = [];
+			foreach ( $info['children'] as $child_label => $child_count ) {
+				$children[] = [ 'label' => $child_label, 'count' => (int) $child_count ];
+			}
+			usort( $children, $sort_by_count );
+			$jenis_distribusi[] = [
+				'label'    => $parent,
+				'count'    => (int) $info['count'],
+				'children' => $children,
+			];
+		}
+		usort( $jenis_distribusi, $sort_by_count );
+
 		$sdgs_trend = [];
 		foreach ( $sdgs_counts as $label => $count ) {
 			$sdgs_trend[] = [ 'label' => $label, 'count' => (int) $count ];
@@ -1265,6 +1298,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			'mahasiswa_unik'    => count( $mahasiswa_set ),
 			'jumlah_skema'      => count( $skema_counts ),
 			'skema_distribusi'  => $skema_distribusi,
+			'jenis_distribusi'  => $jenis_distribusi,
 			'sdgs_trend'        => $sdgs_trend,
 			'tahun_tersedia'    => $tahun_tersedia,
 			'tahun'             => '' !== $tahun ? $tahun : null,
