@@ -1249,7 +1249,13 @@ class ITSI_LP2M_Hibah_Receiver {
 			// SDGs.
 			$sdgs = trim( (string) get_post_meta( $post_id, '_sdgs', true ) );
 			if ( '' !== $sdgs ) {
-				$sdgs_counts[ $sdgs ] = ( $sdgs_counts[ $sdgs ] ?? 0 ) + 1;
+				// Normalisasi: buang prefix nomor SDG ("9 Industry..." → "Industry...")
+				// agar label dengan & tanpa nomor tergabung jadi satu.
+				$sdgs = preg_replace( '/^\d{1,2}\s*(?:[-–—]\s*)?/', '', $sdgs );
+				$sdgs = trim( (string) $sdgs );
+				if ( '' !== $sdgs ) {
+					$sdgs_counts[ $sdgs ] = ( $sdgs_counts[ $sdgs ] ?? 0 ) + 1;
+				}
 			}
 		}
 
