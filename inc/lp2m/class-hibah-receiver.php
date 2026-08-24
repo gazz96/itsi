@@ -1234,8 +1234,9 @@ class ITSI_LP2M_Hibah_Receiver {
 			$jenis = trim( (string) get_post_meta( $post_id, '_jenis_hibah', true ) );
 			if ( '' !== $jenis ) {
 				$parts = array_map( 'trim', preg_split( '/\s*[—-]\s*/u', $jenis, 2 ) );
-				$parent = $parts[0];
-				if ( '' === $parent ) { $parent = $jenis; }
+				// Normalisasi parent uppercase: gabungkan "Penelitian" & "PENELITIAN".
+				$parent = strtoupper( (string) $parts[0] );
+				if ( '' === $parent ) { $parent = strtoupper( $jenis ); }
 				$jenis_counts[ $parent ] = $jenis_counts[ $parent ] ?? [ 'count' => 0, 'children' => [] ];
 				$jenis_counts[ $parent ]['count']++;
 
