@@ -32,30 +32,15 @@ class ITSI_LP2M_Hibah_Receiver {
 	}
 
 	/**
-	 * Daftar CPT + metabox pendaftaran via TypeRocket agar konsisten
+	 * Metabox pendaftaran via TypeRocket agar konsisten
 	 * dengan Detail Hibah / Detail Program Studi di functions.php.
-	 * Fallback register_cpt() tetap dipakai bila tr_post_type belum tersedia.
+	 * CPT pendaftaran_hibah sendiri didaftarkan di functions.php
+	 * (tr_post_type, biar muncul di scan/theme-builder); di sini
+	 * hanya metabox + penyesuaian editor/file.
+	 * Fallback register_cpt() tetap menjaga CPT ada bila TR belum load.
 	 */
 	public function register_tr_cpt_and_metabox(): void {
-		if ( ! function_exists( 'tr_post_type' ) || ! function_exists( 'tr_meta_box' ) ) { return; }
-
-		$pt = tr_post_type( 'Pendaftaran Hibah', 'Pendaftaran Hibah' );
-		$pt->setId( 'pendaftaran_hibah' );
-		$pt->setSlug( 'pendaftaran-hibah' );
-		$pt->setIcon( 'dashicons-email-alt' );
-		$pt->setPosition( 11 );
-		$pt->setSupports( [ 'title' ] );
-		$pt->setTitlePlaceholder( 'Otomatis — jangan edit manual' );
-		$pt->setArgument( 'public', false );
-		$pt->setArgument( 'exclude_from_search', true );
-		$pt->setArgument( 'show_in_rest', false );
-		$pt->setArchivePostsPerPage( 20 );
-
-		// Classic editor — Gutenberg menyembunyikan metabox TypeRocket.
-		add_filter( 'use_block_editor_for_post', function ( $use, $post ) {
-			if ( $post instanceof \WP_Post && 'pendaftaran_hibah' === $post->post_type ) { return false; }
-			return $use;
-		}, 10, 2 );
+		if ( ! function_exists( 'tr_meta_box' ) ) { return; }
 
 		// File proposal presisi reset: blank = kosong → true nullify,
 		// false = biarkan apa adanya (dipakai sinkron).

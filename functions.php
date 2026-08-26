@@ -1049,6 +1049,22 @@ add_action( 'typerocket_loaded', function () {
 		return $use;
 	}, 10, 2 );
 
+	// ═══ PENDAFTARAN HIBAH (data submit LP2M) ═════════════════
+	// CPT dipusatkan di functions.php agar terlihat di Theme Builder;
+	// metabox Detail Pendaftaran ada di inc/lp2m/class-hibah-receiver.php
+	// (TypeRocket form konsisten + sync file proposal TR ↔ REST).
+	$pendaftaran_hibah = tr_post_type( 'Pendaftaran Hibah', 'Pendaftaran Hibah' );
+	$pendaftaran_hibah->setId( 'pendaftaran_hibah' );
+	$pendaftaran_hibah->setSlug( 'pendaftaran-hibah' );
+	$pendaftaran_hibah->setIcon( 'dashicons-email-alt' );
+	$pendaftaran_hibah->setPosition( 11 );
+	$pendaftaran_hibah->setSupports( array( 'title' ) );
+	$pendaftaran_hibah->setTitlePlaceholder( 'Otomatis — jangan edit manual' );
+	$pendaftaran_hibah->setArgument( 'public', false );
+	$pendaftaran_hibah->setArgument( 'exclude_from_search', true );
+	$pendaftaran_hibah->setArgument( 'show_in_rest', false );
+	$pendaftaran_hibah->setArchivePostsPerPage( 20 );
+
 	// ═══ TAXONOMIES ════════════════════════════════════════════
 	// (Kategori Pengumuman uses the standard `category` taxonomy.
 	//  Pick categories in the Pengumuman section component.)
