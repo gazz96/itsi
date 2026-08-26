@@ -26,6 +26,9 @@ class ITSI_LP2M_Hibah_Receiver {
 		add_filter( 'manage_pendaftaran_hibah_posts_columns', [ $this, 'admin_columns' ] );
 		add_action( 'manage_pendaftaran_hibah_posts_custom_column', [ $this, 'admin_column_content' ], 10, 2 );
 		add_action( 'admin_head', [ $this, 'admin_list_styles' ] );
+		// Kirim email manual ke pemohon dari wp-admin (post.php) & list.
+		add_action( 'post_action_lp2m_send_email', [ $this, 'handle_admin_send_email' ] );
+		add_action( 'admin_post_lp2m_send_email', [ $this, 'handle_admin_send_email_list' ] );
 		// CPT & metabox pendaftaran konsisten via TypeRocket (seperti Detail Hibah di functions.php).
 		add_action( 'typerocket_loaded', [ $this, 'register_tr_cpt_and_metabox' ] );
 		// Sinkron _proposal_id (TR File) ↔ _proposal_url kanonik + validasi PDF.
@@ -169,6 +172,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		foreach ( $columns as $key => $label ) {
 			if ( 'date' === $key ) {
 				// Ringkas 11 kolom → 5 kolom gabungan agar tabel clean & tidak horizontal-scroll.
+				// Title bawaan WP (post_title) disembunyikan — diganti kolom Usulan & Tim yang lebih informatif.
 				$new['ph_pengusul'] = 'Pengusul';
 				$new['ph_hibah']    = 'Hibah';
 				$new['ph_usulan']   = 'Usulan & Tim';
@@ -177,6 +181,8 @@ class ITSI_LP2M_Hibah_Receiver {
 			}
 			$new[ $key ] = $label;
 		}
+		// Hilangkan title bawaan (auto "[REG] Nama — Judul") yang bikin tabel sempit & judul wrap per-kata.
+		if ( isset( $new['title'] ) ) { unset( $new['title'] ); }
 		// Bila filter lama masih ada (mis. Screen Options cache), hilangkan sisa kolom per-field.
 		foreach ( [ 'ph_reg_no', 'ph_nama', 'ph_nip', 'ph_prodi', 'ph_model', 'ph_jenis_hibah', 'ph_sdgs', 'ph_kk', 'ph_anggota', 'ph_judul' ] as $legacy ) {
 			unset( $new[ $legacy ] );
@@ -295,20 +301,149 @@ class ITSI_LP2M_Hibah_Receiver {
 
 	/**
 	 * Style ringan untuk list pendaftaran agar 5 kolom gabungan lega dan tidak terpotong.
+	 * Di list wp-admin `fixed` table memakai width %; tanpa ini Usulan memanjang vertikal per-kata.
 	 */
 	public function admin_list_styles(): void {
 		$screen = get_current_screen();
-		if ( ! $screen || 'edit-pendaftaran_hibah' !== $screen->id ) { return; }
+		if ( ! $screen ) { return; }
+		$is_list = 'edit-pendaftaran_hibah' === $screen->id;
+		$is_edit = 'pendaftaran_hibah' === $screen->post_type;
+		if ( ! $is_list && ! $is_edit ) { return; }
 		echo '<style>
+			/* List: 5 kolom proporsional, Usulan paling lebar agar judul tidak wrap per-kata */
 			.wp-list-table .column-ph_pengusul{width:22%}
-			.wp-list-table .column-ph_hibah{width:18%}
-			.wp-list-table .column-ph_usulan{width:30%}
-			.wp-list-table .column-ph_status{width:12%;text-align:center}
-			.wp-list-table .column-ph_kontak{width:18%}
+			.wp-list-table .column-ph_hibah{width:16%}
+			.wp-list-table .column-ph_usulan{width:34%}
+			.wp-list-table .column-ph_status{width:11%;text-align:center}
+			.wp-list-table .column-ph_kontak{width:17%}
+			.wp-list-table .column-ph_usulan{word-break:normal;overflow-wrap:anywhere;white-space:normal}
+			.wp-list-table .column-ph_usulan strong{line-height:1.35}
 			@media screen and (max-width:782px){
 				.wp-list-table .column-ph_pengusul,.wp-list-table .column-ph_hibah,.wp-list-table .column-ph_usulan,.wp-list-table .column-ph_status,.wp-list-table .column-ph_kontak{width:auto}
 			}
+			/* Edit screen: title input & metabox perlebar */
+			#titlediv #title{font-size:1.15em;padding:8px 10px}
+			.post-type-pendaftaran_hibah .inside .tr-repeater-row{word-break:normal}
 		</style>';
+		// Tombol Kirim Email di edit screen + row action di list — tanpa reload halaman tambahan.
+		if ( $is_edit && isset( $_GET['post'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			$post_id = (int) $_GET['post']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			$email   = (string) get_post_meta( $post_id, '_email', true );
+			if ( is_email( $email ) ) {
+				$this->render_send_email_ui( $post_id, $email );
+			}
+		}
+	}
+
+	/**
+	 * UI tombol Kirim Email di edit screen (admin_head) — form kecil di atas Publish box.
+	 */
+	private function render_send_email_ui( int $post_id, string $email ): void {
+		$nonce = wp_create_nonce( 'lp2m_send_email_' . $post_id );
+		$msg   = '';
+		if ( isset( $_GET['lp2m_email_sent'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			$sent = sanitize_text_field( (string) $_GET['lp2m_email_sent'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			if ( '1' === $sent ) {
+				$msg = '<div class="notice notice-success is-dismissible" style="margin:12px 0"><p>✓ Email terkirim ke ' . esc_html( $email ) . '.</p></div>';
+			} elseif ( '0' === $sent ) {
+				$err = isset( $_GET['lp2m_email_err'] ) ? sanitize_text_field( (string) $_GET['lp2m_email_err'] ) : 'Gagal mengirim email.'; // phpcs:ignore
+				$msg = '<div class="notice notice-error is-dismissible" style="margin:12px 0"><p>✕ ' . esc_html( $err ) . '</p></div>';
+			}
+		}
+		echo $msg; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — notice sudah esc
+		// Inject tombol via JS agar muncul di publish box tanpa override template.
+		echo '<script>document.addEventListener("DOMContentLoaded",function(){'
+			. 'var box=document.getElementById("submitdiv"); if(!box) return;'
+			. 'var wrap=document.createElement("div"); wrap.style.cssText="margin:12px 0 0;padding:10px 12px;background:#f0f7ff;border:1px solid #dbeafe;border-radius:8px";'
+			. 'wrap.innerHTML=\'<p style="margin:0 0 6px;font-weight:600">📧 Kirim Email ke Pemohon</p>'
+			. '<p style="margin:0 0 8px;color:#475569;font-size:12px">Kirim data terbaru (sesuai edit terakhir) ke <strong>' . esc_js( $email ) . '</strong>.</p>'
+			. '<form method="post" action="' . esc_url( admin_url( 'post.php' ) ) . '" style="margin:0">'
+			. '<input type="hidden" name="action" value="lp2m_send_email">'
+			. '<input type="hidden" name="post" value="' . (int) $post_id . '">'
+			. '<input type="hidden" name="_wpnonce" value="' . esc_attr( $nonce ) . '">'
+			. '<label style="display:block;margin-bottom:4px;font-size:12px">Perihal / catatan (opsional)</label>'
+			. '<input type="text" name="lp2m_subject_note" placeholder="mis. Revisi disetujui / mohon lengkapi berkas" style="width:100%;margin-bottom:8px">'
+			. '<button type="submit" class="button button-primary" style="width:100%">Kirim Email Sekarang</button>'
+			. '</form>\';'
+			. 'var h=box.querySelector(".inside"); if(h) h.prepend(wrap); else box.prepend(wrap);});</script>';
+	}
+
+	/**
+	 * Handler post_action_lp2m_send_email (dari post.php edit screen).
+	 */
+	public function handle_admin_send_email( int $post_id ): void {
+		if ( ! current_user_can( 'edit_post', $post_id ) ) { wp_die( 'Tidak diizinkan.' ); }
+		check_admin_referer( 'lp2m_send_email_' . $post_id );
+		$post = get_post( $post_id );
+		if ( ! $post || 'pendaftaran_hibah' !== $post->post_type ) { wp_die( 'Data tidak ditemukan.' ); }
+		$email = (string) get_post_meta( $post_id, '_email', true );
+		if ( ! is_email( $email ) ) {
+			wp_redirect( add_query_arg( [ 'lp2m_email_sent' => '0', 'lp2m_email_err' => rawurlencode( 'Email pemohon tidak valid.' ) ], get_edit_post_link( $post_id, '' ) ) ); exit;
+		}
+		$note = isset( $_POST['lp2m_subject_note'] ) ? sanitize_text_field( (string) $_POST['lp2m_subject_note'] ) : ''; // phpcs:ignore
+		$ok   = $this->send_applicant_email( $post_id, $note );
+		if ( is_wp_error( $ok ) ) {
+			wp_redirect( add_query_arg( [ 'lp2m_email_sent' => '0', 'lp2m_email_err' => rawurlencode( $ok->get_error_message() ) ], get_edit_post_link( $post_id, '' ) ) ); exit;
+		}
+		wp_redirect( add_query_arg( [ 'lp2m_email_sent' => '1' ], get_edit_post_link( $post_id, '' ) ) ); exit;
+	}
+
+	/**
+	 * Handler admin_post (fallback dari list bulk / direct link).
+	 */
+	public function handle_admin_send_email_list(): void {
+		$post_id = isset( $_REQUEST['post'] ) ? (int) $_REQUEST['post'] : 0; // phpcs:ignore
+		if ( ! $post_id ) { wp_die( 'ID tidak valid.' ); }
+		$this->handle_admin_send_email( $post_id );
+	}
+
+	/**
+	 * Kirim email ke pemohon dengan data terbaru dari postmeta.
+	 * Dipakai tombol wp-admin maupun API manual.
+	 *
+	 * @return true|\WP_Error
+	 */
+	public function send_applicant_email( int $post_id, string $subject_note = '' ): bool|\WP_Error {
+		$post = get_post( $post_id );
+		if ( ! $post || 'pendaftaran_hibah' !== $post->post_type ) {
+			return new \WP_Error( 'not_found', 'Data pendaftaran tidak ditemukan.' );
+		}
+		$email = (string) get_post_meta( $post_id, '_email', true );
+		if ( ! is_email( $email ) ) {
+			return new \WP_Error( 'invalid_email', 'Email pemohon tidak valid.' );
+		}
+		$reg_no = (string) get_post_meta( $post_id, '_reg_no', true );
+		$hibah_id = (int) get_post_meta( $post_id, '_hibah_id', true );
+		$event_name = $hibah_id ? (string) get_the_title( $hibah_id ) : '';
+		$raw_list = get_post_meta( $post_id, '_anggota_list', true );
+		$anggota_list = is_array( $raw_list ) ? $raw_list : ( is_string( $raw_list ) && '' !== trim( $raw_list ) ? ( json_decode( $raw_list, true ) ?: [] ) : [] );
+		$params = [
+			'nama' => (string) get_post_meta( $post_id, '_nama', true ),
+			'nip'  => (string) get_post_meta( $post_id, '_nip', true ),
+			'jenis' => (string) get_post_meta( $post_id, '_jenis', true ),
+			'prodi' => (string) get_post_meta( $post_id, '_prodi', true ),
+			'skema' => (string) get_post_meta( $post_id, '_skema', true ),
+			'jenis_hibah' => (string) get_post_meta( $post_id, '_jenis_hibah', true ),
+			'sdgs'  => (string) get_post_meta( $post_id, '_sdgs', true ),
+			'kelompok_keahlian' => (string) get_post_meta( $post_id, '_kelompok_keahlian', true ),
+			'judul' => (string) get_post_meta( $post_id, '_judul', true ),
+			'ringkasan' => (string) get_post_meta( $post_id, '_ringkasan', true ),
+			'anggota_list' => $anggota_list,
+			'email' => $email,
+			'hp'    => (string) get_post_meta( $post_id, '_hp', true ),
+		];
+		$status = (string) get_post_meta( $post_id, '_status', true ) ?: 'submitted';
+		$subject = sprintf( '[LP2M] %s — %s', $reg_no ?: ( 'Pendaftaran #' . $post_id ), $subject_note ? $subject_note : ( 'Status: ' . ucfirst( $status ) ) );
+		$body = $this->email_html( $params, $reg_no ?: (string) $post_id, $event_name, '' );
+		if ( '' !== trim( $subject_note ) ) {
+			$body = '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;margin-bottom:16px;color:#92400e;font-size:13px"><strong>Catatan:</strong> ' . esc_html( $subject_note ) . '</div>' . $body;
+		}
+		$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+		$sent = wp_mail( $email, $subject, $body, $headers );
+		if ( ! $sent ) {
+			return new \WP_Error( 'mail_failed', 'Gagal mengirim email. Periksa konfigurasi SMTP di LP2M → Settings.' );
+		}
+		return true;
 	}
 
 	public function register_routes(): void {
