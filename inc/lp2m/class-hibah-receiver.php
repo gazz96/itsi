@@ -203,6 +203,7 @@ class ITSI_LP2M_Hibah_Receiver {
 				$prodi = (string) $meta( '_prodi' );
 				$jenis = (string) $meta( '_jenis' );
 				$reg   = (string) $meta( '_reg_no' );
+				$hp    = (string) $meta( '_hp' );
 				$link  = get_edit_post_link( $post_id );
 				if ( $reg ) {
 					echo '<code style="font-size:11px;background:#f1f5f9;padding:1px 5px;border-radius:4px">' . esc_html( $reg ) . '</code><br>';
@@ -217,6 +218,9 @@ class ITSI_LP2M_Hibah_Receiver {
 				$meta_line = array_filter( [ $nip, $prodi, $jenis ] );
 				if ( $meta_line ) {
 					echo '<br><span style="color:#64748b;font-size:12px">' . esc_html( implode( ' · ', $meta_line ) ) . '</span>';
+				}
+				if ( $hp ) {
+					echo '<br><a href="tel:' . esc_attr( preg_replace( '/[^0-9+]/', '', $hp ) ) . '" style="font-size:12px;color:#0ea5e9;text-decoration:none">📱 ' . esc_html( $hp ) . '</a>';
 				}
 				break;
 
@@ -286,43 +290,25 @@ class ITSI_LP2M_Hibah_Receiver {
 				];
 				$label = $labels[ $status ] ?? ucfirst( $status );
 				$color = $colors[ $status ] ?? '#64748b';
-				echo '<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:' . esc_attr( $color ) . '">' . esc_html( $label ) . '</span>';
+				echo '<button type="button" class="lp2m-status-badge" data-post="' . (int) $post_id . '" data-status="' . esc_attr( $status ) . '" title="Klik untuk ubah status" style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:' . esc_attr( $color ) . ';border:0;cursor:pointer">' . esc_html( $label ) . '</button>';
+				echo '<span class="lp2m-status-inline-msg" id="lp2m-status-msg-' . (int) $post_id . '" style="display:block;font-size:10px;margin-top:4px;min-height:12px"></span>';
 				break;
 
 			case 'ph_aksi':
-				$email  = (string) $meta( '_email' );
-				$hp     = (string) $meta( '_hp' );
-				$status = (string) $meta( '_status' ) ?: 'submitted';
-				// Map status → warna (sinkron dengan ph_status).
-				$colors = [ 'submitted'=>'#64748b','under_review'=>'#d97706','revised'=>'#0284c7','approved'=>'#16a34a','rejected'=>'#dc2626','done'=>'#7c3aed' ];
+				$email   = (string) $meta( '_email' );
 				$nonce_s = wp_create_nonce( 'lp2m_inline_status_' . $post_id );
 				$nonce_e = wp_create_nonce( 'lp2m_inline_email_' . $post_id );
-				echo '<div class="lp2m-aksi" data-post="' . (int) $post_id . '" data-nonce-s="' . esc_attr( $nonce_s ) . '" data-nonce-e="' . esc_attr( $nonce_e ) . '" style="display:flex;flex-direction:column;gap:6px;min-width:170px">';
-				// ── Update status (1 input): pilih status → simpan + auto-kirim email ke pemohon ──
-				echo '<label style="font-size:11px;font-weight:600;color:#475569">Update Status</label>';
-				echo '<div style="display:flex;gap:4px">'
-					. '<select class="lp2m-status-sel" data-post="' . (int) $post_id . '" style="flex:1;min-height:28px;font-size:12px;border-radius:6px;border:1px solid #cbd5e1;padding:2px 6px">'
-					. '<option value="submitted"' . selected( $status, 'submitted', false ) . '>Submitted</option>'
-					. '<option value="under_review"' . selected( $status, 'under_review', false ) . '>Under Review</option>'
-					. '<option value="revised"' . selected( $status, 'revised', false ) . '>Revised</option>'
-					. '<option value="approved"' . selected( $status, 'approved', false ) . '>Approved</option>'
-					. '<option value="rejected"' . selected( $status, 'rejected', false ) . '>Rejected</option>'
-					. '<option value="done"' . selected( $status, 'done', false ) . '>Done</option>'
-					. '</select>'
-					. '<button type="button" class="button button-primary lp2m-btn-status" data-post="' . (int) $post_id . '" style="white-space:nowrap;padding:0 10px;min-height:28px">Simpan</button>'
-					. '</div>';
-				echo '<span class="lp2m-status-msg" id="lp2m-status-msg-' . (int) $post_id . '" style="font-size:11px;min-height:14px;display:block"></span>';
-				// ── Kirim email (button di tabel) ──
-				if ( is_email( $email ) ) {
-					echo '<button type="button" class="button lp2m-btn-email" data-post="' . (int) $post_id . '" style="width:100%;justify-content:center;display:inline-flex;align-items:center;gap:6px">📧 Kirim Email</button>';
-					echo '<span style="font-size:11px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' . esc_attr( $email ) . '">' . esc_html( $email ) . '</span>';
-					echo '<span class="lp2m-email-msg" id="lp2m-email-msg-' . (int) $post_id . '" style="font-size:11px;min-height:14px;display:block"></span>';
-				} else {
-					echo '<span style="font-size:11px;color:#9ca3af">Email pemohon belum ada</span>';
-				}
-				if ( $hp ) {
-					echo '<a href="tel:' . esc_attr( preg_replace( '/[^0-9+]/', '', $hp ) ) . '" style="font-size:11px;color:#475569">' . esc_html( $hp ) . '</a>';
-				}
+				echo '<div class="lp2m-aksi" data-post="' . (int) $post_id . '" data-nonce-s="' . esc_attr( $nonce_s ) . '" data-nonce-e="' . esc_attr( $nonce_e ) . '" style="display:flex;flex-direction:column;gap:6px;min-width:175px">';
+				echo '<label style="font-size:11px;font-weight:600;color:#475569">Kirim Email ke Pemohon</label>';
+				$email_val = esc_attr( $email );
+				$placeholder = is_email( $email ) ? '' : 'Email belum ada — isi dulu';
+				echo '<input type="email" class="regular-text lp2m-email-input" data-post="' . (int) $post_id . '" value="' . $email_val . '" placeholder="' . esc_attr( $placeholder ) . '" style="width:100%;font-size:12px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px" />';
+				echo '<button type="button" class="button button-primary lp2m-btn-email" data-post="' . (int) $post_id . '" style="width:100%;justify-content:center;display:inline-flex;align-items:center;gap:6px;min-height:28px">'
+					. '<span class="lp2m-btn-email-label">📧 Kirim Email</span>'
+					. '<span class="lp2m-spinner" style="display:none;width:12px;height:12px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:lp2mSpin .6s linear infinite"></span>'
+					. '</button>';
+				echo '<span class="lp2m-email-msg" id="lp2m-email-msg-' . (int) $post_id . '" style="font-size:11px;min-height:14px;display:block"></span>';
+				echo '<span style="font-size:10px;color:#94a3b8">Email di input tidak otomatis disimpan ke data; hanya untuk tujuan kirim. Biarkan default untuk kirim ke pemohon.</span>';
 				echo '</div>';
 				break;
 		}
@@ -347,7 +333,12 @@ class ITSI_LP2M_Hibah_Receiver {
 			.wp-list-table .column-ph_aksi{width:27%}
 			.wp-list-table .column-ph_usulan{word-break:normal;overflow-wrap:anywhere;white-space:normal}
 			.wp-list-table .column-ph_usulan strong{line-height:1.35}
-			.wp-list-table .column-ph_aksi .lp2m-aksi select{max-width:100%}
+			.wp-list-table .column-ph_aksi .lp2m-aksi input{max-width:100%}
+			@keyframes lp2mSpin{to{transform:rotate(360deg)}}
+			#lp2mStatusModal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:100050}
+			#lp2mStatusModal.lp2m-open{display:flex}
+			#lp2mStatusModal .lp2m-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.45)}
+			#lp2mStatusModal .lp2m-card{position:relative;background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.2);padding:20px;width:min(420px,92vw);z-index:1}
 			@media screen and (max-width:782px){
 				.wp-list-table .column-ph_pengusul,.wp-list-table .column-ph_hibah,.wp-list-table .column-ph_usulan,.wp-list-table .column-ph_status,.wp-list-table .column-ph_aksi{width:auto}
 			}
@@ -363,25 +354,43 @@ class ITSI_LP2M_Hibah_Receiver {
 				$this->render_send_email_ui( $post_id, $email );
 			}
 		}
-		// Inline JS untuk Aksi di list table: update status + kirim email tanpa reload.
+		// Modal + JS list: klik status → modal, pilih → ajax; kirim email pakai input override.
 		if ( $is_list ) {
 			$ajax_url = admin_url( 'admin-ajax.php' );
+			echo '<div id="lp2mStatusModal" aria-hidden="true"><div class="lp2m-backdrop"></div><div class="lp2m-card" role="dialog" aria-modal="true" aria-labelledby="lp2mModalTitle">'
+				. '<h3 id="lp2mModalTitle" style="margin:0 0 10px;font-size:15px">Update Status</h3>'
+				. '<p id="lp2mModalSub" style="margin:0 0 10px;color:#64748b;font-size:12px"></p>'
+				. '<select id="lp2mModalSelect" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px">'
+				. '<option value="submitted">Submitted</option><option value="under_review">Under Review</option><option value="revised">Revised</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="done">Done</option>'
+				. '</select>'
+				. '<div id="lp2mModalMsg" style="min-height:16px;margin-top:8px;font-size:12px"></div>'
+				. '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">'
+				. '<button type="button" class="button" id="lp2mModalCancel">Batal</button>'
+				. '<button type="button" class="button button-primary" id="lp2mModalSave" style="min-width:96px;display:inline-flex;align-items:center;justify-content:center;gap:6px"><span class="lp2m-modal-label">Simpan</span><span class="lp2m-spinner" style="display:none;width:12px;height:12px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:lp2mSpin .6s linear infinite"></span></button>'
+				. '</div></div></div>';
 			echo '<script>document.addEventListener("DOMContentLoaded",function(){'
 				. 'var ajaxUrl="' . esc_js( $ajax_url ) . '";'
-				. 'function msgEl(id,cls){return document.getElementById(cls+"-"+id)}'
-				. 'document.querySelectorAll(".lp2m-btn-status").forEach(function(btn){btn.addEventListener("click",function(){'
-				. 'var post=btn.getAttribute("data-post");var wrap=document.querySelector(".lp2m-aksi[data-post=\""+post+"\"]");'
-				. 'if(!wrap) return; var sel=wrap.querySelector(".lp2m-status-sel"); var status=sel?sel.value:""; var nonce=wrap.getAttribute("data-nonce-s");'
-				. 'var m=msgEl(post,"lp2m-status-msg"); if(m) m.textContent="Menyimpan…"; btn.disabled=true;'
-				. 'fetch(ajaxUrl,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"action=lp2m_inline_status&post="+encodeURIComponent(post)+"&status="+encodeURIComponent(status)+"&_ajax_nonce="+encodeURIComponent(nonce)})'
-				. '.then(function(r){return r.json()}).then(function(j){if(m) {m.textContent=j.success? "✓ "+(j.data&&j.data.message?j.data.message:"Status disimpan & email terkirim.") : "✕ "+(j.data&&j.data.message?j.data.message:"Gagal"); m.style.color=j.success?"#16a34a":"#dc2626";} if(j.success && j.data && j.data.status_label){var badge=document.querySelector("tr#post-"+post+" .column-ph_status span"); if(badge){badge.textContent=j.data.status_label; var colors={submitted:"#64748b",under_review:"#d97706",revised:"#0284c7",approved:"#16a34a",rejected:"#dc2626",done:"#7c3aed"}; badge.style.background=colors[status]||"#64748b";}}})'
-				. '.catch(function(){if(m){m.textContent="✕ Gagal terhubung.";m.style.color="#dc2626"}}).finally(function(){btn.disabled=false;});});});'
+				. 'var modal=document.getElementById("lp2mStatusModal");var sel=document.getElementById("lp2mModalSelect");var msg=document.getElementById("lp2mModalMsg");var sub=document.getElementById("lp2mModalSub");var btnSave=document.getElementById("lp2mModalSave");var btnCancel=document.getElementById("lp2mModalCancel");'
+				. 'var currentPost=null,currentNonce="";'
+				. 'function openModal(post,status,nonce,label){currentPost=post;currentNonce=nonce;sel.value=status;sub.textContent="Pendaftaran #"+post+" — "+label;msg.textContent="";msg.style.color="#64748b";modal.classList.add("lp2m-open");modal.setAttribute("aria-hidden","false");}'
+				. 'function closeModal(){modal.classList.remove("lp2m-open");modal.setAttribute("aria-hidden","true");currentPost=null;btnSave.disabled=false;btnSave.querySelector(".lp2m-spinner").style.display="none";btnSave.querySelector(".lp2m-modal-label").textContent="Simpan";}'
+				. 'if(btnCancel) btnCancel.addEventListener("click",closeModal);'
+				. 'if(modal) modal.querySelector(".lp2m-backdrop").addEventListener("click",closeModal);'
+				. 'document.addEventListener("keydown",function(e){if(e.key==="Escape"&&modal.classList.contains("lp2m-open")) closeModal();});'
+				. 'document.querySelectorAll(".lp2m-status-badge").forEach(function(badge){badge.addEventListener("click",function(){var post=badge.getAttribute("data-post");var status=badge.getAttribute("data-status")||"submitted";var wrap=document.querySelector(".lp2m-aksi[data-post=\""+post+"\"]");var nonce=wrap?wrap.getAttribute("data-nonce-s"):"";openModal(post,status,nonce,badge.textContent.trim());});});'
+				. 'if(btnSave) btnSave.addEventListener("click",function(){if(!currentPost) return; var status=sel.value; var m=document.getElementById("lp2m-status-msg-"+currentPost); var badge=document.querySelector("tr#post-"+currentPost+" .lp2m-status-badge");'
+				. 'msg.textContent="Menyimpan & mengirim email…";msg.style.color="#64748b";btnSave.disabled=true;btnSave.querySelector(".lp2m-spinner").style.display="inline-block";btnSave.querySelector(".lp2m-modal-label").textContent="Menyimpan…"; if(m){m.textContent="Menyimpan…";m.style.color="#64748b";}'
+				. 'fetch(ajaxUrl,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"action=lp2m_inline_status&post="+encodeURIComponent(currentPost)+"&status="+encodeURIComponent(status)+"&_ajax_nonce="+encodeURIComponent(currentNonce)})'
+				. '.then(function(r){return r.json()}).then(function(j){var ok=j&&j.success;var text=ok?(j.data&&j.data.message?j.data.message:"Status disimpan & email terkirim."):(j&&j.data&&j.data.message?j.data.message:"Gagal");msg.textContent=(ok?"✓ ":"✕ ")+text;msg.style.color=ok?"#16a34a":"#dc2626";if(m){m.textContent=(ok?"✓ ":"✕ ")+text;m.style.color=ok?"#16a34a":"#dc2626";} if(ok&&j.data&&j.data.status_label&&badge){badge.textContent=j.data.status_label;badge.setAttribute("data-status",status);var colors={submitted:"#64748b",under_review:"#d97706",revised:"#0284c7",approved:"#16a34a",rejected:"#dc2626",done:"#7c3aed"};badge.style.background=colors[status]||"#64748b";} if(ok){setTimeout(closeModal,900);}})'
+				. '.catch(function(){msg.textContent="✕ Gagal terhubung.";msg.style.color="#dc2626";if(m){m.textContent="✕ Gagal terhubung.";m.style.color="#dc2626";}}).finally(function(){btnSave.disabled=false;btnSave.querySelector(".lp2m-spinner").style.display="none";btnSave.querySelector(".lp2m-modal-label").textContent="Simpan";});});'
 				. 'document.querySelectorAll(".lp2m-btn-email").forEach(function(btn){btn.addEventListener("click",function(){'
-				. 'var post=btn.getAttribute("data-post");var wrap=document.querySelector(".lp2m-aksi[data-post=\""+post+"\"]"); if(!wrap) return; var nonce=wrap.getAttribute("data-nonce-e");'
-				. 'var m=msgEl(post,"lp2m-email-msg"); if(m) m.textContent="Mengirim…"; btn.disabled=true;'
-				. 'fetch(ajaxUrl,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"action=lp2m_inline_email&post="+encodeURIComponent(post)+"&_ajax_nonce="+encodeURIComponent(nonce)})'
-				. '.then(function(r){return r.json()}).then(function(j){if(m){m.textContent=j.success? "✓ "+(j.data&&j.data.message?j.data.message:"Email terkirim.") : "✕ "+(j.data&&j.data.message?j.data.message:"Gagal"); m.style.color=j.success?"#16a34a":"#dc2626";}})'
-				. '.catch(function(){if(m){m.textContent="✕ Gagal terhubung.";m.style.color="#dc2626"}}).finally(function(){btn.disabled=false;});});});'
+				. 'var post=btn.getAttribute("data-post");var wrap=document.querySelector(".lp2m-aksi[data-post=\""+post+"\"]"); if(!wrap) return; var nonce=wrap.getAttribute("data-nonce-e"); var input=wrap.querySelector(".lp2m-email-input"); var emailOverride=input?input.value.trim():"";'
+				. 'var m=document.getElementById("lp2m-email-msg-"+post); var label=btn.querySelector(".lp2m-btn-email-label"); var spin=btn.querySelector(".lp2m-spinner");'
+				. 'if(m) {m.textContent="Mengirim…";m.style.color="#64748b";} btn.disabled=true; if(spin) spin.style.display="inline-block"; if(label) label.textContent="Mengirim…";'
+				. 'var body="action=lp2m_inline_email&post="+encodeURIComponent(post)+"&_ajax_nonce="+encodeURIComponent(nonce); if(emailOverride) body+="&email_override="+encodeURIComponent(emailOverride);'
+				. 'fetch(ajaxUrl,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:body})'
+				. '.then(function(r){return r.json()}).then(function(j){if(m){var ok=j&&j.success;var t=j&&j.data&&j.data.message?j.data.message:(ok?"Email terkirim.":"Gagal");m.textContent=(ok?"✓ ":"✕ ")+t; m.style.color=ok?"#16a34a":"#dc2626";}})'
+				. '.catch(function(){if(m){m.textContent="✕ Gagal terhubung.";m.style.color="#dc2626"}}).finally(function(){btn.disabled=false;if(spin) spin.style.display="none";if(label) label.textContent="📧 Kirim Email";});});});'
 				. '});</script>';
 		}
 	}
@@ -490,13 +499,15 @@ class ITSI_LP2M_Hibah_Receiver {
 		$post = get_post( $post_id );
 		if ( ! $post || 'pendaftaran_hibah' !== $post->post_type ) { wp_send_json_error( [ 'message' => 'Data tidak ditemukan.' ] ); }
 		$note = isset( $_POST['note'] ) ? sanitize_text_field( (string) $_POST['note'] ) : ''; // phpcs:ignore
-		$res  = $this->send_applicant_email( $post_id, $note );
+		$override = isset( $_POST['email_override'] ) ? sanitize_email( (string) $_POST['email_override'] ) : ''; // phpcs:ignore
+		$res  = $this->send_applicant_email( $post_id, $note, $override ?: null );
 		if ( is_wp_error( $res ) ) { wp_send_json_error( [ 'message' => $res->get_error_message() ] ); }
-		wp_send_json_success( [ 'message' => '✓ Email terkirim ke pemohon.' ] );
+		wp_send_json_success( [ 'message' => '✓ Email terkirim ke ' . ( $override ?: (string) get_post_meta( $post_id, '_email', true ) ) . '.' ] );
 	}
 
 	/**
 	 * REST: kirim email manual ke pemohon (dipakai dashboard LP2M).
+	 * Body JSON: { note?, email? } — email = override tujuan kirim saja, tidak disimpan.
 	 */
 	public function handle_rest_send_email( \WP_REST_Request $request ): \WP_REST_Response {
 		$id   = (int) $request->get_param( 'id' );
@@ -505,7 +516,8 @@ class ITSI_LP2M_Hibah_Receiver {
 			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Data tidak ditemukan.' ], 404 );
 		}
 		$note = sanitize_text_field( (string) ( $request->get_param( 'note' ) ?? $request->get_param( 'subject_note' ) ?? '' ) );
-		$res  = $this->send_applicant_email( $id, $note );
+		$override = sanitize_email( (string) ( $request->get_param( 'email' ) ?? $request->get_param( 'email_override' ) ?? '' ) );
+		$res  = $this->send_applicant_email( $id, $note, $override ?: null );
 		if ( is_wp_error( $res ) ) {
 			return new \WP_REST_Response( [ 'success' => false, 'message' => $res->get_error_message() ], 500 );
 		}
@@ -515,17 +527,22 @@ class ITSI_LP2M_Hibah_Receiver {
 	/**
 	 * Kirim email ke pemohon dengan data terbaru dari postmeta.
 	 * Dipakai tombol wp-admin maupun API manual.
+	 * $email_override: bila diisi, dipakai sebagai tujuan kirim saja (tidak disimpan ke _email).
 	 *
 	 * @return true|\WP_Error
 	 */
-	public function send_applicant_email( int $post_id, string $subject_note = '' ): bool|\WP_Error {
+	public function send_applicant_email( int $post_id, string $subject_note = '', ?string $email_override = null ): bool|\WP_Error {
 		$post = get_post( $post_id );
 		if ( ! $post || 'pendaftaran_hibah' !== $post->post_type ) {
 			return new \WP_Error( 'not_found', 'Data pendaftaran tidak ditemukan.' );
 		}
-		$email = (string) get_post_meta( $post_id, '_email', true );
+		$stored = (string) get_post_meta( $post_id, '_email', true );
+		$email  = $email_override !== null && '' !== trim( $email_override ) ? sanitize_email( $email_override ) : $stored;
+		if ( null !== $email_override && '' !== trim( (string) $email_override ) && ! is_email( $email ) ) {
+			return new \WP_Error( 'invalid_email', 'Email tujuan tidak valid.' );
+		}
 		if ( ! is_email( $email ) ) {
-			return new \WP_Error( 'invalid_email', 'Email pemohon tidak valid.' );
+			return new \WP_Error( 'invalid_email', 'Email pemohon tidak valid (isi di Detail Pendaftaran / kolom Email).' );
 		}
 		$reg_no = (string) get_post_meta( $post_id, '_reg_no', true );
 		$hibah_id = (int) get_post_meta( $post_id, '_hibah_id', true );
