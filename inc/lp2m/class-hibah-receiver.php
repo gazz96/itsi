@@ -880,7 +880,31 @@ class ITSI_LP2M_Hibah_Receiver {
 			update_post_meta( $id, $map[ $f ], $val );
 		}
 
-		return new \WP_REST_Response( [ 'success' => true, 'message' => 'Data diperbarui.' ], 200 );
+		// ── File proposal (opsional, multipart/form-data) — ganti PDF bila ada upload baru ──
+		$file_params   = $request->get_file_params();
+		$proposal_file = $file_params['proposal'] ?? null;
+		if ( is_array( $proposal_file ) && isset( $proposal_file['error'] ) && (int) $proposal_file['error'] !== UPLOAD_ERR_NO_FILE ) {
+			if ( (int) $proposal_file['error'] !== UPLOAD_ERR_OK ) {
+				return new \WP_REST_Response( [ 'success' => false, 'message' => 'Upload proposal gagal.', 'errors' => [ 'proposal' => 'Upload proposal gagal (error ' . (int) $proposal_file['error'] . ').' ] ], 400 );
+			}
+			$reg_no = (string) get_post_meta( $id, '_reg_no', true );
+			if ( '' === trim( $reg_no ) ) { $reg_no = (string) $id; }
+			$new_att = $this->upload_proposal( $proposal_file, $reg_no );
+			if ( is_wp_error( $new_att ) ) {
+				return new \WP_REST_Response( [ 'success' => false, 'message' => $new_att->get_error_message(), 'errors' => [ 'proposal' => $new_att->get_error_message() ] ], 400 );
+			}
+			// Hapus attachment lama (jika ada) agar tidak menumpuk di Media Library.
+			$old_att = (int) get_post_meta( $id, '_proposal_id', true );
+			if ( $old_att && $old_att !== (int) $new_att ) {
+				wp_delete_attachment( $old_att, true );
+			}
+			update_post_meta( $id, '_proposal_id', $new_att );
+			update_post_meta( $id, '_proposal_url', wp_get_attachment_url( $new_att ) );
+		}
+
+		$updated_url = (string) get_post_meta( $id, '_proposal_url', true );
+		$updated_pid = get_post_meta( $id, '_proposal_id', true );
+		return new \WP_REST_Response( [ 'success' => true, 'message' => 'Data diperbarui.', 'proposal_url' => $updated_url, 'proposal_id' => $updated_pid ], 200 );
 	}
 
 	/**
