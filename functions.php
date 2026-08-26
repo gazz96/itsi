@@ -1053,6 +1053,7 @@ add_action( 'typerocket_loaded', function () {
 	// CPT dipusatkan di functions.php agar terlihat di Theme Builder;
 	// metabox Detail Pendaftaran ada di inc/lp2m/class-hibah-receiver.php
 	// (TypeRocket form konsisten + sync file proposal TR ↔ REST).
+	// Penting: public=false saja bikin menu hilang — set show_ui/show_in_menu eksplisit.
 	$pendaftaran_hibah = tr_post_type( 'Pendaftaran Hibah', 'Pendaftaran Hibah' );
 	$pendaftaran_hibah->setId( 'pendaftaran_hibah' );
 	$pendaftaran_hibah->setSlug( 'pendaftaran-hibah' );
@@ -1061,6 +1062,11 @@ add_action( 'typerocket_loaded', function () {
 	$pendaftaran_hibah->setSupports( array( 'title' ) );
 	$pendaftaran_hibah->setTitlePlaceholder( 'Otomatis — jangan edit manual' );
 	$pendaftaran_hibah->setArgument( 'public', false );
+	$pendaftaran_hibah->setArgument( 'publicly_queryable', false );
+	$pendaftaran_hibah->setArgument( 'has_archive', false );
+	$pendaftaran_hibah->setArgument( 'show_ui', true );
+	$pendaftaran_hibah->setArgument( 'show_in_menu', true );
+	$pendaftaran_hibah->setArgument( 'show_in_admin_bar', true );
 	$pendaftaran_hibah->setArgument( 'exclude_from_search', true );
 	$pendaftaran_hibah->setArgument( 'show_in_rest', false );
 	$pendaftaran_hibah->setArchivePostsPerPage( 20 );
