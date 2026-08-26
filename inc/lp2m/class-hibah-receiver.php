@@ -67,21 +67,25 @@ class ITSI_LP2M_Hibah_Receiver {
 		$hibah_id_raw = $get( '_hibah_id' );
 		$event_title  = $hibah_id_raw ? get_the_title( (int) $hibah_id_raw ) : '';
 		$proposal_url = $get( '_proposal_url' );
-		$list         = json_decode( (string) get_post_meta( $post_id, '_anggota_list', true ), true );
-		if ( ! is_array( $list ) ) { $list = []; }
-		$anggota_html = '';
-		if ( ! empty( $list ) ) {
-			$rows = [];
-			foreach ( $list as $i => $m ) {
-				$tipe = ( 'mahasiswa' === ( $m['tipe'] ?? '' ) ) ? 'Mahasiswa' : 'Dosen';
-				if ( 'mahasiswa' === ( $m['tipe'] ?? '' ) ) {
-					$rows[] = sprintf( '%d. %s — %s (NIM: %s, Prodi: %s)', (int) $i + 1, $m['nama'] ?? '', $tipe, $m['nomor'] ?? '', $m['prodi'] ?? '—' );
-				} else {
-					$rows[] = sprintf( '%d. %s — %s (NIDN: %s)', (int) $i + 1, $m['nama'] ?? '', $tipe, $m['nomor'] ?? '' );
-				}
+		// Normalize _anggota_list: TR repeater stores array, legacy stores JSON string.
+		// Migrate JSON → array once so repeater can display existing data.
+		$raw_anggota = get_post_meta( $post_id, '_anggota_list', true );
+		if ( is_string( $raw_anggota ) && '' !== trim( $raw_anggota ) ) {
+			$decoded = json_decode( $raw_anggota, true );
+			if ( is_array( $decoded ) ) {
+				update_post_meta( $post_id, '_anggota_list', $decoded );
+				$raw_anggota = $decoded;
 			}
-			$anggota_html = '<ol style="margin:.3rem 0 0;padding-left:18px;font-size:.92em;color:#334155">' . implode( '', array_map( fn( $r ) => '<li>' . esc_html( $r ) . '</li>', $rows ) ) . '</ol>';
-		} else { $anggota_html = '<em style="color:#9ca3af">—</em>'; }
+		}
+		$anggota_repeater = $form->repeater( '_anggota_list' )
+			->setLabel( 'Anggota Tim (maks 2 Dosen + 2 Mahasiswa)' )
+			->setHelp( 'Dosen = NIDN, Mahasiswa = NIM + Prodi. Kosongkan baris yang tidak perlu — akan diabaikan saat simpan.' )
+			->setFields( [
+				$form->select( 'tipe' )->setLabel( 'Tipe' )->setOptions( [ 'Dosen' => 'dosen', 'Mahasiswa' => 'mahasiswa' ] )->setAttribute( 'style', 'width:100%' ),
+				$form->text( 'nomor' )->setLabel( 'NIM / NIDN' )->setAttribute( 'placeholder', 'NIDN / NIM' ),
+				$form->text( 'nama' )->setLabel( 'Nama Lengkap' )->setAttribute( 'placeholder', 'Nama anggota' ),
+				$form->text( 'prodi' )->setLabel( 'Prodi (khusus Mahasiswa)' )->setAttribute( 'placeholder', 'Prodi' ),
+			] );
 
 		$status       = $get( '_status' ) ?: 'submitted';
 		$status_labels = [
@@ -116,7 +120,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			. '</div>';
 		echo '<div style="margin-top:1rem">' . $form->text( '_judul' )->setLabel( 'Judul Usulan' )->setAttribute( 'style', 'width:100%' ) . '</div>';
 		echo '<div style="margin-top:1rem">' . $form->textarea( '_ringkasan' )->setLabel( 'Ringkasan Usulan' )->setAttribute( 'rows', 4 ) . '</div>';
-		echo '<div style="margin-top:1rem;padding:.85rem 1rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px"><strong style="display:block;margin-bottom:.35rem">Anggota Tim</strong>' . $anggota_html . '<p style="margin:.5rem 0 0;color:#64748b;font-size:.82em">Kelola via ` _anggota_list` (JSON, dashboard/API) atau meta ` _anggota`.</p></div>';
+		echo '<div style="margin-top:1rem;padding:1rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">' . $anggota_repeater . '</div>';
 		echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem">'
 			. '<div>' . $form->text( '_email' )->setLabel( 'Email' ) . '</div>'
 			. '<div>' . $form->text( '_hp' )->setLabel( 'WhatsApp' ) . '</div>'
@@ -217,8 +221,9 @@ class ITSI_LP2M_Hibah_Receiver {
 				echo esc_html( (string) $meta( '_kelompok_keahlian' ) );
 				break;
 			case 'ph_anggota':
-				$list = json_decode( (string) $meta( '_anggota_list' ), true );
-				if ( ! is_array( $list ) || empty( $list ) ) {
+				$raw  = $meta( '_anggota_list' );
+				$list = is_array( $raw ) ? $raw : ( is_string( $raw ) && '' !== trim( $raw ) ? ( json_decode( $raw, true ) ?: [] ) : [] );
+				if ( empty( $list ) ) {
 					echo '—';
 					break;
 				}
@@ -611,6 +616,11 @@ class ITSI_LP2M_Hibah_Receiver {
 		// Anggota tim dinamis: array [{tipe, nomor, nama, prodi}] — max 2 dosen + 2 mahasiswa.
 		$clean['anggota_list'] = [];
 		$raw_list = $params['anggota_list'] ?? [];
+		// Dashboard may send JSON string via FormData — decode first.
+		if ( is_string( $raw_list ) && '' !== trim( $raw_list ) ) {
+			$decoded = json_decode( $raw_list, true );
+			if ( is_array( $decoded ) ) { $raw_list = $decoded; }
+		}
 		$dosen_count = 0;
 		$mhs_count   = 0;
 		if ( is_array( $raw_list ) ) {
@@ -865,6 +875,8 @@ class ITSI_LP2M_Hibah_Receiver {
 			if ( '' === $status ) {
 				$status = 'submitted';
 			}
+			$raw_list     = get_post_meta( $post->ID, '_anggota_list', true );
+			$anggota_list = is_array( $raw_list ) ? $raw_list : ( is_string( $raw_list ) && '' !== trim( $raw_list ) ? ( json_decode( $raw_list, true ) ?: [] ) : [] );
 			$items[] = [
 				'id'         => $post->ID,
 				'reg_no'     => get_post_meta( $post->ID, '_reg_no', true ),
@@ -881,7 +893,7 @@ class ITSI_LP2M_Hibah_Receiver {
 				'email'      => get_post_meta( $post->ID, '_email', true ),
 				'hp'         => get_post_meta( $post->ID, '_hp', true ),
 				'status'     => $status,
-				'anggota_list' => json_decode( (string) get_post_meta( $post->ID, '_anggota_list', true ), true ) ?: [],
+				'anggota_list' => $anggota_list,
 				'proposal_id'  => get_post_meta( $post->ID, '_proposal_id', true ),
 				'proposal_url' => get_post_meta( $post->ID, '_proposal_url', true ),
 				'created_at' => $post->post_date,
@@ -906,8 +918,8 @@ class ITSI_LP2M_Hibah_Receiver {
 			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Data tidak ditemukan.' ], 404 );
 		}
 
-		$anggota_list = json_decode( (string) get_post_meta( $post->ID, '_anggota_list', true ), true );
-		$anggota_list = is_array( $anggota_list ) ? $anggota_list : [];
+		$raw_anggota  = get_post_meta( $post->ID, '_anggota_list', true );
+		$anggota_list = is_array( $raw_anggota ) ? $raw_anggota : ( is_string( $raw_anggota ) && '' !== trim( $raw_anggota ) ? ( json_decode( $raw_anggota, true ) ?: [] ) : [] );
 
 		// Jumlah tim: kosong pada data lama → hitung dari anggota + 1 (ketua).
 		$jml_tim = (string) get_post_meta( $post->ID, '_jml_tim', true );
@@ -988,6 +1000,27 @@ class ITSI_LP2M_Hibah_Receiver {
 			update_post_meta( $id, $map[ $f ], $val );
 		}
 
+		// Anggota tim dinamis — array JSON / array (maks 2 dosen + 2 mahasiswa).
+		if ( isset( $params['anggota_list'] ) ) {
+			$clean = $this->sanitize_input( [ 'anggota_list' => $params['anggota_list'] ] );
+			// Simpan sebagai array serialisasi WP agar konsisten dengan TR repeater.
+			// Reader menangani string JSON maupun array, jadi aman untuk data lama.
+			update_post_meta( $id, '_anggota_list', $clean['anggota_list'] );
+			// Sinkron jumlah tim otomatis bila jml_tim tidak dikirim eksplisit.
+			if ( ! isset( $params['jml_tim'] ) ) {
+				update_post_meta( $id, '_jml_tim', (string) ( count( $clean['anggota_list'] ) + 1 ) );
+			}
+			// Perbarui post_content agar ringkasan anggota di CPT tetap akurat.
+			$post_content = $this->format_anggota_html( $clean['anggota_list'] );
+			$current = get_post_field( 'post_content', $id, 'raw' );
+			if ( false !== strpos( (string) $current, '<strong>Anggota Tim' ) ) {
+				$new_content = preg_replace( '/<ul[^>]*>.*?<\/ul>/s', $post_content, (string) $current, 1 );
+				if ( $new_content ) {
+					wp_update_post( [ 'ID' => $id, 'post_content' => $new_content ] );
+				}
+			}
+		}
+
 		// ── File proposal (opsional, multipart/form-data) — ganti PDF bila ada upload baru ──
 		$file_params   = $request->get_file_params();
 		$proposal_file = $file_params['proposal'] ?? null;
@@ -1010,9 +1043,12 @@ class ITSI_LP2M_Hibah_Receiver {
 			update_post_meta( $id, '_proposal_url', wp_get_attachment_url( $new_att ) );
 		}
 
-		$updated_url = (string) get_post_meta( $id, '_proposal_url', true );
-		$updated_pid = get_post_meta( $id, '_proposal_id', true );
-		return new \WP_REST_Response( [ 'success' => true, 'message' => 'Data diperbarui.', 'proposal_url' => $updated_url, 'proposal_id' => $updated_pid ], 200 );
+		$updated_url  = (string) get_post_meta( $id, '_proposal_url', true );
+		$updated_pid  = get_post_meta( $id, '_proposal_id', true );
+		$updated_list = get_post_meta( $id, '_anggota_list', true );
+		if ( is_string( $updated_list ) ) { $tmp = json_decode( $updated_list, true ); if ( is_array( $tmp ) ) { $updated_list = $tmp; } }
+		if ( ! is_array( $updated_list ) ) { $updated_list = []; }
+		return new \WP_REST_Response( [ 'success' => true, 'message' => 'Data diperbarui.', 'proposal_url' => $updated_url, 'proposal_id' => $updated_pid, 'anggota_list' => $updated_list ], 200 );
 	}
 
 	/**
