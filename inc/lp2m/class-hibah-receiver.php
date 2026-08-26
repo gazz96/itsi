@@ -233,11 +233,13 @@ class ITSI_LP2M_Hibah_Receiver {
 	}
 
 	/**
-	 * Permission: hanya administrator. Basic auth diterima untuk Application
-	 * Password (core) maupun password akun (fallback lp2m-auth.php).
+	 * Permission: editor ke atas (edit_posts) — admin tetap lolos.
+	 * Basic auth diterima untuk Application Password (core) maupun password
+	 * akun (fallback lp2m-auth.php). Sebelumnya hanya `manage_options`
+	 * sehingga akun LP2M role editor tidak bisa update pendaftaran (403).
 	 */
 	public function check_admin(): bool|\WP_Error {
-		if ( current_user_can( 'manage_options' ) ) {
+		if ( current_user_can( 'manage_options' ) || current_user_can( 'edit_posts' ) ) {
 			return true;
 		}
 		return new \WP_Error( 'forbidden', 'Anda tidak memiliki akses.', [ 'status' => 403 ] );
