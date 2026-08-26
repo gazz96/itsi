@@ -25,6 +25,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		// Admin list columns — tampilkan meta yang disubmit di ?post_type=pendaftaran_hibah.
 		add_filter( 'manage_pendaftaran_hibah_posts_columns', [ $this, 'admin_columns' ] );
 		add_action( 'manage_pendaftaran_hibah_posts_custom_column', [ $this, 'admin_column_content' ], 10, 2 );
+		add_action( 'admin_head', [ $this, 'admin_list_styles' ] );
 		// CPT & metabox pendaftaran konsisten via TypeRocket (seperti Detail Hibah di functions.php).
 		add_action( 'typerocket_loaded', [ $this, 'register_tr_cpt_and_metabox' ] );
 		// Sinkron _proposal_id (TR File) ↔ _proposal_url kanonik + validasi PDF.
@@ -167,19 +168,18 @@ class ITSI_LP2M_Hibah_Receiver {
 		$new = [];
 		foreach ( $columns as $key => $label ) {
 			if ( 'date' === $key ) {
-				$new['ph_reg_no']     = 'Reg No';
-				$new['ph_nama']       = 'Nama';
-				$new['ph_nip']        = 'NIDN/NIDK';
-				$new['ph_prodi']      = 'Prodi';
-				$new['ph_model']      = 'Model Hibah';
-				$new['ph_jenis_hibah'] = 'Jenis Hibah';
-				$new['ph_sdgs']       = 'SDGs';
-				$new['ph_kk']         = 'Kel. Keahlian';
-				$new['ph_anggota']    = 'Anggota Tim';
-				$new['ph_judul']      = 'Judul';
-				$new['ph_kontak']     = 'Kontak';
+				// Ringkas 11 kolom → 5 kolom gabungan agar tabel clean & tidak horizontal-scroll.
+				$new['ph_pengusul'] = 'Pengusul';
+				$new['ph_hibah']    = 'Hibah';
+				$new['ph_usulan']   = 'Usulan & Tim';
+				$new['ph_status']   = 'Status';
+				$new['ph_kontak']   = 'Kontak';
 			}
 			$new[ $key ] = $label;
+		}
+		// Bila filter lama masih ada (mis. Screen Options cache), hilangkan sisa kolom per-field.
+		foreach ( [ 'ph_reg_no', 'ph_nama', 'ph_nip', 'ph_prodi', 'ph_model', 'ph_jenis_hibah', 'ph_sdgs', 'ph_kk', 'ph_anggota', 'ph_judul' ] as $legacy ) {
+			unset( $new[ $legacy ] );
 		}
 		return $new;
 	}
@@ -190,64 +190,125 @@ class ITSI_LP2M_Hibah_Receiver {
 		};
 
 		switch ( $column ) {
-			case 'ph_reg_no':
-				echo '<code>' . esc_html( (string) $meta( '_reg_no' ) ) . '</code>';
-				break;
-			case 'ph_nama':
-				$nama = (string) $meta( '_nama' );
-				$link = get_edit_post_link( $post_id );
+			case 'ph_pengusul':
+				$nama  = (string) $meta( '_nama' );
+				$nip   = (string) $meta( '_nip' );
+				$prodi = (string) $meta( '_prodi' );
+				$jenis = (string) $meta( '_jenis' );
+				$reg   = (string) $meta( '_reg_no' );
+				$link  = get_edit_post_link( $post_id );
+				if ( $reg ) {
+					echo '<code style="font-size:11px;background:#f1f5f9;padding:1px 5px;border-radius:4px">' . esc_html( $reg ) . '</code><br>';
+				}
 				if ( $nama && $link ) {
 					echo '<a href="' . esc_url( $link ) . '"><strong>' . esc_html( $nama ) . '</strong></a>';
+				} elseif ( $nama ) {
+					echo '<strong>' . esc_html( $nama ) . '</strong>';
 				} else {
-					echo esc_html( $nama );
+					echo '<span style="color:#9ca3af">—</span>';
+				}
+				$meta_line = array_filter( [ $nip, $prodi, $jenis ] );
+				if ( $meta_line ) {
+					echo '<br><span style="color:#64748b;font-size:12px">' . esc_html( implode( ' · ', $meta_line ) ) . '</span>';
 				}
 				break;
-			case 'ph_nip':
-				echo esc_html( (string) $meta( '_nip' ) );
+
+			case 'ph_hibah':
+				$parts = array_filter( [
+					(string) $meta( '_skema' ),
+					(string) $meta( '_jenis_hibah' ),
+				] );
+				if ( $parts ) {
+					echo esc_html( implode( ' / ', $parts ) );
+				} else {
+					echo '<span style="color:#9ca3af">—</span>';
+				}
+				$extra = array_filter( [
+					(string) $meta( '_sdgs' ),
+					(string) $meta( '_kelompok_keahlian' ),
+				] );
+				if ( $extra ) {
+					echo '<br><span style="color:#64748b;font-size:12px">' . esc_html( implode( ' · ', $extra ) ) . '</span>';
+				}
 				break;
-			case 'ph_prodi':
-				echo esc_html( (string) $meta( '_prodi' ) );
-				break;
-			case 'ph_model':
-				echo esc_html( (string) $meta( '_skema' ) );
-				break;
-			case 'ph_jenis_hibah':
-				echo esc_html( (string) $meta( '_jenis_hibah' ) );
-				break;
-			case 'ph_sdgs':
-				echo esc_html( (string) $meta( '_sdgs' ) );
-				break;
-			case 'ph_kk':
-				echo esc_html( (string) $meta( '_kelompok_keahlian' ) );
-				break;
-			case 'ph_anggota':
+
+			case 'ph_usulan':
+				$judul = (string) $meta( '_judul' );
+				if ( $judul ) {
+					$title = esc_html( mb_strimwidth( $judul, 0, 88, '…' ) );
+					echo '<span title="' . esc_attr( $judul ) . '"><strong>' . $title . '</strong></span>';
+				} else {
+					echo '<span style="color:#9ca3af">Tanpa judul</span>';
+				}
 				$raw  = $meta( '_anggota_list' );
 				$list = is_array( $raw ) ? $raw : ( is_string( $raw ) && '' !== trim( $raw ) ? ( json_decode( $raw, true ) ?: [] ) : [] );
-				if ( empty( $list ) ) {
-					echo '—';
-					break;
-				}
-				$lines = [];
-				foreach ( $list as $m ) {
-					$t   = $m['tipe'] ?? '';
-					$nid = $m['nomor'] ?? '';
-					$nm  = $m['nama'] ?? '';
-					if ( 'mahasiswa' === $t ) {
-						$lines[] = sprintf( 'Mhs: %s (%s, %s)', $nm, $nid, $m['prodi'] ?? '—' );
-					} else {
-						$lines[] = sprintf( 'Dosen: %s (%s)', $nm, $nid );
+				if ( ! empty( $list ) ) {
+					$lines = [];
+					foreach ( $list as $m ) {
+						$t   = $m['tipe'] ?? '';
+						$nid = $m['nomor'] ?? '';
+						$nm  = $m['nama'] ?? '';
+						if ( 'mahasiswa' === $t ) {
+							$lines[] = sprintf( 'Mhs: %s (%s)', $nm, $nid );
+						} else {
+							$lines[] = sprintf( 'Dosen: %s (%s)', $nm, $nid );
+						}
 					}
+					$escaped = array_map( 'esc_html', $lines );
+					echo '<br><span style="color:#475569;font-size:12px">' . implode( '<br>', $escaped ) . '</span>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — sudah esc per-item
 				}
-				$escaped = array_map( 'esc_html', $lines );
-				echo implode( '<br>', $escaped ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — sudah esc per-item
 				break;
-			case 'ph_judul':
-				echo esc_html( (string) $meta( '_judul' ) );
+
+			case 'ph_status':
+				$status = (string) $meta( '_status' ) ?: 'submitted';
+				$labels = [
+					'submitted'    => 'Submitted',
+					'under_review' => 'Under Review',
+					'revised'      => 'Revised',
+					'approved'     => 'Approved',
+					'rejected'     => 'Rejected',
+					'done'         => 'Done',
+				];
+				$colors = [
+					'submitted'    => '#64748b',
+					'under_review' => '#d97706',
+					'revised'      => '#0284c7',
+					'approved'     => '#16a34a',
+					'rejected'     => '#dc2626',
+					'done'         => '#7c3aed',
+				];
+				$label = $labels[ $status ] ?? ucfirst( $status );
+				$color = $colors[ $status ] ?? '#64748b';
+				echo '<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:' . esc_attr( $color ) . '">' . esc_html( $label ) . '</span>';
 				break;
+
 			case 'ph_kontak':
-				echo esc_html( (string) $meta( '_email' ) ) . '<br>' . esc_html( (string) $meta( '_hp' ) );
+				$email = (string) $meta( '_email' );
+				$hp    = (string) $meta( '_hp' );
+				if ( $email ) { echo '<a href="mailto:' . esc_attr( $email ) . '">' . esc_html( $email ) . '</a>'; }
+				if ( $email && $hp ) { echo '<br>'; }
+				if ( $hp ) { echo '<a href="tel:' . esc_attr( preg_replace( '/[^0-9+]/', '', $hp ) ) . '" style="color:#475569;font-size:12px">' . esc_html( $hp ) . '</a>'; }
+				if ( ! $email && ! $hp ) { echo '<span style="color:#9ca3af">—</span>'; }
 				break;
 		}
+	}
+
+	/**
+	 * Style ringan untuk list pendaftaran agar 5 kolom gabungan lega dan tidak terpotong.
+	 */
+	public function admin_list_styles(): void {
+		$screen = get_current_screen();
+		if ( ! $screen || 'edit-pendaftaran_hibah' !== $screen->id ) { return; }
+		echo '<style>
+			.wp-list-table .column-ph_pengusul{width:22%}
+			.wp-list-table .column-ph_hibah{width:18%}
+			.wp-list-table .column-ph_usulan{width:30%}
+			.wp-list-table .column-ph_status{width:12%;text-align:center}
+			.wp-list-table .column-ph_kontak{width:18%}
+			@media screen and (max-width:782px){
+				.wp-list-table .column-ph_pengusul,.wp-list-table .column-ph_hibah,.wp-list-table .column-ph_usulan,.wp-list-table .column-ph_status,.wp-list-table .column-ph_kontak{width:auto}
+			}
+		</style>';
 	}
 
 	public function register_routes(): void {
