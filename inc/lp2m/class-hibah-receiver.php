@@ -25,10 +25,129 @@ class ITSI_LP2M_Hibah_Receiver {
 		// Admin list columns — tampilkan meta yang disubmit di ?post_type=pendaftaran_hibah.
 		add_filter( 'manage_pendaftaran_hibah_posts_columns', [ $this, 'admin_columns' ] );
 		add_action( 'manage_pendaftaran_hibah_posts_custom_column', [ $this, 'admin_column_content' ], 10, 2 );
-		// Metabox detail + upload proposal di wp-admin edit screen.
-		add_action( 'add_meta_boxes', [ $this, 'register_metaboxes' ] );
-		add_action( 'post_edit_form_tag', [ $this, 'metabox_form_enctype' ] );
-		add_action( 'save_post_pendaftaran_hibah', [ $this, 'save_metabox' ], 10, 3 );
+		// CPT & metabox pendaftaran konsisten via TypeRocket (seperti Detail Hibah di functions.php).
+		add_action( 'typerocket_loaded', [ $this, 'register_tr_cpt_and_metabox' ] );
+		// Sinkron _proposal_id (TR File) ↔ _proposal_url kanonik + validasi PDF.
+		add_action( 'save_post', [ $this, 'sync_proposal_from_tr' ], 30, 1 );
+	}
+
+	/**
+	 * Daftar CPT + metabox pendaftaran via TypeRocket agar konsisten
+	 * dengan Detail Hibah / Detail Program Studi di functions.php.
+	 * Fallback register_cpt() tetap dipakai bila tr_post_type belum tersedia.
+	 */
+	public function register_tr_cpt_and_metabox(): void {
+		if ( ! function_exists( 'tr_post_type' ) || ! function_exists( 'tr_meta_box' ) ) { return; }
+
+		$pt = tr_post_type( 'Pendaftaran Hibah', 'Pendaftaran Hibah' );
+		$pt->setId( 'pendaftaran_hibah' );
+		$pt->setSlug( 'pendaftaran-hibah' );
+		$pt->setIcon( 'dashicons-email-alt' );
+		$pt->setPosition( 11 );
+		$pt->setSupports( [ 'title' ] );
+		$pt->setTitlePlaceholder( 'Otomatis — jangan edit manual' );
+		$pt->setArgument( 'public', false );
+		$pt->setArgument( 'exclude_from_search', true );
+		$pt->setArgument( 'show_in_rest', false );
+		$pt->setArchivePostsPerPage( 20 );
+
+		// Classic editor — Gutenberg menyembunyikan metabox TypeRocket.
+		add_filter( 'use_block_editor_for_post', function ( $use, $post ) {
+			if ( $post instanceof \WP_Post && 'pendaftaran_hibah' === $post->post_type ) { return false; }
+			return $use;
+		}, 10, 2 );
+
+		// File proposal presisi reset: blank = kosong → true nullify,
+		// false = biarkan apa adanya (dipakai sinkron).
+		add_filter( 'typerocket_set_null_blank_fields', function ( $fields ) {
+			$screen = get_current_screen();
+			if ( $screen && 'pendaftaran_hibah' === $screen->post_type ) { $fields[] = '_proposal_id'; }
+			return $fields;
+		} );
+
+		tr_meta_box( 'Detail Pendaftaran' )
+			->addPostType( 'pendaftaran_hibah' )
+			->setCallback( [ $this, 'render_tr_metabox' ] );
+	}
+
+	public function render_tr_metabox(): void {
+		$post_id = (int) get_the_ID();
+		$form    = \TypeRocket\Utility\Helper::form();
+		$get     = function ( string $k ) use ( $post_id ) {
+			$v = get_post_meta( $post_id, $k, true );
+			return is_string( $v ) ? $v : (string) $v;
+		};
+
+		$reg_no       = $get( '_reg_no' );
+		$hibah_id_raw = $get( '_hibah_id' );
+		$event_title  = $hibah_id_raw ? get_the_title( (int) $hibah_id_raw ) : '';
+		$proposal_url = $get( '_proposal_url' );
+		$list         = json_decode( (string) get_post_meta( $post_id, '_anggota_list', true ), true );
+		if ( ! is_array( $list ) ) { $list = []; }
+		$anggota_html = '';
+		if ( ! empty( $list ) ) {
+			$rows = [];
+			foreach ( $list as $i => $m ) {
+				$tipe = ( 'mahasiswa' === ( $m['tipe'] ?? '' ) ) ? 'Mahasiswa' : 'Dosen';
+				if ( 'mahasiswa' === ( $m['tipe'] ?? '' ) ) {
+					$rows[] = sprintf( '%d. %s — %s (NIM: %s, Prodi: %s)', (int) $i + 1, $m['nama'] ?? '', $tipe, $m['nomor'] ?? '', $m['prodi'] ?? '—' );
+				} else {
+					$rows[] = sprintf( '%d. %s — %s (NIDN: %s)', (int) $i + 1, $m['nama'] ?? '', $tipe, $m['nomor'] ?? '' );
+				}
+			}
+			$anggota_html = '<ol style="margin:.3rem 0 0;padding-left:18px;font-size:.92em;color:#334155">' . implode( '', array_map( fn( $r ) => '<li>' . esc_html( $r ) . '</li>', $rows ) ) . '</ol>';
+		} else { $anggota_html = '<em style="color:#9ca3af">—</em>'; }
+
+		$status       = $get( '_status' ) ?: 'submitted';
+		$status_labels = [
+			'submitted'    => 'Submitted (baru dikirim)',
+			'under_review' => 'Under Review (sedang dinilai)',
+			'revised'      => 'Revised (revisi)',
+			'approved'     => 'Approved (diterima)',
+			'rejected'     => 'Rejected (ditolak)',
+			'done'         => 'Done (selesai)',
+		];
+		$status_opts = [];
+		foreach ( $status_labels as $k => $v ) { $status_opts[ $v ] = $k; }
+
+		// ── Header ringkas (TypeRocket form) ──
+		echo $form->text( '_reg_no' )->setLabel( 'No. Registrasi' )->setAttribute( 'readonly', 'readonly' )->setHelp( $event_title ? 'Event: ' . $event_title : ( $hibah_id_raw ? 'Event ID: ' . $hibah_id_raw : '' ) );
+		echo '<div style="margin:.6rem 0;padding:.9rem 1rem;background:#f0f7ff;border-radius:8px;border-left:3px solid #2271b3">'
+			. '<p style="margin:0 0 .4rem;font-weight:600">Status Pendaftaran</p>'
+			. $form->select( '_status' )->setLabel( '' )->setOptions( $status_opts )->setAttribute( 'style', 'width:100%;max-width:340px' )
+			. '<p style="margin:.45rem 0 0;color:#64748b;font-size:.85em">Diubah di `post.php?post=' . $post_id . '&action=edit` maupun dashboard `PendaftaranDetail` (API).</p>'
+			. '</div>';
+
+		// ── Identitas pengusul (editable) ──
+		echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:.6rem">'
+			. '<div>' . $form->text( '_nama' )->setLabel( 'Nama Lengkap & Gelar' ) . '</div>'
+			. '<div>' . $form->text( '_nip' )->setLabel( 'NIDN / NIDK' ) . '</div>'
+			. '<div>' . $form->select( '_jenis' )->setLabel( 'Jenis Pengusul' )->setOptions( [ 'Dosen' => 'Dosen', 'Mahasiswa' => 'Mahasiswa', 'Tenaga Kependidikan' => 'Tenaga Kependidikan' ] )->setAttribute( 'style', 'width:100%' ) . '</div>'
+			. '<div>' . $form->text( '_prodi' )->setLabel( 'Program Studi / Unit Kerja' ) . '</div>'
+			. '<div>' . $form->text( '_skema' )->setLabel( 'Model Hibah' ) . '</div>'
+			. '<div>' . $form->text( '_jenis_hibah' )->setLabel( 'Jenis Hibah' ) . '</div>'
+			. '<div>' . $form->text( '_sdgs' )->setLabel( 'SDGs' ) . '</div>'
+			. '<div>' . $form->text( '_kelompok_keahlian' )->setLabel( 'Kelompok Keahlian' ) . '</div>'
+			. '</div>';
+		echo '<div style="margin-top:1rem">' . $form->text( '_judul' )->setLabel( 'Judul Usulan' )->setAttribute( 'style', 'width:100%' ) . '</div>';
+		echo '<div style="margin-top:1rem">' . $form->textarea( '_ringkasan' )->setLabel( 'Ringkasan Usulan' )->setAttribute( 'rows', 4 ) . '</div>';
+		echo '<div style="margin-top:1rem;padding:.85rem 1rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px"><strong style="display:block;margin-bottom:.35rem">Anggota Tim</strong>' . $anggota_html . '<p style="margin:.5rem 0 0;color:#64748b;font-size:.82em">Kelola via ` _anggota_list` (JSON, dashboard/API) atau meta ` _anggota`.</p></div>';
+		echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem">'
+			. '<div>' . $form->text( '_email' )->setLabel( 'Email' ) . '</div>'
+			. '<div>' . $form->text( '_hp' )->setLabel( 'WhatsApp' ) . '</div>'
+			. '</div>';
+
+		// ── File proposal (TypeRocket file) ──
+		echo '<div style="margin-top:1.2rem;padding:1rem;background:#fff;border:1px solid #dbeafe;border-radius:10px">'
+			. '<h4 style="margin:0 0 .6rem">📄 File Proposal (PDF)</h4>';
+		if ( $proposal_url ) {
+			echo '<p style="margin:0 0 .6rem"><a href="' . esc_url( $proposal_url ) . '" target="_blank" rel="noopener">⬇ Download proposal saat ini</a></p>';
+		} else {
+			echo '<p style="margin:0 0 .6rem;color:#9ca3af"><em>Belum ada file proposal.</em></p>';
+		}
+		echo $form->file( '_proposal_id' )->setLabel( 'Ganti / Upload Proposal (PDF, max 10 MB)' )->setHelp( 'Kosongkan bila tidak ingin mengganti. Format hanya PDF — validasi `%PDF-` + finfo dijalankan saat simpan.' )
+			. '<p style="margin:.5rem 0 0;color:#64748b;font-size:.82em">POST ` /lp2m/v1/hibah/{id}` (dashboard) juga bisa ganti file via `multipart + proposal`.</p>'
+			. '</div>';
 	}
 
 	public function register_cpt(): void {
@@ -1368,139 +1487,46 @@ class ITSI_LP2M_Hibah_Receiver {
 	}
 
 	/* ────────────────────────────────────────────────────────────
-	 *  WP-ADMIN EDIT SCREEN (post.php?post=ID&action=edit)
-	 *  Agar pendaftaran bisa dibaca & file proposal diganti dari wp-admin.
+	 *  TypeRocket — sync file proposal pendaftaran
+	 *  TR menyimpan _proposal_id (attachment ID); kanonik URL ada di
+	 *  _proposal_url. Sinkronkan setiap save agar API/dashboard tetap
+	 *  membaca URL yang benar + validasi PDF.
 	 * ──────────────────────────────────────────────────────────── */
 
-	public function register_metaboxes(): void {
-		add_meta_box(
-			'lp2m-pendaftaran-detail',
-			'Detail Pendaftaran Hibah',
-			[ $this, 'render_metabox' ],
-			'pendaftaran_hibah',
-			'normal',
-			'high'
-		);
-	}
-
-	public function metabox_form_enctype( \WP_Post $post ): void {
-		if ( 'pendaftaran_hibah' === $post->post_type ) {
-			echo ' enctype="multipart/form-data"';
-		}
-	}
-
-	public function render_metabox( \WP_Post $post ): void {
-		wp_nonce_field( 'lp2m_pendaftaran_metabox', 'lp2m_pendaftaran_nonce' );
-		$get = fn( string $k ) => get_post_meta( $post->ID, $k, true );
-		$reg_no       = (string) $get( '_reg_no' );
-		$hibah_id     = (string) $get( '_hibah_id' );
-		$event_title  = $hibah_id ? get_the_title( (int) $hibah_id ) : '';
-		$proposal_url = (string) $get( '_proposal_url' );
-		$proposal_id  = (string) $get( '_proposal_id' );
-		$status       = (string) ( $get( '_status' ) ?: 'submitted' );
-		$list         = json_decode( (string) $get( '_anggota_list' ), true );
-		if ( ! is_array( $list ) ) { $list = []; }
-		?>
-		<table class="form-table" style="max-width:760px">
-			<tr><th>Reg No</th><td><code><?php echo esc_html( $reg_no ); ?></code></td></tr>
-			<tr><th>Event</th><td><?php echo esc_html( $event_title ?: '— (ID: ' . $hibah_id . ')' ); ?></td></tr>
-			<tr><th>Nama Lengkap & Gelar</th><td><input type="text" name="lp2m_nama" value="<?php echo esc_attr( (string) $get( '_nama' ) ); ?>" class="regular-text" /></td></tr>
-			<tr><th>NIDN/NIDK</th><td><input type="text" name="lp2m_nip" value="<?php echo esc_attr( (string) $get( '_nip' ) ); ?>" class="regular-text" /></td></tr>
-			<tr><th>Jenis Pengusul</th><td>
-				<select name="lp2m_jenis">
-					<?php foreach ( [ 'Dosen', 'Mahasiswa', 'Tenaga Kependidikan' ] as $opt ) : ?>
-						<option value="<?php echo esc_attr( $opt ); ?>" <?php selected( (string) $get( '_jenis' ), $opt ); ?>><?php echo esc_html( $opt ); ?></option>
-					<?php endforeach; ?>
-				</select>
-			</td></tr>
-			<tr><th>Prodi</th><td><input type="text" name="lp2m_prodi" value="<?php echo esc_attr( (string) $get( '_prodi' ) ); ?>" class="regular-text" /></td></tr>
-			<tr><th>Model Hibah</th><td><input type="text" name="lp2m_skema" value="<?php echo esc_attr( (string) $get( '_skema' ) ); ?>" class="regular-text" /></td></tr>
-			<tr><th>Jenis Hibah</th><td><input type="text" name="lp2m_jenis_hibah" value="<?php echo esc_attr( (string) $get( '_jenis_hibah' ) ); ?>" class="regular-text" /></td></tr>
-			<tr><th>SDGs</th><td><input type="text" name="lp2m_sdgs" value="<?php echo esc_attr( (string) $get( '_sdgs' ) ); ?>" class="regular-text" /></td></tr>
-			<tr><th>Kel. Keahlian</th><td><input type="text" name="lp2m_kelompok_keahlian" value="<?php echo esc_attr( (string) $get( '_kelompok_keahlian' ) ); ?>" class="regular-text" /></td></tr>
-			<tr><th>Judul</th><td><input type="text" name="lp2m_judul" value="<?php echo esc_attr( (string) $get( '_judul' ) ); ?>" class="regular-text widefat" /></td></tr>
-			<tr><th>Ringkasan</th><td><textarea name="lp2m_ringkasan" rows="4" class="large-text"><?php echo esc_textarea( (string) $get( '_ringkasan' ) ); ?></textarea></td></tr>
-			<tr><th>Anggota Tim</th><td>
-				<?php if ( empty( $list ) ) { echo '<em>—</em>'; } else { echo '<ol style="margin:0;padding-left:18px">'; foreach ( $list as $m ) { $t = ( $m['tipe'] ?? '' ) === 'mahasiswa' ? 'Mhs' : 'Dosen'; echo '<li>' . esc_html( ( $m['nama'] ?? '' ) . ' — ' . $t . ' (' . ( $m['nomor'] ?? '' ) . ( ! empty( $m['prodi'] ) ? ', ' . $m['prodi'] : '' ) . ')' ) . '</li>'; } echo '</ol>'; } ?>
-				<p class="description">Edit anggota tim via API/dashboard (JSON) atau langsung meta <code>_anggota_list</code>.</p>
-			</td></tr>
-			<tr><th>Email</th><td><input type="email" name="lp2m_email" value="<?php echo esc_attr( (string) $get( '_email' ) ); ?>" class="regular-text" /></td></tr>
-			<tr><th>WhatsApp</th><td><input type="text" name="lp2m_hp" value="<?php echo esc_attr( (string) $get( '_hp' ) ); ?>" class="regular-text" /></td></tr>
-			<tr><th>Status</th><td>
-				<select name="lp2m_status">
-					<?php foreach ( self::STATUSES as $s ) : ?>
-						<option value="<?php echo esc_attr( $s ); ?>" <?php selected( $status, $s ); ?>><?php echo esc_html( $s ); ?></option>
-					<?php endforeach; ?>
-				</select>
-			</td></tr>
-			<tr><th>File Proposal</th><td>
-				<?php if ( $proposal_url ) : ?>
-					<p><a href="<?php echo esc_url( $proposal_url ); ?>" target="_blank" rel="noopener">⬇ Download Proposal saat ini</a>
-					<?php if ( $proposal_id ) : ?><span class="description"> (attachment #<?php echo esc_html( $proposal_id ); ?>)</span><?php endif; ?></p>
-				<?php else : ?>
-					<p><em>Belum ada file proposal.</em></p>
-				<?php endif; ?>
-				<p>
-					<label>Ganti file (PDF, max 10 MB):<br>
-					<input type="file" name="lp2m_proposal" accept="application/pdf,.pdf" /></label>
-				</p>
-				<p class="description">Kosongkan bila tidak ingin mengganti. File baru menggantikan yang lama (attachment lama dihapus).</p>
-			</td></tr>
-		</table>
-		<?php
-	}
-
-	public function save_metabox( int $post_id, \WP_Post $post, bool $update ): void {
+	/**
+	 * Sinkron TR → meta kanonik (_proposal_url) & validasi PDF.
+	 * Dipanggil via save_post setelah TypeRocket menyimpan meta.
+	 */
+	public function sync_proposal_from_tr( int $post_id ): void {
+		if ( wp_is_post_revision( $post_id ) ) { return; }
 		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) { return; }
-		if ( ! isset( $_POST['lp2m_pendaftaran_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['lp2m_pendaftaran_nonce'] ) ), 'lp2m_pendaftaran_metabox' ) ) { return; }
-		if ( ! current_user_can( 'edit_post', $post_id ) ) { return; }
-		if ( 'pendaftaran_hibah' !== $post->post_type ) { return; }
+		if ( 'pendaftaran_hibah' !== get_post_type( $post_id ) ) { return; }
 
-		$map = [
-			'lp2m_nama'               => '_nama',
-			'lp2m_nip'                => '_nip',
-			'lp2m_jenis'              => '_jenis',
-			'lp2m_prodi'              => '_prodi',
-			'lp2m_skema'              => '_skema',
-			'lp2m_jenis_hibah'        => '_jenis_hibah',
-			'lp2m_sdgs'               => '_sdgs',
-			'lp2m_kelompok_keahlian'  => '_kelompok_keahlian',
-			'lp2m_judul'              => '_judul',
-			'lp2m_ringkasan'          => '_ringkasan',
-			'lp2m_email'              => '_email',
-			'lp2m_hp'                 => '_hp',
-			'lp2m_status'             => '_status',
-		];
-		foreach ( $map as $field => $meta ) {
-			if ( ! isset( $_POST[ $field ] ) ) { continue; }
-			$raw = wp_unslash( $_POST[ $field ] );
-			if ( '_status' === $meta ) {
-				$v = sanitize_text_field( (string) $raw );
-				if ( ! in_array( $v, self::STATUSES, true ) ) { continue; }
-				update_post_meta( $post_id, $meta, $v );
-				continue;
+		$raw = get_post_meta( $post_id, '_proposal_id', true );
+		if ( is_array( $raw ) ) { $raw = reset( $raw ); }
+		$new_id = (int) $raw;
+
+		if ( 0 === $new_id ) {
+			// TR Clear → kosongkan URL kanonik.
+			if ( '' !== (string) get_post_meta( $post_id, '_proposal_url', true ) ) {
+				delete_post_meta( $post_id, '_proposal_url' );
 			}
-			if ( '_email' === $meta ) {
-				update_post_meta( $post_id, $meta, sanitize_email( (string) $raw ) );
-				continue;
-			}
-			update_post_meta( $post_id, $meta, wp_strip_all_tags( (string) $raw, true ) );
+			return;
 		}
 
-		// Upload proposal via wp-admin (enctype multipart) — reuse validasi upload_proposal.
-		if ( isset( $_FILES['lp2m_proposal'] ) && is_array( $_FILES['lp2m_proposal'] ) && (int) ( $_FILES['lp2m_proposal']['error'] ?? UPLOAD_ERR_NO_FILE ) !== UPLOAD_ERR_NO_FILE ) {
-			$f = $_FILES['lp2m_proposal'];
-			if ( (int) ( $f['error'] ?? 1 ) === UPLOAD_ERR_OK ) {
-				$reg_no = (string) get_post_meta( $post_id, '_reg_no', true );
-				if ( '' === trim( $reg_no ) ) { $reg_no = (string) $post_id; }
-				$new_att = $this->upload_proposal( $f, $reg_no );
-				if ( ! is_wp_error( $new_att ) ) {
-					$old_att = (int) get_post_meta( $post_id, '_proposal_id', true );
-					if ( $old_att && $old_att !== (int) $new_att ) { wp_delete_attachment( $old_att, true ); }
-					update_post_meta( $post_id, '_proposal_id', $new_att );
-					update_post_meta( $post_id, '_proposal_url', wp_get_attachment_url( $new_att ) );
-				}
-			}
+		$mime = get_post_mime_type( $new_id );
+		if ( 'application/pdf' !== $mime ) {
+			delete_post_meta( $post_id, '_proposal_id' );
+			delete_post_meta( $post_id, '_proposal_url' );
+			add_action( 'admin_notices', function () {
+				echo '<div class="notice notice-error"><p>Proposal harus PDF — file non-PDF ditolak.</p></div>';
+			} );
+			return;
+		}
+
+		$url = wp_get_attachment_url( $new_id );
+		if ( $url ) {
+			update_post_meta( $post_id, '_proposal_url', $url );
 		}
 	}
 }

@@ -1515,83 +1515,10 @@ add_action( 'typerocket_loaded', function () {
 			}
 		);
 
-	// ═══ META BOX — Detail Pendaftaran (pendaftaran_hibah) ════
-	// Menampilkan data yang disubmit via form LP2M. Hanya field status yang
-	// bisa diedit di sini; sisanya read-only (data asli dari pendaftar).
-	tr_meta_box( 'Detail Pendaftaran' )
-		->addPostType( 'pendaftaran_hibah' )
-		->setCallback(
-			function () {
-				$post_id = get_the_ID();
-				$form    = \TypeRocket\Utility\Helper::form();
-				$meta    = function ( $key ) use ( $post_id ) {
-					$v = get_post_meta( $post_id, $key, true );
-					return is_string( $v ) ? $v : (string) $v;
-				};
-
-				$row = function ( string $label, string $value ): string {
-					return '<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#374151;white-space:nowrap;vertical-align:top;width:180px">'
-						. esc_html( $label )
-						. '</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#111827">'
-						. ( '' !== trim( $value ) ? esc_html( $value ) : '<span style="color:#9ca3af">—</span>' )
-						. '</td></tr>';
-				};
-
-				$anggota_html = '';
-				$anggota_list = json_decode( (string) get_post_meta( $post_id, '_anggota_list', true ), true );
-				if ( is_array( $anggota_list ) && ! empty( $anggota_list ) ) {
-					$rows = array();
-					foreach ( $anggota_list as $i => $m ) {
-						$tipe = ( 'mahasiswa' === ( $m['tipe'] ?? '' ) ) ? 'Mahasiswa' : 'Dosen';
-						if ( 'mahasiswa' === ( $m['tipe'] ?? '' ) ) {
-							$rows[] = sprintf( '%d. %s — %s (NIM: %s, Prodi: %s)', (int) $i + 1, $m['nama'] ?? '', $tipe, $m['nomor'] ?? '', $m['prodi'] ?? '—' );
-						} else {
-							$rows[] = sprintf( '%d. %s — %s (NIDN: %s)', (int) $i + 1, $m['nama'] ?? '', $tipe, $m['nomor'] ?? '' );
-						}
-					}
-					$anggota_html = implode( '<br>', array_map( 'esc_html', $rows ) );
-				}
-
-				$status = $meta( '_status' ) ?: 'submitted';
-				$status_labels = array(
-					'submitted'     => 'Submitted (baru dikirim)',
-					'under_review'  => 'Under Review (sedang dinilai)',
-					'revised'       => 'Revised (revisi)',
-					'approved'      => 'Approved (diterima)',
-					'rejected'      => 'Rejected (ditolak)',
-					'done'          => 'Done (selesai)',
-				);
-				$status_opts = array();
-				foreach ( $status_labels as $k => $v ) {
-					$status_opts[ $v ] = $k;
-				}
-
-				echo '<div style="margin-bottom:1rem;padding:.9rem 1rem;background:#f0f7ff;border-radius:8px;border-left:3px solid #2271b3">'
-					. '<p style="margin:0 0 .5rem;font-weight:600">Status Pendaftaran</p>'
-					. $form->select( '_status' )->setOptions( $status_opts )->setAttribute( 'style', 'width:100%;max-width:320px' )
-					. '<p style="margin:.4rem 0 0;color:#6b7280;font-size:.85em">Perubahan status juga bisa dilakukan dari dashboard LP2M → Pendaftaran.</p>'
-					. '</div>'
-					. '<table style="width:100%;border-collapse:collapse;font-size:13px">'
-					. $row( 'No. Registrasi', $meta( '_reg_no' ) )
-					. $row( 'Event Hibah', $meta( '_hibah_id' ) ? get_the_title( (int) $meta( '_hibah_id' ) ) : '—' )
-					. $row( 'Nama', $meta( '_nama' ) )
-					. $row( 'NIP / NIDN', $meta( '_nip' ) )
-					. $row( 'Jenis Pengusul', $meta( '_jenis' ) )
-					. $row( 'Program Studi', $meta( '_prodi' ) )
-					. $row( 'Model Hibah', $meta( '_skema' ) )
-					. $row( 'Jenis Hibah', $meta( '_jenis_hibah' ) )
-					. $row( 'SDGs', $meta( '_sdgs' ) )
-					. $row( 'Kelompok Keahlian', $meta( '_kelompok_keahlian' ) )
-					. $row( 'Judul Usulan', $meta( '_judul' ) )
-					. $row( 'Ringkasan', $meta( '_ringkasan' ) )
-					. $row( 'Jumlah Tim', $meta( '_jml_tim' ) )
-					. $row( 'Anggota Tim', $anggota_html )
-					. $row( 'Email', $meta( '_email' ) )
-					. $row( 'WhatsApp', $meta( '_hp' ) )
-					. $row( 'Dikirim Pada', get_the_date( 'd M Y H:i', $post_id ) )
-					. '</table>';
-			}
-		);
+	// Detail Pendaftaran — disatukan ke inc/lp2m/class-hibah-receiver.php
+	// (register_tr_cpt_and_metabox) agar konsisten TypeRocket form + file
+	// proposal sinkron TR ↔ REST. Dihapus dari functions.php untuk hindari
+	// double metabox.
 } );
 
 /**
