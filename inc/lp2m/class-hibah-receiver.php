@@ -104,7 +104,9 @@ class ITSI_LP2M_Hibah_Receiver {
 		$status_labels = [
 			'submitted'    => 'Submitted (baru dikirim)',
 			'under_review' => 'Under Review (sedang dinilai)',
+			'reviewed'     => 'Reviewed (revisi diminta)',
 			'revised'      => 'Revised (revisi)',
+			'revision_submitted' => 'Revision Submitted (revisi dikirim)',
 			'approved'     => 'Approved (diterima)',
 			'rejected'     => 'Rejected (ditolak)',
 			'done'         => 'Done (selesai)',
@@ -119,6 +121,9 @@ class ITSI_LP2M_Hibah_Receiver {
 			. $form->select( '_status' )->setLabel( '' )->setOptions( $status_opts )->setAttribute( 'style', 'width:100%;max-width:340px' )
 			. '<p style="margin:.45rem 0 0;color:#64748b;font-size:.85em">Diubah di `post.php?post=' . $post_id . '&action=edit` maupun dashboard `PendaftaranDetail` (API).</p>'
 			. '</div>';
+
+		// TypeRocket Tabs: seluruh field editor dikelompokkan menjadi dua tab.
+		ob_start();
 
 		// ── Identitas pengusul (editable) ──
 		echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:.6rem">'
@@ -150,6 +155,31 @@ class ITSI_LP2M_Hibah_Receiver {
 		echo $form->file( '_proposal_id' )->setLabel( 'Ganti / Upload Proposal (PDF, max 10 MB)' )->setHelp( 'Kosongkan bila tidak ingin mengganti. Format hanya PDF — validasi `%PDF-` + finfo dijalankan saat simpan.' )
 			. '<p style="margin:.5rem 0 0;color:#64748b;font-size:.82em">POST ` /lp2m/v1/hibah/{id}` (dashboard) juga bisa ganti file via `multipart + proposal`.</p>'
 			. '</div>';
+		$data_tab = ob_get_clean();
+
+		$catatan_admin = $get( '_catatan_admin' );
+		$catatan_internal = $get( '_catatan_substansi_internal' );
+		$catatan_eksternal = $get( '_catatan_substansi_eksternal' );
+		$nilai_usulan = $get( '_nilai_dana_usulan' );
+		$nilai_disetujui = $get( '_nilai_dana_disetujui' );
+		$template_url = $get( '_surat_kesanggupan_template_url' );
+		$revision_tab = '<div style="padding:1rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px">'
+			. '<h3 style="margin:0 0 .4rem">Tahap 2 — Review &amp; Revisi</h3>'
+			. '<p style="margin:0 0 1rem;color:#64748b">Isi catatan reviewer dan nilai RAB. Pilih status <strong>Reviewed</strong> untuk mengirim tautan revisi privat kepada pemohon.</p>'
+			. $form->textarea( '_catatan_admin' )->setLabel( 'Catatan Admin' )->setAttribute( 'rows', 3 )->setAttribute( 'style', 'width:100%' )
+			. $form->textarea( '_catatan_substansi_internal' )->setLabel( 'Catatan Substansi Internal' )->setAttribute( 'rows', 3 )->setAttribute( 'style', 'width:100%' )
+			. $form->textarea( '_catatan_substansi_eksternal' )->setLabel( 'Catatan Substansi Eksternal' )->setAttribute( 'rows', 3 )->setAttribute( 'style', 'width:100%' )
+			. '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">'
+			. $form->text( '_nilai_dana_usulan' )->setLabel( 'Nilai Dana Usulan' )->setAttribute( 'value', $nilai_usulan )->setAttribute( 'inputmode', 'decimal' )
+			. $form->text( '_nilai_dana_disetujui' )->setLabel( 'Nilai Dana Disetujui' )->setAttribute( 'value', $nilai_disetujui )->setAttribute( 'inputmode', 'decimal' )
+			. '</div>'
+			. $form->text( '_surat_kesanggupan_template_url' )->setLabel( 'URL Template Surat Kesanggupan' )->setAttribute( 'value', $template_url )->setAttribute( 'style', 'width:100%' )
+			. '</div>';
+
+		$tabs = \TypeRocket\Elements\Tabs::new();
+		$tabs->tab( 'Data Pengajuan', 'dashicons-clipboard', [ $data_tab ] );
+		$tabs->tab( 'Revisi', 'dashicons-edit', [ $revision_tab ] );
+		$tabs->render();
 	}
 
 	/**
