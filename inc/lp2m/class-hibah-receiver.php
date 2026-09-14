@@ -67,6 +67,37 @@ class ITSI_LP2M_Hibah_Receiver {
 		tr_meta_box( 'Detail Pendaftaran' )
 			->addPostType( 'pendaftaran_hibah' )
 			->setCallback( [ $this, 'render_tr_metabox' ] );
+
+		tr_meta_box( 'Status Pendaftaran' )
+			->addPostType( 'pendaftaran_hibah' )
+			->setContext( 'side' )
+			->setCallback( [ $this, 'render_tr_status_metabox' ] );
+	}
+
+	public function render_tr_status_metabox(): void {
+		$post_id = (int) get_the_ID();
+		$status  = get_post_meta( $post_id, '_status', true ) ?: 'submitted';
+		$labels  = [
+			'submitted'          => 'Submitted (baru dikirim)',
+			'under_review'       => 'Under Review (sedang dinilai)',
+			'reviewed'           => 'Reviewed (revisi diminta)',
+			'revised'            => 'Revised (revisi)',
+			'revision_submitted' => 'Revision Submitted (revisi dikirim)',
+			'approved'           => 'Approved (diterima)',
+			'rejected'           => 'Rejected (ditolak)',
+			'done'               => 'Done (selesai)',
+		];
+		$options = [];
+		foreach ( $labels as $value => $label ) {
+			$options[ $label ] = $value;
+		}
+
+		$form = \TypeRocket\Utility\Helper::form();
+		echo $form->select( '_status' )
+			->setLabel( 'Status' )
+			->setOptions( $options )
+			->setAttribute( 'style', 'width:100%' );
+		echo '<p style="margin:.45rem 0 0;color:#64748b;font-size:.85em">Status menentukan tahap proses dan notifikasi kepada pemohon.</p>';
 	}
 
 	public function render_tr_metabox(): void {
@@ -101,45 +132,26 @@ class ITSI_LP2M_Hibah_Receiver {
 				$form->text( 'prodi' )->setLabel( 'Prodi (khusus Mahasiswa)' )->setAttribute( 'placeholder', 'Prodi' ),
 			] );
 
-		$status       = $get( '_status' ) ?: 'submitted';
-		$status_labels = [
-			'submitted'    => 'Submitted (baru dikirim)',
-			'under_review' => 'Under Review (sedang dinilai)',
-			'reviewed'     => 'Reviewed (revisi diminta)',
-			'revised'      => 'Revised (revisi)',
-			'revision_submitted' => 'Revision Submitted (revisi dikirim)',
-			'approved'     => 'Approved (diterima)',
-			'rejected'     => 'Rejected (ditolak)',
-			'done'         => 'Done (selesai)',
-		];
-		$status_opts = [];
-		foreach ( $status_labels as $k => $v ) { $status_opts[ $v ] = $k; }
-
 		// ── Header ringkas (TypeRocket form) ──
 		echo $form->text( '_reg_no' )->setLabel( 'No. Registrasi' )->setHelp( ( $event_title ? 'Event: ' . $event_title . '. ' : '' ) . 'Harus unik dengan format LP2M-YYYY-NNNNN.' );
-		echo '<div style="margin:.6rem 0;padding:.9rem 1rem;background:#f0f7ff;border-radius:8px;border-left:3px solid #2271b3">'
-			. '<p style="margin:0 0 .4rem;font-weight:600">Status Pendaftaran</p>'
-			. $form->select( '_status' )->setLabel( '' )->setOptions( $status_opts )->setAttribute( 'style', 'width:100%;max-width:340px' )
-			. '<p style="margin:.45rem 0 0;color:#64748b;font-size:.85em">Diubah di `post.php?post=' . $post_id . '&action=edit` maupun dashboard `PendaftaranDetail` (API).</p>'
-			. '</div>';
 
 		// TypeRocket Tabs: callback menjaga pembuatan field tetap dekat dengan tab-nya.
 		$data_tab = function () use ( $form, $anggota_repeater, $proposal_url ): string {
 			ob_start();
-			echo $form->setFields( [
-				$form->text( '_nama' )->setLabel( 'Nama Lengkap & Gelar' ),
-				$form->text( '_nip' )->setLabel( 'NIDN / NIDK' ),
-				$form->select( '_jenis' )->setLabel( 'Jenis Pengusul' )->setOptions( [ 'Dosen' => 'Dosen', 'Mahasiswa' => 'Mahasiswa', 'Tenaga Kependidikan' => 'Tenaga Kependidikan' ] ),
-				$form->text( '_prodi' )->setLabel( 'Program Studi / Unit Kerja' ),
-				$form->text( '_skema' )->setLabel( 'Model Hibah' ),
-				$form->text( '_jenis_hibah' )->setLabel( 'Jenis Hibah' ),
-				$form->text( '_sdgs' )->setLabel( 'SDGs' ),
-				$form->text( '_kelompok_keahlian' )->setLabel( 'Kelompok Keahlian' ),
-			] );
+			echo $form->section( 'Identitas Pengusul' );
+			echo $form->text( '_nama' )->setLabel( 'Nama Lengkap & Gelar' );
+			echo $form->text( '_nip' )->setLabel( 'NIDN / NIDK' );
+			echo $form->select( '_jenis' )->setLabel( 'Jenis Pengusul' )->setOptions( [ 'Dosen' => 'Dosen', 'Mahasiswa' => 'Mahasiswa', 'Tenaga Kependidikan' => 'Tenaga Kependidikan' ] );
+			echo $form->text( '_prodi' )->setLabel( 'Program Studi / Unit Kerja' );
+			echo $form->text( '_skema' )->setLabel( 'Model Hibah' );
+			echo $form->text( '_jenis_hibah' )->setLabel( 'Jenis Hibah' );
+			echo $form->text( '_sdgs' )->setLabel( 'SDGs' );
+			echo $form->text( '_kelompok_keahlian' )->setLabel( 'Kelompok Keahlian' );
 			echo $form->text( '_judul' )->setLabel( 'Judul Usulan' );
 			echo $form->textarea( '_ringkasan' )->setLabel( 'Ringkasan Usulan' )->setAttribute( 'rows', 4 );
 			echo $anggota_repeater;
-			echo $form->setFields( [ $form->text( '_email' )->setLabel( 'Email' ), $form->text( '_hp' )->setLabel( 'WhatsApp' ) ] );
+			echo $form->text( '_email' )->setLabel( 'Email' );
+			echo $form->text( '_hp' )->setLabel( 'WhatsApp' );
 			echo $proposal_url ? '<p><a href="' . esc_url( $proposal_url ) . '" target="_blank" rel="noopener">⬇ Download proposal saat ini</a></p>' : '<p><em>Belum ada file proposal.</em></p>';
 			echo $form->file( '_proposal_id' )->setLabel( 'Ganti / Upload Proposal (PDF, max 10 MB)' )->setHelp( 'Kosongkan bila tidak ingin mengganti.' );
 			return (string) ob_get_clean();
@@ -152,7 +164,9 @@ class ITSI_LP2M_Hibah_Receiver {
 			echo $form->textarea( '_catatan_admin' )->setLabel( 'Catatan Admin' );
 			echo $form->textarea( '_catatan_substansi_internal' )->setLabel( 'Catatan Substansi Internal' );
 			echo $form->textarea( '_catatan_substansi_eksternal' )->setLabel( 'Catatan Substansi Eksternal' );
-			echo $form->setFields( [ $form->text( '_nilai_dana_usulan' )->setLabel( 'Nilai Dana Usulan' ), $form->text( '_nilai_dana_disetujui' )->setLabel( 'Nilai Dana Disetujui' ) ] );
+			echo $form->section( 'Nilai RAB' );
+			echo $form->text( '_nilai_dana_usulan' )->setLabel( 'Nilai Dana Usulan' );
+			echo $form->text( '_nilai_dana_disetujui' )->setLabel( 'Nilai Dana Disetujui' );
 			echo $template_url ? '<p><a href="' . esc_url( $template_url ) . '" target="_blank" rel="noopener">Download Template Surat Kesanggupan</a></p>' : '';
 			echo $form->file( '_surat_kesanggupan_template_id' )->setLabel( 'Template Surat Kesanggupan (PDF)' )->setHelp( 'Kosongkan bila tidak ingin mengganti template yang sudah tersimpan.' );
 			echo $revision_url ? '<p><a href="' . esc_url( $revision_url ) . '" target="_blank" rel="noopener">Download File Revisi Peserta</a></p>' : '<p><em>File Revisi belum diunggah peserta.</em></p>';
