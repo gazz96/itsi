@@ -39,6 +39,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		// Sinkron _proposal_id (TR File) ↔ _proposal_url kanonik + validasi PDF.
 		add_action( 'save_post', [ $this, 'sync_proposal_from_tr' ], 30, 1 );
 		add_action( 'save_post', [ $this, 'sync_revision_template_from_tr' ], 31, 1 );
+		add_action( 'save_post', [ $this, 'sync_revision_file_from_tr' ], 32, 1 );
 		// Validasi _reg_no di level meta agar TypeRocket maupun editor WP sama-sama aman.
 		add_filter( 'update_post_metadata', [ $this, 'validate_reg_no_update' ], 10, 5 );
 		add_filter( 'add_post_metadata', [ $this, 'validate_reg_no_add' ], 10, 5 );
@@ -138,20 +139,25 @@ class ITSI_LP2M_Hibah_Receiver {
 		// TypeRocket Tabs: callback menjaga pembuatan field tetap dekat dengan tab-nya.
 		$data_tab = function () use ( $form, $anggota_repeater, $proposal_url ): string {
 			ob_start();
-			echo $form->section( 'Identitas Pengusul' );
-			echo $form->text( '_nama' )->setLabel( 'Nama Lengkap & Gelar' );
-			echo $form->text( '_nip' )->setLabel( 'NIDN / NIDK' );
-			echo $form->select( '_jenis' )->setLabel( 'Jenis Pengusul' )->setOptions( [ 'Dosen' => 'Dosen', 'Mahasiswa' => 'Mahasiswa', 'Tenaga Kependidikan' => 'Tenaga Kependidikan' ] );
-			echo $form->text( '_prodi' )->setLabel( 'Program Studi / Unit Kerja' );
-			echo $form->text( '_skema' )->setLabel( 'Model Hibah' );
-			echo $form->text( '_jenis_hibah' )->setLabel( 'Jenis Hibah' );
-			echo $form->text( '_sdgs' )->setLabel( 'SDGs' );
-			echo $form->text( '_kelompok_keahlian' )->setLabel( 'Kelompok Keahlian' );
-			echo $form->text( '_judul' )->setLabel( 'Judul Usulan' );
-			echo $form->textarea( '_ringkasan' )->setLabel( 'Ringkasan Usulan' )->setAttribute( 'rows', 4 );
+			echo $form->section( [
+				$form->text( '_nama' )->setLabel( 'Nama Lengkap & Gelar' ),
+				$form->text( '_nip' )->setLabel( 'NIDN / NIDK' ),
+				$form->select( '_jenis' )->setLabel( 'Jenis Pengusul' )->setOptions( [ 'Dosen' => 'Dosen', 'Mahasiswa' => 'Mahasiswa', 'Tenaga Kependidikan' => 'Tenaga Kependidikan' ] ),
+				$form->text( '_prodi' )->setLabel( 'Program Studi / Unit Kerja' ),
+				$form->text( '_skema' )->setLabel( 'Model Hibah' ),
+				$form->text( '_jenis_hibah' )->setLabel( 'Jenis Hibah' ),
+				$form->text( '_sdgs' )->setLabel( 'SDGs' ),
+				$form->text( '_kelompok_keahlian' )->setLabel( 'Kelompok Keahlian' ),
+			] )->setTitle( 'Identitas Pengusul' );
+			echo $form->section( [
+				$form->text( '_judul' )->setLabel( 'Judul Usulan' ),
+				$form->textarea( '_ringkasan' )->setLabel( 'Ringkasan Usulan' )->setAttribute( 'rows', 4 ),
+			] )->setTitle( 'Detail Usulan' );
 			echo $anggota_repeater;
-			echo $form->text( '_email' )->setLabel( 'Email' );
-			echo $form->text( '_hp' )->setLabel( 'WhatsApp' );
+			echo $form->section( [
+				$form->text( '_email' )->setLabel( 'Email' ),
+				$form->text( '_hp' )->setLabel( 'WhatsApp' ),
+			] )->setTitle( 'Kontak' );
 			echo $proposal_url ? '<p><a href="' . esc_url( $proposal_url ) . '" target="_blank" rel="noopener">⬇ Download proposal saat ini</a></p>' : '<p><em>Belum ada file proposal.</em></p>';
 			echo $form->file( '_proposal_id' )->setLabel( 'Ganti / Upload Proposal (PDF, max 10 MB)' )->setHelp( 'Kosongkan bila tidak ingin mengganti.' );
 			return (string) ob_get_clean();
@@ -160,16 +166,28 @@ class ITSI_LP2M_Hibah_Receiver {
 			$template_url = $get( '_surat_kesanggupan_template_url' );
 			$revision_url = $get( '_surat_kesanggupan_url' );
 			ob_start();
-			echo '<h3>Tahap 2 — Review &amp; Revisi</h3><p>Isi catatan reviewer dan nilai RAB. Pilih status Reviewed untuk mengirim tautan revisi privat.</p>';
-			echo $form->textarea( '_catatan_admin' )->setLabel( 'Catatan Admin' );
-			echo $form->textarea( '_catatan_substansi_internal' )->setLabel( 'Catatan Substansi Internal' );
-			echo $form->textarea( '_catatan_substansi_eksternal' )->setLabel( 'Catatan Substansi Eksternal' );
-			echo $form->section( 'Nilai RAB' );
-			echo $form->text( '_nilai_dana_usulan' )->setLabel( 'Nilai Dana Usulan' );
-			echo $form->text( '_nilai_dana_disetujui' )->setLabel( 'Nilai Dana Disetujui' );
+			//echo '<h3>Tahap 2 — Review &amp; Revisi</h3><p>Isi catatan reviewer dan nilai RAB. Pilih status Reviewed untuk mengirim tautan revisi privat.</p>';
+			echo $form->section( [
+				$form->textarea( '_catatan_admin' )->setLabel( 'Catatan Admin' ),
+				$form->textarea( '_catatan_substansi_internal' )->setLabel( 'Catatan Substansi Internal' ),
+				$form->textarea( '_catatan_substansi_eksternal' )->setLabel( 'Catatan Substansi Eksternal' ),
+			] )->setTitle( 'Catatan Review' );
+			echo $form->section( [
+				$form->text( '_nilai_dana_usulan' )->setLabel( 'Nilai Dana Usulan' ),
+			//	$form->text( '_nilai_dana_disetujui' )->setLabel( 'Nilai Dana Disetujui' ),
+			] )->setTitle( 'Ringkasan Dana' );
+			echo $form->section( [
+				$form->text( '_nilai_dana_disetujui_honorium' )->setLabel( 'Honorium' ),
+				$form->text( '_nilai_dana_disetujui_perjalanan_dinas' )->setLabel( 'Perjalanan Dinas' ),
+				$form->text( '_nilai_dana_disetujui_alat_bahan' )->setLabel( 'Alat/Bahan Habis Pakai' ),
+				$form->text( '_nilai_dana_disetujui_publikasi' )->setLabel( 'Publikasi' ),
+			] )->setTitle( 'Rincian Dana Disetujui' );
+			echo $form->section( [
+				$form->file( '_surat_kesanggupan_template_id' )->setLabel( 'Template Surat Kesanggupan (PDF)' )->setHelp( 'Kosongkan bila tidak ingin mengganti template yang sudah tersimpan.' ),
+				$form->file( '_surat_kesanggupan_id' )->setLabel( 'Surat Kesanggupan Peserta — Upload Ulang (PDF)' )->setHelp( 'Upload ulang surat kesanggupan yang sudah diperbaiki oleh peserta. Kosongkan bila tidak ingin mengganti file yang sudah tersimpan.' ),
+			] )->setTitle( 'Dokumen Revisi' );
 			echo $template_url ? '<p><a href="' . esc_url( $template_url ) . '" target="_blank" rel="noopener">Download Template Surat Kesanggupan</a></p>' : '';
-			echo $form->file( '_surat_kesanggupan_template_id' )->setLabel( 'Template Surat Kesanggupan (PDF)' )->setHelp( 'Kosongkan bila tidak ingin mengganti template yang sudah tersimpan.' );
-			echo $revision_url ? '<p><a href="' . esc_url( $revision_url ) . '" target="_blank" rel="noopener">Download File Revisi Peserta</a></p>' : '<p><em>File Revisi belum diunggah peserta.</em></p>';
+			
 			return (string) ob_get_clean();
 		};
 
@@ -1525,7 +1543,12 @@ class ITSI_LP2M_Hibah_Receiver {
 		$review_fields = [
 			'catatan_admin' => '_catatan_admin', 'catatan_substansi_internal' => '_catatan_substansi_internal',
 			'catatan_substansi_eksternal' => '_catatan_substansi_eksternal', 'nilai_dana_usulan' => '_nilai_dana_usulan',
-			'nilai_dana_disetujui' => '_nilai_dana_disetujui', 'surat_kesanggupan_template_url' => '_surat_kesanggupan_template_url',
+			'nilai_dana_disetujui' => '_nilai_dana_disetujui',
+			'nilai_dana_disetujui_honorium' => '_nilai_dana_disetujui_honorium',
+			'nilai_dana_disetujui_perjalanan_dinas' => '_nilai_dana_disetujui_perjalanan_dinas',
+			'nilai_dana_disetujui_alat_bahan' => '_nilai_dana_disetujui_alat_bahan',
+			'nilai_dana_disetujui_publikasi' => '_nilai_dana_disetujui_publikasi',
+			'surat_kesanggupan_template_url' => '_surat_kesanggupan_template_url',
 		];
 		foreach ( $review_fields as $field => $meta_key ) {
 			if ( array_key_exists( $field, $params ) ) update_post_meta( $id, $meta_key, sanitize_textarea_field( (string) $params[ $field ] ) );
@@ -2156,6 +2179,22 @@ class ITSI_LP2M_Hibah_Receiver {
 		$url = wp_get_attachment_url( $id );
 		if ( $url ) {
 			update_post_meta( $post_id, '_surat_kesanggupan_template_url', $url );
+		}
+	}
+
+	/** Sinkron field file revisi TypeRocket ke URL kanonik tanpa menghapus file lama saat kosong. */
+	public function sync_revision_file_from_tr( int $post_id ): void {
+		if ( wp_is_post_revision( $post_id ) || ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) || 'pendaftaran_hibah' !== get_post_type( $post_id ) ) { return; }
+		$raw = get_post_meta( $post_id, '_surat_kesanggupan_id', true );
+		$id  = is_array( $raw ) ? (int) reset( $raw ) : (int) $raw;
+		if ( 0 === $id ) { return; }
+		if ( 'application/pdf' !== get_post_mime_type( $id ) ) {
+			delete_post_meta( $post_id, '_surat_kesanggupan_id' );
+			return;
+		}
+		$url = wp_get_attachment_url( $id );
+		if ( $url ) {
+			update_post_meta( $post_id, '_surat_kesanggupan_url', $url );
 		}
 	}
 }
