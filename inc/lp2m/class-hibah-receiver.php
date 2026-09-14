@@ -19,6 +19,9 @@ class ITSI_LP2M_Hibah_Receiver {
 	/** ID post terakhir yang disimpan (dipakai untuk link admin di email). */
 	private int $last_post_id = 0;
 
+	/** Pesan validasi nomor registrasi saat penyimpanan dari wp-admin. */
+	private string $reg_no_admin_error = '';
+
 	public function init(): void {
 		add_action( 'init', [ $this, 'register_cpt' ] );
 		add_action( 'rest_api_init', [ $this, 'register_routes' ] );
@@ -35,6 +38,10 @@ class ITSI_LP2M_Hibah_Receiver {
 		add_action( 'typerocket_loaded', [ $this, 'register_tr_cpt_and_metabox' ] );
 		// Sinkron _proposal_id (TR File) ↔ _proposal_url kanonik + validasi PDF.
 		add_action( 'save_post', [ $this, 'sync_proposal_from_tr' ], 30, 1 );
+		// Validasi _reg_no di level meta agar TypeRocket maupun editor WP sama-sama aman.
+		add_filter( 'update_post_metadata', [ $this, 'validate_reg_no_update' ], 10, 5 );
+		add_filter( 'add_post_metadata', [ $this, 'validate_reg_no_add' ], 10, 5 );
+		add_action( 'admin_notices', [ $this, 'render_reg_no_admin_notice' ] );
 	}
 
 	/**
@@ -106,7 +113,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		foreach ( $status_labels as $k => $v ) { $status_opts[ $v ] = $k; }
 
 		// ── Header ringkas (TypeRocket form) ──
-		echo $form->text( '_reg_no' )->setLabel( 'No. Registrasi' )->setAttribute( 'readonly', 'readonly' )->setHelp( $event_title ? 'Event: ' . $event_title : ( $hibah_id_raw ? 'Event ID: ' . $hibah_id_raw : '' ) );
+		echo $form->text( '_reg_no' )->setLabel( 'No. Registrasi' )->setHelp( ( $event_title ? 'Event: ' . $event_title . '. ' : '' ) . 'Harus unik dengan format LP2M-YYYY-NNNNN.' );
 		echo '<div style="margin:.6rem 0;padding:.9rem 1rem;background:#f0f7ff;border-radius:8px;border-left:3px solid #2271b3">'
 			. '<p style="margin:0 0 .4rem;font-weight:600">Status Pendaftaran</p>'
 			. $form->select( '_status' )->setLabel( '' )->setOptions( $status_opts )->setAttribute( 'style', 'width:100%;max-width:340px' )
@@ -143,6 +150,51 @@ class ITSI_LP2M_Hibah_Receiver {
 		echo $form->file( '_proposal_id' )->setLabel( 'Ganti / Upload Proposal (PDF, max 10 MB)' )->setHelp( 'Kosongkan bila tidak ingin mengganti. Format hanya PDF — validasi `%PDF-` + finfo dijalankan saat simpan.' )
 			. '<p style="margin:.5rem 0 0;color:#64748b;font-size:.82em">POST ` /lp2m/v1/hibah/{id}` (dashboard) juga bisa ganti file via `multipart + proposal`.</p>'
 			. '</div>';
+	}
+
+	/**
+	 * Validasi nomor registrasi sebelum meta _reg_no ditulis oleh WordPress/TypeRocket.
+	 * Return false membatalkan operasi meta sehingga nomor lama tetap tersimpan.
+	 */
+	public function validate_reg_no_update( $check, $object_id, $meta_key, $meta_value, $prev_value ) {
+		if ( '_reg_no' !== $meta_key || 'pendaftaran_hibah' !== get_post_type( (int) $object_id ) ) {
+			return $check;
+		}
+
+		$reg_no = strtoupper( sanitize_text_field( (string) $meta_value ) );
+		if ( ! preg_match( '/^LP2M-[0-9]{4}-[0-9]{5}$/', $reg_no ) ) {
+			$this->reg_no_admin_error = 'Nomor registrasi tidak valid. Gunakan format LP2M-YYYY-NNNNN.';
+			return false;
+		}
+
+		$duplicate = get_posts( [
+			'post_type'      => 'pendaftaran_hibah',
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'post__not_in'   => [ (int) $object_id ],
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'meta_query'     => [ [ 'key' => '_reg_no', 'value' => $reg_no, 'compare' => '=' ] ],
+		] );
+		if ( ! empty( $duplicate ) ) {
+			$this->reg_no_admin_error = 'Nomor registrasi ' . $reg_no . ' sudah digunakan oleh pendaftaran lain.';
+			return false;
+		}
+
+		return $check;
+	}
+
+	/** Validasi juga saat meta baru ditambahkan, bukan hanya saat di-update. */
+	public function validate_reg_no_add( $check, $object_id, $meta_key, $meta_value, $unique ) {
+		if ( '_reg_no' !== $meta_key || 'pendaftaran_hibah' !== get_post_type( (int) $object_id ) ) {
+			return $check;
+		}
+		return $this->validate_reg_no_update( $check, $object_id, $meta_key, $meta_value, '' );
+	}
+
+	public function render_reg_no_admin_notice(): void {
+		if ( '' === $this->reg_no_admin_error ) { return; }
+		echo '<div class="notice notice-error is-dismissible"><p>' . esc_html( $this->reg_no_admin_error ) . '</p></div>';
 	}
 
 	public function register_cpt(): void {
