@@ -1365,6 +1365,34 @@ class ITSI_LP2M_Hibah_Receiver {
 
 		$params = $request->get_params();
 
+		// Nomor registrasi dapat diedit dari Dashboard LP2M, tetapi harus unik.
+		if ( array_key_exists( 'reg_no', $params ) ) {
+			$reg_no = strtoupper( sanitize_text_field( (string) $params['reg_no'] ) );
+			if ( ! preg_match( '/^LP2M-[0-9]{4}-[0-9]{5}$/', $reg_no ) ) {
+				return new \WP_REST_Response( [
+					'success' => false,
+					'message' => 'Nomor registrasi tidak valid. Gunakan format LP2M-YYYY-NNNNN.',
+				], 400 );
+			}
+
+			$duplicate = get_posts( [
+				'post_type'      => 'pendaftaran_hibah',
+				'post_status'    => 'any',
+				'posts_per_page' => 1,
+				'post__not_in'   => [ $id ],
+				'fields'         => 'ids',
+				'no_found_rows'  => true,
+				'meta_query'     => [ [ 'key' => '_reg_no', 'value' => $reg_no, 'compare' => '=' ] ],
+			] );
+			if ( ! empty( $duplicate ) ) {
+				return new \WP_REST_Response( [
+					'success' => false,
+					'message' => 'Nomor registrasi ' . $reg_no . ' sudah digunakan oleh pendaftaran lain.',
+				], 409 );
+			}
+			update_post_meta( $id, '_reg_no', $reg_no );
+		}
+
 		// Status: whitelist — setiap update status otomatis kirim email ke pemohon.
 		$old_status       = (string) get_post_meta( $id, '_status', true ) ?: 'submitted';
 		$status_to_notify = '';
