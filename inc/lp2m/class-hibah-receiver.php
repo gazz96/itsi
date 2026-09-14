@@ -123,67 +123,45 @@ class ITSI_LP2M_Hibah_Receiver {
 			. '<p style="margin:.45rem 0 0;color:#64748b;font-size:.85em">Diubah di `post.php?post=' . $post_id . '&action=edit` maupun dashboard `PendaftaranDetail` (API).</p>'
 			. '</div>';
 
-		// TypeRocket Tabs: seluruh field editor dikelompokkan menjadi dua tab.
-		ob_start();
-
-		// ── Identitas pengusul (editable) ──
-		echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:.6rem">'
-			. '<div>' . $form->text( '_nama' )->setLabel( 'Nama Lengkap & Gelar' ) . '</div>'
-			. '<div>' . $form->text( '_nip' )->setLabel( 'NIDN / NIDK' ) . '</div>'
-			. '<div>' . $form->select( '_jenis' )->setLabel( 'Jenis Pengusul' )->setOptions( [ 'Dosen' => 'Dosen', 'Mahasiswa' => 'Mahasiswa', 'Tenaga Kependidikan' => 'Tenaga Kependidikan' ] )->setAttribute( 'style', 'width:100%' ) . '</div>'
-			. '<div>' . $form->text( '_prodi' )->setLabel( 'Program Studi / Unit Kerja' ) . '</div>'
-			. '<div>' . $form->text( '_skema' )->setLabel( 'Model Hibah' ) . '</div>'
-			. '<div>' . $form->text( '_jenis_hibah' )->setLabel( 'Jenis Hibah' ) . '</div>'
-			. '<div>' . $form->text( '_sdgs' )->setLabel( 'SDGs' ) . '</div>'
-			. '<div>' . $form->text( '_kelompok_keahlian' )->setLabel( 'Kelompok Keahlian' ) . '</div>'
-			. '</div>';
-		echo '<div style="margin-top:1rem">' . $form->text( '_judul' )->setLabel( 'Judul Usulan' )->setAttribute( 'style', 'width:100%' ) . '</div>';
-		echo '<div style="margin-top:1rem">' . $form->textarea( '_ringkasan' )->setLabel( 'Ringkasan Usulan' )->setAttribute( 'rows', 4 ) . '</div>';
-		echo '<div style="margin-top:1rem;padding:1rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">' . $anggota_repeater . '</div>';
-		echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem">'
-			. '<div>' . $form->text( '_email' )->setLabel( 'Email' ) . '</div>'
-			. '<div>' . $form->text( '_hp' )->setLabel( 'WhatsApp' ) . '</div>'
-			. '</div>';
-
-		// ── File proposal (TypeRocket file) ──
-		echo '<div style="margin-top:1.2rem;padding:1rem;background:#fff;border:1px solid #dbeafe;border-radius:10px">'
-			. '<h4 style="margin:0 0 .6rem">📄 File Proposal (PDF)</h4>';
-		if ( $proposal_url ) {
-			echo '<p style="margin:0 0 .6rem"><a href="' . esc_url( $proposal_url ) . '" target="_blank" rel="noopener">⬇ Download proposal saat ini</a></p>';
-		} else {
-			echo '<p style="margin:0 0 .6rem;color:#9ca3af"><em>Belum ada file proposal.</em></p>';
-		}
-		echo $form->file( '_proposal_id' )->setLabel( 'Ganti / Upload Proposal (PDF, max 10 MB)' )->setHelp( 'Kosongkan bila tidak ingin mengganti. Format hanya PDF — validasi `%PDF-` + finfo dijalankan saat simpan.' )
-			. '<p style="margin:.5rem 0 0;color:#64748b;font-size:.82em">POST ` /lp2m/v1/hibah/{id}` (dashboard) juga bisa ganti file via `multipart + proposal`.</p>'
-			. '</div>';
-		$data_tab = ob_get_clean();
-
-		$catatan_admin = $get( '_catatan_admin' );
-		$catatan_internal = $get( '_catatan_substansi_internal' );
-		$catatan_eksternal = $get( '_catatan_substansi_eksternal' );
-		$nilai_usulan = $get( '_nilai_dana_usulan' );
-		$nilai_disetujui = $get( '_nilai_dana_disetujui' );
-		$template_url = $get( '_surat_kesanggupan_template_url' );
-		$revision_url = $get( '_surat_kesanggupan_url' );
-		$revision_tab = '<div style="padding:1rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px">'
-			. '<h3 style="margin:0 0 .4rem">Tahap 2 — Review &amp; Revisi</h3>'
-			. '<p style="margin:0 0 1rem;color:#64748b">Isi catatan reviewer dan nilai RAB. Pilih status <strong>Reviewed</strong> untuk mengirim tautan revisi privat kepada pemohon.</p>'
-			. $form->textarea( '_catatan_admin' )->setLabel( 'Catatan Admin' )->setAttribute( 'rows', 3 )->setAttribute( 'style', 'width:100%' )
-			. $form->textarea( '_catatan_substansi_internal' )->setLabel( 'Catatan Substansi Internal' )->setAttribute( 'rows', 3 )->setAttribute( 'style', 'width:100%' )
-			. $form->textarea( '_catatan_substansi_eksternal' )->setLabel( 'Catatan Substansi Eksternal' )->setAttribute( 'rows', 3 )->setAttribute( 'style', 'width:100%' )
-			. '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">'
-			. $form->text( '_nilai_dana_usulan' )->setLabel( 'Nilai Dana Usulan' )->setAttribute( 'value', $nilai_usulan )->setAttribute( 'inputmode', 'decimal' )
-			. $form->text( '_nilai_dana_disetujui' )->setLabel( 'Nilai Dana Disetujui' )->setAttribute( 'value', $nilai_disetujui )->setAttribute( 'inputmode', 'decimal' )
-			. '</div>'
-			. ( $template_url ? '<p><a href="' . esc_url( $template_url ) . '" target="_blank" rel="noopener">Download Template Surat Kesanggupan</a></p>' : '' )
-			. $form->file( '_surat_kesanggupan_template_id' )->setLabel( 'Template Surat Kesanggupan (PDF)' )->setHelp( 'Kosongkan bila tidak ingin mengganti template yang sudah tersimpan.' )
-			. ( $revision_url ? '<p><a href="' . esc_url( $revision_url ) . '" target="_blank" rel="noopener">Download File Revisi Peserta</a></p>' : '<p><em>File Revisi belum diunggah peserta.</em></p>' )
-			. '<p style="margin:.5rem 0;color:#64748b">Upload File Revisi diisi oleh peserta melalui link revisi privat.</p>'
-			. '</div>';
+		// TypeRocket Tabs: callback menjaga pembuatan field tetap dekat dengan tab-nya.
+		$data_tab = function () use ( $form, $anggota_repeater, $proposal_url ): string {
+			ob_start();
+			echo $form->setFields( [
+				$form->text( '_nama' )->setLabel( 'Nama Lengkap & Gelar' ),
+				$form->text( '_nip' )->setLabel( 'NIDN / NIDK' ),
+				$form->select( '_jenis' )->setLabel( 'Jenis Pengusul' )->setOptions( [ 'Dosen' => 'Dosen', 'Mahasiswa' => 'Mahasiswa', 'Tenaga Kependidikan' => 'Tenaga Kependidikan' ] ),
+				$form->text( '_prodi' )->setLabel( 'Program Studi / Unit Kerja' ),
+				$form->text( '_skema' )->setLabel( 'Model Hibah' ),
+				$form->text( '_jenis_hibah' )->setLabel( 'Jenis Hibah' ),
+				$form->text( '_sdgs' )->setLabel( 'SDGs' ),
+				$form->text( '_kelompok_keahlian' )->setLabel( 'Kelompok Keahlian' ),
+			] );
+			echo $form->text( '_judul' )->setLabel( 'Judul Usulan' );
+			echo $form->textarea( '_ringkasan' )->setLabel( 'Ringkasan Usulan' )->setAttribute( 'rows', 4 );
+			echo $anggota_repeater;
+			echo $form->setFields( [ $form->text( '_email' )->setLabel( 'Email' ), $form->text( '_hp' )->setLabel( 'WhatsApp' ) ] );
+			echo $proposal_url ? '<p><a href="' . esc_url( $proposal_url ) . '" target="_blank" rel="noopener">⬇ Download proposal saat ini</a></p>' : '<p><em>Belum ada file proposal.</em></p>';
+			echo $form->file( '_proposal_id' )->setLabel( 'Ganti / Upload Proposal (PDF, max 10 MB)' )->setHelp( 'Kosongkan bila tidak ingin mengganti.' );
+			return (string) ob_get_clean();
+		};
+		$revision_tab = function () use ( $form, $get ): string {
+			$template_url = $get( '_surat_kesanggupan_template_url' );
+			$revision_url = $get( '_surat_kesanggupan_url' );
+			ob_start();
+			echo '<h3>Tahap 2 — Review &amp; Revisi</h3><p>Isi catatan reviewer dan nilai RAB. Pilih status Reviewed untuk mengirim tautan revisi privat.</p>';
+			echo $form->textarea( '_catatan_admin' )->setLabel( 'Catatan Admin' );
+			echo $form->textarea( '_catatan_substansi_internal' )->setLabel( 'Catatan Substansi Internal' );
+			echo $form->textarea( '_catatan_substansi_eksternal' )->setLabel( 'Catatan Substansi Eksternal' );
+			echo $form->setFields( [ $form->text( '_nilai_dana_usulan' )->setLabel( 'Nilai Dana Usulan' ), $form->text( '_nilai_dana_disetujui' )->setLabel( 'Nilai Dana Disetujui' ) ] );
+			echo $template_url ? '<p><a href="' . esc_url( $template_url ) . '" target="_blank" rel="noopener">Download Template Surat Kesanggupan</a></p>' : '';
+			echo $form->file( '_surat_kesanggupan_template_id' )->setLabel( 'Template Surat Kesanggupan (PDF)' )->setHelp( 'Kosongkan bila tidak ingin mengganti template yang sudah tersimpan.' );
+			echo $revision_url ? '<p><a href="' . esc_url( $revision_url ) . '" target="_blank" rel="noopener">Download File Revisi Peserta</a></p>' : '<p><em>File Revisi belum diunggah peserta.</em></p>';
+			return (string) ob_get_clean();
+		};
 
 		$tabs = \TypeRocket\Elements\Tabs::new();
-		$tabs->tab( 'Data Pengajuan', 'dashicons-clipboard', [ $data_tab ] );
-		$tabs->tab( 'Revisi', 'dashicons-edit', [ $revision_tab ] );
+		$tabs->tab( 'Data Pengajuan', 'dashicons-clipboard', [ $data_tab() ] );
+		$tabs->tab( 'Revisi', 'dashicons-edit', [ $revision_tab() ] );
 		$tabs->render();
 	}
 
