@@ -38,6 +38,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		add_action( 'typerocket_loaded', [ $this, 'register_tr_cpt_and_metabox' ] );
 		// Sinkron _proposal_id (TR File) ↔ _proposal_url kanonik + validasi PDF.
 		add_action( 'save_post', [ $this, 'sync_proposal_from_tr' ], 30, 1 );
+		add_action( 'save_post', [ $this, 'sync_revision_template_from_tr' ], 31, 1 );
 		// Validasi _reg_no di level meta agar TypeRocket maupun editor WP sama-sama aman.
 		add_filter( 'update_post_metadata', [ $this, 'validate_reg_no_update' ], 10, 5 );
 		add_filter( 'add_post_metadata', [ $this, 'validate_reg_no_add' ], 10, 5 );
@@ -163,6 +164,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		$nilai_usulan = $get( '_nilai_dana_usulan' );
 		$nilai_disetujui = $get( '_nilai_dana_disetujui' );
 		$template_url = $get( '_surat_kesanggupan_template_url' );
+		$revision_url = $get( '_surat_kesanggupan_url' );
 		$revision_tab = '<div style="padding:1rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px">'
 			. '<h3 style="margin:0 0 .4rem">Tahap 2 — Review &amp; Revisi</h3>'
 			. '<p style="margin:0 0 1rem;color:#64748b">Isi catatan reviewer dan nilai RAB. Pilih status <strong>Reviewed</strong> untuk mengirim tautan revisi privat kepada pemohon.</p>'
@@ -173,7 +175,10 @@ class ITSI_LP2M_Hibah_Receiver {
 			. $form->text( '_nilai_dana_usulan' )->setLabel( 'Nilai Dana Usulan' )->setAttribute( 'value', $nilai_usulan )->setAttribute( 'inputmode', 'decimal' )
 			. $form->text( '_nilai_dana_disetujui' )->setLabel( 'Nilai Dana Disetujui' )->setAttribute( 'value', $nilai_disetujui )->setAttribute( 'inputmode', 'decimal' )
 			. '</div>'
-			. $form->text( '_surat_kesanggupan_template_url' )->setLabel( 'URL Template Surat Kesanggupan' )->setAttribute( 'value', $template_url )->setAttribute( 'style', 'width:100%' )
+			. ( $template_url ? '<p><a href="' . esc_url( $template_url ) . '" target="_blank" rel="noopener">Download Template Surat Kesanggupan</a></p>' : '' )
+			. $form->file( '_surat_kesanggupan_template_id' )->setLabel( 'Template Surat Kesanggupan (PDF)' )->setHelp( 'Kosongkan bila tidak ingin mengganti template yang sudah tersimpan.' )
+			. ( $revision_url ? '<p><a href="' . esc_url( $revision_url ) . '" target="_blank" rel="noopener">Download File Revisi Peserta</a></p>' : '<p><em>File Revisi belum diunggah peserta.</em></p>' )
+			. '<p style="margin:.5rem 0;color:#64748b">Upload File Revisi diisi oleh peserta melalui link revisi privat.</p>'
 			. '</div>';
 
 		$tabs = \TypeRocket\Elements\Tabs::new();
@@ -1533,6 +1538,15 @@ class ITSI_LP2M_Hibah_Receiver {
 		foreach ( $review_fields as $field => $meta_key ) {
 			if ( array_key_exists( $field, $params ) ) update_post_meta( $id, $meta_key, sanitize_textarea_field( (string) $params[ $field ] ) );
 		}
+		// Template Surat Kesanggupan: hanya ganti bila ada upload baru; data lama tetap.
+		$template_file = $request->get_file_params()['surat_kesanggupan_template'] ?? null;
+		if ( is_array( $template_file ) && UPLOAD_ERR_NO_FILE !== (int) ( $template_file['error'] ?? UPLOAD_ERR_NO_FILE ) ) {
+			if ( UPLOAD_ERR_OK !== (int) $template_file['error'] ) return new \WP_REST_Response( [ 'success' => false, 'message' => 'Upload template gagal.' ], 400 );
+			$template_id = $this->upload_proposal( $template_file, (string) get_post_meta( $id, '_reg_no', true ) . '-template' );
+			if ( is_wp_error( $template_id ) ) return new \WP_REST_Response( [ 'success' => false, 'message' => $template_id->get_error_message() ], 400 );
+			update_post_meta( $id, '_surat_kesanggupan_template_id', $template_id );
+			update_post_meta( $id, '_surat_kesanggupan_template_url', wp_get_attachment_url( $template_id ) );
+		}
 		if ( $status_changed && 'reviewed' === $status_to_notify ) {
 			$revision_token = $this->open_revision( $id );
 			update_post_meta( $id, '_revision_token_preview', $revision_token );
@@ -2134,6 +2148,22 @@ class ITSI_LP2M_Hibah_Receiver {
 		$url = wp_get_attachment_url( $new_id );
 		if ( $url ) {
 			update_post_meta( $post_id, '_proposal_url', $url );
+		}
+	}
+
+	/** Sinkron field file TypeRocket ke URL template kanonik tanpa menghapus data lama. */
+	public function sync_revision_template_from_tr( int $post_id ): void {
+		if ( wp_is_post_revision( $post_id ) || ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) || 'pendaftaran_hibah' !== get_post_type( $post_id ) ) { return; }
+		$raw = get_post_meta( $post_id, '_surat_kesanggupan_template_id', true );
+		$id  = is_array( $raw ) ? (int) reset( $raw ) : (int) $raw;
+		if ( 0 === $id ) { return; }
+		if ( 'application/pdf' !== get_post_mime_type( $id ) ) {
+			delete_post_meta( $post_id, '_surat_kesanggupan_template_id' );
+			return;
+		}
+		$url = wp_get_attachment_url( $id );
+		if ( $url ) {
+			update_post_meta( $post_id, '_surat_kesanggupan_template_url', $url );
 		}
 	}
 }
