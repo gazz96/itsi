@@ -13,7 +13,7 @@ class ITSI_LP2M_Hibah_Receiver {
 
 	/** Status yang diperbolehkan untuk field `_status`. */
 	public const STATUSES = [
-		'submitted', 'under_review', 'revised', 'approved', 'rejected', 'done',
+		'submitted', 'under_review', 'reviewed', 'revised', 'revision_submitted', 'approved', 'rejected', 'done',
 	];
 
 	/** ID post terakhir yang disimpan (dipakai untuk link admin di email). */
@@ -622,11 +622,21 @@ class ITSI_LP2M_Hibah_Receiver {
 		if ( '' !== trim( $subject_note ) ) {
 			$body = '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;margin-bottom:16px;color:#92400e;font-size:13px"><strong>Catatan:</strong> ' . esc_html( $subject_note ) . '</div>' . $body;
 		}
+		// Token hanya disisipkan pada email transisi reviewed, lalu segera dihapus dari meta.
+		if ( 'reviewed' === $status ) {
+			$token = (string) get_post_meta( $post_id, '_revision_token_preview', true );
+			$frontend = untrailingslashit( (string) get_option( 'lp2m_site_frontend_url', 'https://lp2m.bagistudio.com' ) );
+			if ( '' !== $token ) {
+				$link = $frontend . '/daftar/status/' . rawurlencode( $reg_no ) . '?token=' . rawurlencode( $token );
+				$body .= '<p style="margin:20px 0"><a href="' . esc_url( $link ) . '" style="display:inline-block;padding:11px 18px;background:#0f766e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Buka Tahap Revisi</a></p>';
+			}
+		}
 		$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
 		$sent = wp_mail( $email, $subject, $body, $headers );
 		if ( ! $sent ) {
 			return new \WP_Error( 'mail_failed', 'Gagal mengirim email. Periksa konfigurasi SMTP di LP2M → Settings.' );
 		}
+		if ( 'reviewed' === $status ) delete_post_meta( $post_id, '_revision_token_preview' );
 		return true;
 	}
 
@@ -720,6 +730,18 @@ class ITSI_LP2M_Hibah_Receiver {
 					'sanitize_callback' => 'absint',
 				],
 			],
+		] );
+
+		// Endpoint publik untuk membuka dan mengirim Tahap Revisi dengan token privat.
+		register_rest_route( 'lp2m/v1', '/pendaftaran/revisi', [
+			'methods'             => 'GET',
+			'callback'            => [ $this, 'handle_revision_access' ],
+			'permission_callback' => '__return_true',
+		] );
+		register_rest_route( 'lp2m/v1', '/pendaftaran/revisi', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'handle_revision_submit' ],
+			'permission_callback' => '__return_true',
 		] );
 
 		// Statistik infografis: agregasi pendaftaran per tahun (publik, untuk homepage + dashboard).
@@ -1345,8 +1367,73 @@ class ITSI_LP2M_Hibah_Receiver {
 			'status'     => (string) ( get_post_meta( $post->ID, '_status', true ) ?: 'submitted' ),
 			'proposal_id'  => get_post_meta( $post->ID, '_proposal_id', true ),
 			'proposal_url' => get_post_meta( $post->ID, '_proposal_url', true ),
+			'catatan_admin' => get_post_meta( $post->ID, '_catatan_admin', true ),
+			'catatan_substansi_internal' => get_post_meta( $post->ID, '_catatan_substansi_internal', true ),
+			'catatan_substansi_eksternal' => get_post_meta( $post->ID, '_catatan_substansi_eksternal', true ),
+			'nilai_dana_usulan' => get_post_meta( $post->ID, '_nilai_dana_usulan', true ),
+			'nilai_dana_disetujui' => get_post_meta( $post->ID, '_nilai_dana_disetujui', true ),
+			'surat_kesanggupan_template_url' => get_post_meta( $post->ID, '_surat_kesanggupan_template_url', true ),
+			'surat_kesanggupan_url' => get_post_meta( $post->ID, '_surat_kesanggupan_url', true ),
+			'workflow_history' => get_post_meta( $post->ID, '_workflow_history', true ) ?: [],
 			'created_at' => $post->post_date,
 		] ], 200 );
+	}
+
+	/** Create a revision token and record a workflow event. */
+	private function open_revision( int $id ): string {
+		$token = wp_generate_password( 48, false, false );
+		update_post_meta( $id, '_revision_token_hash', wp_hash_password( $token ) );
+		update_post_meta( $id, '_revision_token_active', '1' );
+		update_post_meta( $id, '_revision_requested_at', current_time( 'mysql' ) );
+		$history = get_post_meta( $id, '_workflow_history', true );
+		$history = is_array( $history ) ? $history : [];
+		$history[] = [ 'stage' => 'reviewed', 'status' => 'reviewed', 'date' => current_time( 'mysql' ), 'label' => 'Review selesai — revisi diminta' ];
+		update_post_meta( $id, '_workflow_history', $history );
+		return $token;
+	}
+
+	private function revision_token_valid( int $id, string $token ): bool {
+		$hash = (string) get_post_meta( $id, '_revision_token_hash', true );
+		return '1' === (string) get_post_meta( $id, '_revision_token_active', true ) && '' !== $hash && wp_check_password( $token, $hash );
+	}
+
+	private function find_by_reg_no( string $no ): ?\WP_Post {
+		$posts = get_posts( [ 'post_type' => 'pendaftaran_hibah', 'post_status' => 'any', 'posts_per_page' => 1, 'meta_key' => '_reg_no', 'meta_value' => $no ] );
+		return $posts[0] ?? null;
+	}
+
+	public function handle_revision_access( \WP_REST_Request $request ): \WP_REST_Response {
+		$post = $this->find_by_reg_no( sanitize_text_field( (string) $request->get_param( 'no' ) ) );
+		$token = sanitize_text_field( (string) $request->get_param( 'token' ) );
+		if ( ! $post || ! $this->revision_token_valid( $post->ID, $token ) ) return new \WP_REST_Response( [ 'success' => false, 'message' => 'Link revisi tidak valid atau sudah ditutup.' ], 403 );
+		$meta = static fn( string $key ) => get_post_meta( $post->ID, $key, true );
+		return new \WP_REST_Response( [ 'success' => true, 'data' => [
+			'reg_no' => $meta( '_reg_no' ), 'nama' => $meta( '_nama' ), 'status' => $meta( '_status' ) ?: 'reviewed',
+			'catatan_admin' => $meta( '_catatan_admin' ), 'catatan_substansi_internal' => $meta( '_catatan_substansi_internal' ),
+			'catatan_substansi_eksternal' => $meta( '_catatan_substansi_eksternal' ), 'nilai_dana_usulan' => $meta( '_nilai_dana_usulan' ),
+			'nilai_dana_disetujui' => $meta( '_nilai_dana_disetujui' ), 'template_url' => $meta( '_surat_kesanggupan_template_url' ),
+			'surat_url' => $meta( '_surat_kesanggupan_url' ), 'history' => $meta( '_workflow_history' ) ?: [],
+		] ], 200 );
+	}
+
+	public function handle_revision_submit( \WP_REST_Request $request ): \WP_REST_Response {
+		$post = $this->find_by_reg_no( sanitize_text_field( (string) $request->get_param( 'no' ) ) );
+		$token = sanitize_text_field( (string) $request->get_param( 'token' ) );
+		if ( ! $post || ! $this->revision_token_valid( $post->ID, $token ) ) return new \WP_REST_Response( [ 'success' => false, 'message' => 'Link revisi tidak valid atau sudah ditutup.' ], 403 );
+		$file = $request->get_file_params()['surat_kesanggupan'] ?? null;
+		if ( ! is_array( $file ) || UPLOAD_ERR_OK !== (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE ) ) return new \WP_REST_Response( [ 'success' => false, 'message' => 'Surat Kesanggupan wajib diunggah.' ], 400 );
+		if ( (int) $file['size'] > 10 * MB_IN_BYTES || ! preg_match( '/\.pdf$/i', (string) $file['name'] ) ) return new \WP_REST_Response( [ 'success' => false, 'message' => 'File harus PDF dan maksimal 10 MB.' ], 400 );
+		$uploaded = media_handle_sideload( [ 'name' => sanitize_file_name( $file['name'] ), 'tmp_name' => $file['tmp_name'], 'type' => $file['type'], 'size' => $file['size'], 'error' => 0 ], $post->ID );
+		if ( is_wp_error( $uploaded ) ) return new \WP_REST_Response( [ 'success' => false, 'message' => $uploaded->get_error_message() ], 400 );
+		update_post_meta( $post->ID, '_surat_kesanggupan_id', $uploaded );
+		update_post_meta( $post->ID, '_surat_kesanggupan_url', wp_get_attachment_url( $uploaded ) );
+		update_post_meta( $post->ID, '_status', 'revision_submitted' );
+		update_post_meta( $post->ID, '_revision_submitted_at', current_time( 'mysql' ) );
+		update_post_meta( $post->ID, '_revision_token_active', '0' );
+		$history = get_post_meta( $post->ID, '_workflow_history', true ); $history = is_array( $history ) ? $history : [];
+		$history[] = [ 'stage' => 'revisi', 'status' => 'revision_submitted', 'date' => current_time( 'mysql' ), 'label' => 'Surat Kesanggupan dikirim' ];
+		update_post_meta( $post->ID, '_workflow_history', $history );
+		return new \WP_REST_Response( [ 'success' => true, 'status' => 'revision_submitted', 'message' => 'Revisi berhasil dikirim.' ], 200 );
 	}
 
 	/**
@@ -1405,6 +1492,20 @@ class ITSI_LP2M_Hibah_Receiver {
 			update_post_meta( $id, '_status', $status );
 			$status_to_notify = $status;
 			$status_changed   = ( $old_status !== $status );
+		}
+
+		// Data review dan RAB diisi admin; nilainya read-only pada endpoint revisi publik.
+		$review_fields = [
+			'catatan_admin' => '_catatan_admin', 'catatan_substansi_internal' => '_catatan_substansi_internal',
+			'catatan_substansi_eksternal' => '_catatan_substansi_eksternal', 'nilai_dana_usulan' => '_nilai_dana_usulan',
+			'nilai_dana_disetujui' => '_nilai_dana_disetujui', 'surat_kesanggupan_template_url' => '_surat_kesanggupan_template_url',
+		];
+		foreach ( $review_fields as $field => $meta_key ) {
+			if ( array_key_exists( $field, $params ) ) update_post_meta( $id, $meta_key, sanitize_textarea_field( (string) $params[ $field ] ) );
+		}
+		if ( $status_changed && 'reviewed' === $status_to_notify ) {
+			$revision_token = $this->open_revision( $id );
+			update_post_meta( $id, '_revision_token_preview', $revision_token );
 		}
 
 		// Field opsional lain (semua divalidasi ulang lewat sanitize_input + whitelist).
@@ -1482,7 +1583,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		$email_sent  = null;
 		$email_error = '';
 		if ( '' !== $status_to_notify ) {
-			$label_map = [ 'submitted' => 'Submitted', 'under_review' => 'Under Review', 'revised' => 'Revised', 'approved' => 'Approved', 'rejected' => 'Rejected', 'done' => 'Done' ];
+			$label_map = [ 'submitted' => 'Submitted', 'under_review' => 'Under Review', 'reviewed' => 'Reviewed — Revisi Diminta', 'revised' => 'Revised', 'revision_submitted' => 'Revision Submitted', 'approved' => 'Approved', 'rejected' => 'Rejected', 'done' => 'Done' ];
 			$label     = $label_map[ $status_to_notify ] ?? ucfirst( $status_to_notify );
 			$note      = $status_changed ? ( 'Status diperbarui: ' . $label ) : ( 'Status: ' . $label );
 			$res       = $this->send_applicant_email( $id, $note );

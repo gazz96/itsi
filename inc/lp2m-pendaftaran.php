@@ -208,6 +208,14 @@ function lp2m_pendaftaran_status(WP_REST_Request $request) {
             'anggota_list' => $anggota_list,
             'tanggal'      => $post->post_date,
             'status'       => $meta('_status') ?: 'submitted',
+            'catatan_admin' => $meta('_catatan_admin'),
+            'catatan_substansi_internal' => $meta('_catatan_substansi_internal'),
+            'catatan_substansi_eksternal' => $meta('_catatan_substansi_eksternal'),
+            'nilai_dana_usulan' => $meta('_nilai_dana_usulan'),
+            'nilai_dana_disetujui' => $meta('_nilai_dana_disetujui'),
+            'template_url'  => $meta('_surat_kesanggupan_template_url'),
+            'surat_url'     => $meta('_surat_kesanggupan_url'),
+            'history'       => get_post_meta($post->ID, '_workflow_history', true) ?: [],
         ]);
     }
 
