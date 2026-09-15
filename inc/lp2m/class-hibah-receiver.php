@@ -767,20 +767,30 @@ class ITSI_LP2M_Hibah_Receiver {
 			'hp'    => (string) get_post_meta( $post_id, '_hp', true ),
 		];
 		$status = (string) get_post_meta( $post_id, '_status', true ) ?: 'submitted';
+
+		// Email berstatus `reviewed` = email tahap revisi: isi blok "Detail Revisi"
+		// dari data tab Revisi dan pakai tautan bertoken sebagai tombol utama.
+		// Token aktif yang sudah ada dipakai ulang; token baru dibuat hanya bila belum ada.
+		$revision = [];
+		if ( 'reviewed' === $status ) {
+			$token = $this->ensure_revision_token( $post_id );
+			$revision = [
+				'active'                      => true,
+				'link'                        => '' !== $token
+					? $this->frontend_base_url() . '/daftar/status/' . rawurlencode( $reg_no ?: (string) $post_id ) . '?token=' . rawurlencode( $token )
+					: '',
+				'catatan_admin'               => (string) get_post_meta( $post_id, '_catatan_admin', true ),
+				'catatan_substansi_internal'  => (string) get_post_meta( $post_id, '_catatan_substansi_internal', true ),
+				'catatan_substansi_eksternal' => (string) get_post_meta( $post_id, '_catatan_substansi_eksternal', true ),
+				'nilai_dana_usulan'           => (string) get_post_meta( $post_id, '_nilai_dana_usulan', true ),
+				'nilai_dana_disetujui'        => (string) get_post_meta( $post_id, '_nilai_dana_disetujui', true ),
+			];
+		}
+
 		$subject = sprintf( '[LP2M] %s — %s', $reg_no ?: ( 'Pendaftaran #' . $post_id ), $subject_note ? $subject_note : ( 'Status: ' . ucfirst( $status ) ) );
-		$body = $this->email_html( $params, $reg_no ?: (string) $post_id, $event_name, '' );
+		$body = $this->email_html( $params, $reg_no ?: (string) $post_id, $event_name, '', [], $revision );
 		if ( '' !== trim( $subject_note ) ) {
 			$body = '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;margin-bottom:16px;color:#92400e;font-size:13px"><strong>Catatan:</strong> ' . esc_html( $subject_note ) . '</div>' . $body;
-		}
-		// Email berstatus `reviewed` selalu memuat tautan tahap revisi. Token aktif
-		// yang sudah ada dipakai ulang; token baru dibuat hanya bila belum ada.
-		if ( 'reviewed' === $status ) {
-			$token    = $this->ensure_revision_token( $post_id );
-			$frontend = $this->frontend_base_url();
-			if ( '' !== $token ) {
-				$link = $frontend . '/daftar/status/' . rawurlencode( $reg_no ?: (string) $post_id ) . '?token=' . rawurlencode( $token );
-				$body .= '<p style="margin:20px 0"><a href="' . esc_url( $link ) . '" style="display:inline-block;padding:11px 18px;background:#0f766e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Buka Tahap Revisi</a></p>';
-			}
 		}
 		$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
 
@@ -2219,14 +2229,20 @@ class ITSI_LP2M_Hibah_Receiver {
 
 	/**
 	 * Template email HTML untuk admin + pendaftar.
+	 *
+	 * @param array  $revision Data tab Revisi (dipakai hanya untuk email `reviewed`).
+	 *                         Kunci: active, link, catatan_admin, catatan_substansi_internal,
+	 *                         catatan_substansi_eksternal, nilai_dana_usulan, nilai_dana_disetujui.
 	 */
-	private function email_html( array $params, string $reg_no, string $event_name, string $admin_link, array $links = [] ): string {
+	private function email_html( array $params, string $reg_no, string $event_name, string $admin_link, array $links = [], array $revision = [] ): string {
 		$row = function ( string $label, string $value ): string {
 			return '<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#374151;white-space:nowrap;vertical-align:top">'
 				. esc_html( $label )
 				. '</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#111827">'
 				. esc_html( $value ?: '—' ) . '</td></tr>';
 		};
+
+		$rev_active = ! empty( $revision['active'] );
 
 		$anggota_rows = '';
 		foreach ( $params['anggota_list'] as $i => $m ) {
@@ -2251,13 +2267,32 @@ class ITSI_LP2M_Hibah_Receiver {
 				. '<table style="width:100%;border-collapse:collapse;font-size:14px">' . $link_html . '</table>';
 		}
 
-		// Link "Cek Status" untuk pendaftar — ambil dari setting URL frontend.
-		// Selalu https + app path; JANGAN fallback ke home_url() (situs WP).
+		// Blok "Detail Revisi" (hanya email `reviewed`) — diletakkan TEPAT di bawah
+		// baris Kelompok Keahlian, memakai data tab Revisi apa adanya.
+		$revision_block = '';
+		if ( $rev_active ) {
+			$revision_block = '<h3 style="margin:22px 0 8px;font-size:14px;color:#0f766e">Detail Revisi</h3>'
+				. '<table style="width:100%;border-collapse:collapse;font-size:14px">'
+				. $row( 'Catatan Admin', (string) ( $revision['catatan_admin'] ?? '' ) )
+				. $row( 'Catatan Substansi Internal', (string) ( $revision['catatan_substansi_internal'] ?? '' ) )
+				. $row( 'Catatan Substansi Eksternal', (string) ( $revision['catatan_substansi_eksternal'] ?? '' ) )
+				. $row( 'Nilai Dana Usulan', (string) ( $revision['nilai_dana_usulan'] ?? '' ) )
+				. $row( 'Nilai Dana Disetujui', (string) ( $revision['nilai_dana_disetujui'] ?? '' ) )
+				. '</table>'
+				. '<p style="margin:10px 0 0;color:#6b7280;font-size:12px">Komposisi dana disetujui: Honorarium 30% · Alat &amp; Bahan Habis Pakai 50% · Perjalanan Dinas 20%. Publikasi menjadi luaran wajib tanpa alokasi khusus.</p>';
+		}
+
+		// Tombol utama email: `reviewed` → "Buka Tahap Revisi" (tautan bertoken
+		// dari data revisi); status lain → "Cek Status Pendaftaran".
+		// Selalu domain FRONTEND LP2M; JANGAN fallback ke home_url() (situs WP).
 		$frontend_url = $this->frontend_base_url();
-		$track_btn    = '';
-		if ( '' !== $frontend_url ) {
-			$track_url = $frontend_url . '/daftar/status/' . rawurlencode( $reg_no );
-			$track_btn = '<p style="margin:20px 0 0"><a href="' . esc_url( $track_url ) . '" style="display:inline-block;padding:10px 18px;background:#1f4d36;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Cek Status Pendaftaran</a></p>';
+		$rev_link     = (string) ( $revision['link'] ?? '' );
+		$btn_url      = ( $rev_active && '' !== $rev_link )
+			? $rev_link
+			: ( '' !== $frontend_url ? $frontend_url . '/daftar/status/' . rawurlencode( $reg_no ) : '' );
+		$primary_btn  = '';
+		if ( '' !== $btn_url ) {
+			$primary_btn = '<p style="margin:20px 0 0"><a href="' . esc_url( $btn_url ) . '" style="display:inline-block;padding:11px 18px;background:' . ( $rev_active ? '#0f766e' : '#1f4d36' ) . ';color:#fff;text-decoration:none;border-radius:6px;font-weight:600">' . ( $rev_active ? 'Buka Tahap Revisi' : 'Cek Status Pendaftaran' ) . '</a></p>';
 		}
 
 		return '<div style="background:#f3f4f6;padding:24px;font-family:Segoe UI,Arial,sans-serif">'
@@ -2274,6 +2309,9 @@ class ITSI_LP2M_Hibah_Receiver {
 			. $row( 'Jenis Hibah', $params['jenis_hibah'] )
 			. $row( 'SDGs', $params['sdgs'] )
 			. $row( 'Kelompok Keahlian', $params['kelompok_keahlian'] )
+			. '</table>'
+			. $revision_block
+			. '<table style="width:100%;border-collapse:collapse;font-size:14px">'
 			. $row( 'Judul Usulan', $params['judul'] )
 			. $row( 'Ringkasan', $params['ringkasan'] )
 			. $anggota_rows
@@ -2281,7 +2319,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			. $row( 'WhatsApp', $params['hp'] )
 			. '</table>'
 			. $link_rows
-			. $track_btn
+			. $primary_btn
 			. $admin_btn
 			. '<p style="margin:20px 0 0;color:#6b7280;font-size:12px">Email ini dikirim otomatis oleh sistem LP2M ITSI.</p>'
 			. '</div></div></div>';
