@@ -446,7 +446,7 @@ require_once get_template_directory() . '/inc/widgets.php';
  * REST API enhancement untuk CPT Hibah LP2M.
  *
  * Register custom fields (timeline_items, file_panduan, file_template, etc.)
- * so the Vue frontend at lp2m.bagistudio.com can fetch event data directly
+ * so the Vue frontend at lp2m.itsi.ac.id can fetch event data directly
  * from /wp-json/wp/v2/hibah.
  */
 require_once get_template_directory() . '/inc/rest-api-hibah.php';
@@ -467,7 +467,7 @@ require_once get_template_directory() . '/inc/typerocket-compat.php';
 /**
  * LP2M CORS — izinkan akses lintas-origin dari SPA LP2M.
  *
- * SPA LP2M (lp2m.bagistudio.com / lp2m-102.pages.dev / lp2m.itsi.ac.id)
+ * SPA LP2M (lp2m.itsi.ac.id / lp2m-102.pages.dev)
  * memanggil REST API itsi.ac.id secara langsung lintas-origin. WordPress core
  * hanya mengirim header CORS untuk origin same-site, jadi tanpa filter ini
  * semua request /wp-json dari domain LP2M diblokir browser.

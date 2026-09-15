@@ -4,7 +4,7 @@
  *
  * WordPress core hanya mengirim header `Access-Control-Allow-Origin` bila
  * origin request cocok dengan home/siteurl (same-origin). SPA LP2M berjalan
- * di domain terpisah (lp2m.bagistudio.com, lp2m-102.pages.dev, lp2m.itsi.ac.id)
+ * di domain terpisah (lp2m.itsi.ac.id, lp2m-102.pages.dev)
  * sehingga semua request /wp-json lintas-origin diblokir browser tanpa header
  * CORS. File ini menambahkan header CORS untuk origin LP2M yang terdaftar
  * (allowlist — bukan `*`, agar kredensial Basic auth tidak bocor ke origin
@@ -22,9 +22,8 @@ defined( 'ABSPATH' ) || exit;
  */
 function itsi_lp2m_cors_allowed_origins() {
 	return array(
-		'https://lp2m.bagistudio.com',
-		'https://lp2m-102.pages.dev',
 		'https://lp2m.itsi.ac.id',
+		'https://lp2m-102.pages.dev',
 		'http://localhost:5173',
 		'https://localhost:5173',
 	);

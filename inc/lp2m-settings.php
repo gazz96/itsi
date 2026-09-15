@@ -61,7 +61,7 @@ function lp2m_render() {
 			->setHelp( __( 'Email yang menerima notifikasi pendaftaran hibah baru.', 'itsi' ) ),
 		\TypeRocket\Utility\Helper::form()->input( 'lp2m_site_frontend_url' )->setTypeUrl()
 			->setLabel( __( 'URL Situs Frontend (LP2M)', 'itsi' ) )
-			->setHelp( __( 'URL situs publik LP2M (mis. https://lp2m.pages.dev). Dipakai untuk link \"Cek Status\" di email konfirmasi.', 'itsi' ) ),
+			->setHelp( __( 'URL situs publik LP2M (mis. https://lp2m.itsi.ac.id). Dipakai untuk link "Cek Status" di email konfirmasi.', 'itsi' ) ),
 	) );
 
 	// ── DOKUMEN ─────────────────────────────────────────────────────

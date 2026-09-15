@@ -105,7 +105,7 @@ function lp2m_pendaftaran_submit(WP_REST_Request $request) {
         "",
         "Detail lengkap ada di lampiran PDF.",
         "",
-        "Silakan login dashboard: https://lp2m.bagistudio.com/dashboard/pendaftaran",
+        "Silakan login dashboard: https://lp2m.itsi.ac.id/dashboard/pendaftaran",
     ]);
     wp_mail($admin_email, $subject_admin, $msg_admin, ['From: ' . $from_name . ' <noreply@' . $_SERVER['SERVER_NAME'] . '>'], $pdf_attachments);
 
@@ -121,7 +121,7 @@ function lp2m_pendaftaran_submit(WP_REST_Request $request) {
         "Detail pendaftaran Anda ada di lampiran PDF.",
         "",
         "Simpan nomor ini. Cek status sewaktu-waktu:",
-        "https://lp2m.bagistudio.com/daftar/status/{$reg_no}",
+        "https://lp2m.itsi.ac.id/daftar/status/{$reg_no}",
         "",
         "Tim LP2M ITSI",
     ]);
