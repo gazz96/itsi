@@ -40,6 +40,8 @@ class ITSI_LP2M_Hibah_Receiver {
 		add_action( 'save_post', [ $this, 'sync_proposal_from_tr' ], 30, 1 );
 		add_action( 'save_post', [ $this, 'sync_revision_template_from_tr' ], 31, 1 );
 		add_action( 'save_post', [ $this, 'sync_revision_file_from_tr' ], 32, 1 );
+		// Safety net: pastikan token revisi selalu ada saat status `reviewed`.
+		add_action( 'save_post', [ $this, 'ensure_revision_token_on_save' ], 33, 1 );
 		// Validasi _reg_no di level meta agar TypeRocket maupun editor WP sama-sama aman.
 		add_filter( 'update_post_metadata', [ $this, 'validate_reg_no_update' ], 10, 5 );
 		add_filter( 'add_post_metadata', [ $this, 'validate_reg_no_add' ], 10, 5 );
@@ -174,14 +176,9 @@ class ITSI_LP2M_Hibah_Receiver {
 			] )->setTitle( 'Catatan Review' );
 			echo $form->section( [
 				$form->text( '_nilai_dana_usulan' )->setLabel( 'Nilai Dana Usulan' ),
-			//	$form->text( '_nilai_dana_disetujui' )->setLabel( 'Nilai Dana Disetujui' ),
+				$form->text( '_nilai_dana_disetujui' )->setLabel( 'Nilai Dana Disetujui' )
+					->setHelp( 'Satu nilai total dana yang disetujui. Komposisi: Honorarium 30%, Perjalanan Dinas & Alat/Bahan Habis Pakai 20%, Publikasi 50%.' ),
 			] )->setTitle( 'Ringkasan Dana' );
-			echo $form->section( [
-				$form->text( '_nilai_dana_disetujui_honorium' )->setLabel( 'Honorium' ),
-				$form->text( '_nilai_dana_disetujui_perjalanan_dinas' )->setLabel( 'Perjalanan Dinas' ),
-				$form->text( '_nilai_dana_disetujui_alat_bahan' )->setLabel( 'Alat/Bahan Habis Pakai' ),
-				$form->text( '_nilai_dana_disetujui_publikasi' )->setLabel( 'Publikasi' ),
-			] )->setTitle( 'Rincian Dana Disetujui' );
 			echo $form->section( [
 				$form->file( '_surat_kesanggupan_template_id' )->setLabel( 'Template Surat Kesanggupan (PDF)' )->setHelp( 'Kosongkan bila tidak ingin mengganti template yang sudah tersimpan.' ),
 				$form->file( '_surat_kesanggupan_id' )->setLabel( 'Surat Kesanggupan Peserta — Upload Ulang (PDF)' )->setHelp( 'Upload ulang surat kesanggupan yang sudah diperbaiki oleh peserta. Kosongkan bila tidak ingin mengganti file yang sudah tersimpan.' ),
@@ -667,12 +664,16 @@ class ITSI_LP2M_Hibah_Receiver {
 		if ( '' !== trim( $subject_note ) ) {
 			$body = '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;margin-bottom:16px;color:#92400e;font-size:13px"><strong>Catatan:</strong> ' . esc_html( $subject_note ) . '</div>' . $body;
 		}
-		// Token hanya disisipkan pada email transisi reviewed, lalu segera dihapus dari meta.
+		// Email berstatus `reviewed` selalu memuat tautan tahap revisi. Token aktif
+		// yang sudah ada dipakai ulang; token baru dibuat hanya bila belum ada.
 		if ( 'reviewed' === $status ) {
-			$token = (string) get_post_meta( $post_id, '_revision_token_preview', true );
-			$frontend = untrailingslashit( (string) get_option( 'lp2m_site_frontend_url', 'https://lp2m.bagistudio.com' ) );
+			$token    = $this->ensure_revision_token( $post_id );
+			$frontend = untrailingslashit( (string) get_option( 'lp2m_site_frontend_url', '' ) );
+			if ( '' === $frontend ) {
+				$frontend = untrailingslashit( home_url() );
+			}
 			if ( '' !== $token ) {
-				$link = $frontend . '/daftar/status/' . rawurlencode( $reg_no ) . '?token=' . rawurlencode( $token );
+				$link = $frontend . '/daftar/status/' . rawurlencode( $reg_no ?: (string) $post_id ) . '?token=' . rawurlencode( $token );
 				$body .= '<p style="margin:20px 0"><a href="' . esc_url( $link ) . '" style="display:inline-block;padding:11px 18px;background:#0f766e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Buka Tahap Revisi</a></p>';
 			}
 		}
@@ -681,7 +682,6 @@ class ITSI_LP2M_Hibah_Receiver {
 		if ( ! $sent ) {
 			return new \WP_Error( 'mail_failed', 'Gagal mengirim email. Periksa konfigurasi SMTP di LP2M → Settings.' );
 		}
-		if ( 'reviewed' === $status ) delete_post_meta( $post_id, '_revision_token_preview' );
 		return true;
 	}
 
@@ -1420,10 +1420,6 @@ class ITSI_LP2M_Hibah_Receiver {
 			'catatan_substansi_eksternal' => get_post_meta( $post->ID, '_catatan_substansi_eksternal', true ),
 			'nilai_dana_usulan' => get_post_meta( $post->ID, '_nilai_dana_usulan', true ),
 			'nilai_dana_disetujui' => get_post_meta( $post->ID, '_nilai_dana_disetujui', true ),
-			'nilai_dana_disetujui_honorium' => get_post_meta( $post->ID, '_nilai_dana_disetujui_honorium', true ),
-			'nilai_dana_disetujui_perjalanan_dinas' => get_post_meta( $post->ID, '_nilai_dana_disetujui_perjalanan_dinas', true ),
-			'nilai_dana_disetujui_alat_bahan' => get_post_meta( $post->ID, '_nilai_dana_disetujui_alat_bahan', true ),
-			'nilai_dana_disetujui_publikasi' => get_post_meta( $post->ID, '_nilai_dana_disetujui_publikasi', true ),
 			'surat_kesanggupan_template_url' => get_post_meta( $post->ID, '_surat_kesanggupan_template_url', true ),
 			'surat_kesanggupan_url' => get_post_meta( $post->ID, '_surat_kesanggupan_url', true ),
 			'workflow_history' => get_post_meta( $post->ID, '_workflow_history', true ) ?: [],
@@ -1449,6 +1445,33 @@ class ITSI_LP2M_Hibah_Receiver {
 		return '1' === (string) get_post_meta( $id, '_revision_token_active', true ) && '' !== $hash && wp_check_password( $token, $hash );
 	}
 
+	/**
+	 * Pastikan tautan revisi tersedia untuk status `reviewed`.
+	 * Mengembalikan plaintext token yang masih aktif; token baru dibuat HANYA bila
+	 * belum ada token aktif — supaya tautan yang sudah dikirim ke peserta tidak batal.
+	 */
+	private function ensure_revision_token( int $id ): string {
+		$active  = '1' === (string) get_post_meta( $id, '_revision_token_active', true );
+		$preview = (string) get_post_meta( $id, '_revision_token_preview', true );
+		if ( $active && '' !== $preview ) {
+			return $preview;
+		}
+		$token = $this->open_revision( $id );
+		update_post_meta( $id, '_revision_token_preview', $token );
+		return $token;
+	}
+
+	/**
+	 * Safety net: jaga agar token revisi selalu ada begitu status menjadi `reviewed`,
+	 * termasuk bila status diubah dari wp-admin / TypeRocket (bukan lewat REST).
+	 */
+	public function ensure_revision_token_on_save( int $post_id ): void {
+		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) { return; }
+		if ( 'pendaftaran_hibah' !== get_post_type( $post_id ) ) { return; }
+		if ( 'reviewed' !== (string) get_post_meta( $post_id, '_status', true ) ) { return; }
+		$this->ensure_revision_token( $post_id );
+	}
+
 	private function find_by_reg_no( string $no ): ?\WP_Post {
 		$posts = get_posts( [ 'post_type' => 'pendaftaran_hibah', 'post_status' => 'any', 'posts_per_page' => 1, 'meta_key' => '_reg_no', 'meta_value' => $no ] );
 		return $posts[0] ?? null;
@@ -1463,7 +1486,8 @@ class ITSI_LP2M_Hibah_Receiver {
 			'reg_no' => $meta( '_reg_no' ), 'nama' => $meta( '_nama' ), 'status' => $meta( '_status' ) ?: 'reviewed',
 			'catatan_admin' => $meta( '_catatan_admin' ), 'catatan_substansi_internal' => $meta( '_catatan_substansi_internal' ),
 			'catatan_substansi_eksternal' => $meta( '_catatan_substansi_eksternal' ), 'nilai_dana_usulan' => $meta( '_nilai_dana_usulan' ),
-			'nilai_dana_disetujui' => $meta( '_nilai_dana_disetujui' ), 'template_url' => $meta( '_surat_kesanggupan_template_url' ),
+			'nilai_dana_disetujui' => $meta( '_nilai_dana_disetujui' ),
+			'template_url' => $meta( '_surat_kesanggupan_template_url' ),
 			'surat_url' => $meta( '_surat_kesanggupan_url' ), 'history' => $meta( '_workflow_history' ) ?: [],
 		] ], 200 );
 	}
@@ -1551,10 +1575,6 @@ class ITSI_LP2M_Hibah_Receiver {
 			'catatan_admin' => '_catatan_admin', 'catatan_substansi_internal' => '_catatan_substansi_internal',
 			'catatan_substansi_eksternal' => '_catatan_substansi_eksternal', 'nilai_dana_usulan' => '_nilai_dana_usulan',
 			'nilai_dana_disetujui' => '_nilai_dana_disetujui',
-			'nilai_dana_disetujui_honorium' => '_nilai_dana_disetujui_honorium',
-			'nilai_dana_disetujui_perjalanan_dinas' => '_nilai_dana_disetujui_perjalanan_dinas',
-			'nilai_dana_disetujui_alat_bahan' => '_nilai_dana_disetujui_alat_bahan',
-			'nilai_dana_disetujui_publikasi' => '_nilai_dana_disetujui_publikasi',
 			'surat_kesanggupan_template_url' => '_surat_kesanggupan_template_url',
 		];
 		foreach ( $review_fields as $field => $meta_key ) {
@@ -1569,9 +1589,13 @@ class ITSI_LP2M_Hibah_Receiver {
 			update_post_meta( $id, '_surat_kesanggupan_template_id', $template_id );
 			update_post_meta( $id, '_surat_kesanggupan_template_url', wp_get_attachment_url( $template_id ) );
 		}
-		if ( $status_changed && 'reviewed' === $status_to_notify ) {
-			$revision_token = $this->open_revision( $id );
-			update_post_meta( $id, '_revision_token_preview', $revision_token );
+		// Status reviewed → pastikan token revisi aktif. Token lama dipakai ulang
+		// (tidak dibuat baru) agar tautan yang sudah dikirim ke peserta tetap valid.
+		if ( 'reviewed' === $status_to_notify ) {
+			$this->ensure_revision_token( $id );
+		} elseif ( $status_changed ) {
+			// Status keluar dari tahap revisi → nonaktifkan token agar tautan lama mati.
+			update_post_meta( $id, '_revision_token_active', '0' );
 		}
 
 		// Field opsional lain (semua divalidasi ulang lewat sanitize_input + whitelist).
@@ -1734,17 +1758,28 @@ class ITSI_LP2M_Hibah_Receiver {
 		return $q->have_posts() ? $q->posts[0]->ID : 0;
 	}
 
+	/**
+	 * Nomor registrasi berformat `LP2M-YYYY-NNNNN` (selaras dengan whitelist
+	 * validate_reg_no_update()). Urutan dihitung dari nilai terbesar yang ada.
+	 */
 	private function generate_reg_no(): string {
-		$year = date( 'Y' );
-		$q    = new \WP_Query( [
+		$prefix = 'LP2M-' . date( 'Y' ) . '-';
+		$ids    = get_posts( [
 			'post_type'      => 'pendaftaran_hibah',
-			'post_status'    => 'private',
-			'posts_per_page' => 1,
-			'orderby'        => 'date', 'order' => 'DESC',
-			'meta_query'     => [ [ 'key' => '_reg_no', 'value' => $year . '-', 'compare' => 'LIKE' ] ],
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'meta_query'     => [ [ 'key' => '_reg_no', 'value' => $prefix, 'compare' => 'LIKE' ] ],
 		] );
-		$seq = $q->have_posts() ? ( (int) substr( get_post_meta( $q->posts[0]->ID, '_reg_no', true ), -5 ) + 1 ) : 1;
-		return sprintf( '%s-%05d', $year, $seq );
+		$max = 0;
+		foreach ( $ids as $pid ) {
+			$val = (string) get_post_meta( (int) $pid, '_reg_no', true );
+			if ( 0 === strpos( $val, $prefix ) ) {
+				$max = max( $max, (int) substr( $val, strlen( $prefix ) ) );
+			}
+		}
+		return sprintf( '%s%05d', $prefix, $max + 1 );
 	}
 
 	private function save_submission( array $params, string $reg_no, int $hibah_id ): int|\WP_Error {
