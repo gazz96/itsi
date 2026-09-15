@@ -235,7 +235,12 @@ function lp2m_pendaftaran_status(WP_REST_Request $request) {
             'nilai_dana_usulan' => $meta('_nilai_dana_usulan'),
             'nilai_dana_disetujui' => $meta('_nilai_dana_disetujui'),
             'template_url'  => $template_url,
+            'proposal_url'  => $meta('_proposal_url'),
             'surat_url'     => $meta('_surat_kesanggupan_url'),
+            // Proposal hasil perbaikan sesuai catatan reviewer (tahap revisi).
+            'revisi_proposal_url' => $meta('_revisi_proposal_url'),
+            // Diisi saat peserta mengirim revisi → halaman Track Status jadi mode baca.
+            'revision_submitted_at' => $meta('_revision_submitted_at'),
             'history'       => get_post_meta($post->ID, '_workflow_history', true) ?: [],
         ]);
     }

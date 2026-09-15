@@ -229,7 +229,8 @@ class ITSI_LP2M_Hibah_Receiver {
 				// Legacy: template yang dulu diunggah di level pendaftaran.
 				$template_url = $get( '_surat_kesanggupan_template_url' );
 			}
-			$revision_url = $get( '_surat_kesanggupan_url' );
+			$surat_url   = $get( '_surat_kesanggupan_url' );
+			$revisi_url  = $get( '_revisi_proposal_url' );
 			ob_start();
 			//echo '<h3>Tahap 2 — Review &amp; Revisi</h3><p>Isi catatan reviewer dan nilai RAB. Pilih status Reviewed untuk mengirim tautan revisi privat.</p>';
 			echo $form->section( [
@@ -244,7 +245,17 @@ class ITSI_LP2M_Hibah_Receiver {
 			] )->setTitle( 'Ringkasan Dana' );
 			echo $form->section( [
 				$form->file( '_surat_kesanggupan_id' )->setLabel( 'Surat Kesanggupan Peserta — Upload Ulang (PDF)' )->setHelp( 'Upload ulang surat kesanggupan yang sudah diperbaiki oleh peserta. Kosongkan bila tidak ingin mengganti file yang sudah tersimpan.' ),
+				$form->file( '_revisi_proposal_id' )->setLabel( 'Revisi File Pengajuan — Upload Ulang (PDF)' )->setHelp( 'Proposal yang sudah diperbaiki sesuai catatan reviewer. Kosongkan bila tidak ingin mengganti file yang sudah tersimpan.' ),
 			] )->setTitle( 'Dokumen Revisi' );
+			echo '<div style="margin:-.5rem 0 1rem;font-size:12px">'
+				. ( $surat_url
+					? '<a href="' . esc_url( (string) $surat_url ) . '" target="_blank" rel="noopener">⬇ Download Surat Kesanggupan tersimpan</a>'
+					: '<em>Surat Kesanggupan belum ada.</em>' )
+				. ' &nbsp;|&nbsp; '
+				. ( $revisi_url
+					? '<a href="' . esc_url( (string) $revisi_url ) . '" target="_blank" rel="noopener">⬇ Download Revisi File Pengajuan tersimpan</a>'
+					: '<em>Revisi File Pengajuan belum ada.</em>' )
+				. '</div>';
 			echo '<div style="margin-top:.5rem;padding:8px 10px;background:#f0f6fc;border:1px solid #c3d9ef;border-radius:4px;font-size:12px">'
 				. '<strong style="display:block;margin-bottom:2px">✍️ Template Surat Kesanggupan (level event)</strong>'
 				. '<p style="margin:0 0 4px;color:#50575e">Template diunggah sekali di event hibah — peserta tahap revisi cukup mengunduh, tidak upload berulang di sini.</p>'
@@ -1663,6 +1674,8 @@ class ITSI_LP2M_Hibah_Receiver {
 			'nilai_dana_disetujui' => get_post_meta( $post->ID, '_nilai_dana_disetujui', true ),
 			'surat_kesanggupan_template_url' => $this->resolve_surat_kesanggupan_template_url( (int) $post->ID ),
 			'surat_kesanggupan_url' => get_post_meta( $post->ID, '_surat_kesanggupan_url', true ),
+			'revisi_proposal_id'  => get_post_meta( $post->ID, '_revisi_proposal_id', true ),
+			'revisi_proposal_url' => get_post_meta( $post->ID, '_revisi_proposal_url', true ),
 			'workflow_history' => get_post_meta( $post->ID, '_workflow_history', true ) ?: [],
 			'created_at' => $post->post_date,
 		] ], 200 );
@@ -1674,6 +1687,8 @@ class ITSI_LP2M_Hibah_Receiver {
 		update_post_meta( $id, '_revision_token_hash', wp_hash_password( $token ) );
 		update_post_meta( $id, '_revision_token_active', '1' );
 		update_post_meta( $id, '_revision_requested_at', current_time( 'mysql' ) );
+		// Siklus revisi baru → halaman peserta kembali bisa mengunggah (mode edit).
+		delete_post_meta( $id, '_revision_submitted_at' );
 		$history = get_post_meta( $id, '_workflow_history', true );
 		$history = is_array( $history ) ? $history : [];
 		$history[] = [ 'stage' => 'reviewed', 'status' => 'reviewed', 'date' => current_time( 'mysql' ), 'label' => 'Review selesai — revisi diminta' ];
@@ -1782,7 +1797,11 @@ class ITSI_LP2M_Hibah_Receiver {
 			'catatan_substansi_eksternal' => $meta( '_catatan_substansi_eksternal' ), 'nilai_dana_usulan' => $meta( '_nilai_dana_usulan' ),
 			'nilai_dana_disetujui' => $meta( '_nilai_dana_disetujui' ),
 			'template_url' => $this->resolve_surat_kesanggupan_template_url( (int) $post->ID ),
-			'surat_url' => $meta( '_surat_kesanggupan_url' ), 'history' => $meta( '_workflow_history' ) ?: [],
+			'proposal_url' => $meta( '_proposal_url' ),
+			'surat_url' => $meta( '_surat_kesanggupan_url' ),
+			'revisi_proposal_url' => $meta( '_revisi_proposal_url' ),
+			'revision_submitted_at' => $meta( '_revision_submitted_at' ),
+			'history' => $meta( '_workflow_history' ) ?: [],
 		] ], 200 );
 	}
 
@@ -1790,22 +1809,64 @@ class ITSI_LP2M_Hibah_Receiver {
 		$post = $this->find_by_reg_no( sanitize_text_field( (string) $request->get_param( 'no' ) ) );
 		$token = sanitize_text_field( (string) $request->get_param( 'token' ) );
 		if ( ! $post || ! $this->revision_token_valid( $post->ID, $token ) ) return new \WP_REST_Response( [ 'success' => false, 'message' => 'Link revisi tidak valid atau sudah ditutup.' ], 403 );
-		$file = $request->get_file_params()['surat_kesanggupan'] ?? null;
-		if ( ! is_array( $file ) || UPLOAD_ERR_OK !== (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE ) ) return new \WP_REST_Response( [ 'success' => false, 'message' => 'Surat Kesanggupan wajib diunggah.' ], 400 );
-		if ( (int) $file['size'] > 10 * MB_IN_BYTES || ! preg_match( '/\.pdf$/i', (string) $file['name'] ) ) return new \WP_REST_Response( [ 'success' => false, 'message' => 'File harus PDF dan maksimal 10 MB.' ], 400 );
-		$uploaded = media_handle_sideload( [ 'name' => sanitize_file_name( $file['name'] ), 'tmp_name' => $file['tmp_name'], 'type' => $file['type'], 'size' => $file['size'], 'error' => 0 ], $post->ID );
-		if ( is_wp_error( $uploaded ) ) return new \WP_REST_Response( [ 'success' => false, 'message' => $uploaded->get_error_message() ], 400 );
-		update_post_meta( $post->ID, '_surat_kesanggupan_id', $uploaded );
-		update_post_meta( $post->ID, '_surat_kesanggupan_url', wp_get_attachment_url( $uploaded ) );
+		// Token mati permanen setelah revisi dikirim → tolak upaya submit ulang.
+		if ( 'revision_submitted' === (string) get_post_meta( $post->ID, '_status', true ) ) return new \WP_REST_Response( [ 'success' => false, 'message' => 'Revisi sudah pernah dikirim. Tautan ini tidak dapat digunakan lagi.' ], 403 );
+		$files  = $request->get_file_params();
+		$reg_no = (string) get_post_meta( $post->ID, '_reg_no', true );
+		if ( '' === trim( $reg_no ) ) { $reg_no = (string) $post->ID; }
+
+		// Tahap revisi mewajibkan DUA berkas: surat kesanggupan yang sudah diisi
+		// peserta + proposal yang diperbaiki sesuai catatan reviewer.
+		$required = [
+			'surat_kesanggupan' => [ 'meta' => '_surat_kesanggupan', 'prefix' => 'surat-kesanggupan', 'label' => 'Surat Kesanggupan' ],
+			'revisi_proposal'   => [ 'meta' => '_revisi_proposal',    'prefix' => 'proposal-revisi',    'label' => 'Revisi File Pengajuan' ],
+		];
+
+		// Validasi kedua berkas lebih dulu supaya tidak ada unggahan separuh jalan.
+		foreach ( $required as $param => $cfg ) {
+			$file = $files[ $param ] ?? null;
+			if ( ! is_array( $file ) || UPLOAD_ERR_NO_FILE === (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE ) ) {
+				return new \WP_REST_Response( [ 'success' => false, 'message' => $cfg['label'] . ' wajib diunggah.' ], 400 );
+			}
+			$valid = $this->validate_pdf_upload( $file, $cfg['label'] );
+			if ( is_wp_error( $valid ) ) {
+				return new \WP_REST_Response( [ 'success' => false, 'message' => $valid->get_error_message() ], 400 );
+			}
+		}
+
+		$urls = [];
+		foreach ( $required as $param => $cfg ) {
+			$att = $this->upload_proposal( $files[ $param ], $reg_no, $cfg['prefix'], $cfg['label'] );
+			if ( is_wp_error( $att ) ) {
+				return new \WP_REST_Response( [ 'success' => false, 'message' => $att->get_error_message() ], 400 );
+			}
+			update_post_meta( $post->ID, $cfg['meta'] . '_id', $att );
+			$url = (string) wp_get_attachment_url( $att );
+			update_post_meta( $post->ID, $cfg['meta'] . '_url', $url );
+			$urls[ $param ] = $url;
+		}
+
 		update_post_meta( $post->ID, '_status', 'revision_submitted' );
 		update_post_meta( $post->ID, '_revision_submitted_at', current_time( 'mysql' ) );
 		update_post_meta( $post->ID, '_revision_token_active', '0' );
+		// Token sekali pakai: hash & cache plaintext dibuang supaya tautan lama tidak
+		// bisa diverifikasi lagi walau status pendaftaran diubah manual kemudian.
+		delete_post_meta( $post->ID, '_revision_token_hash' );
+		delete_post_meta( $post->ID, '_revision_token_preview' );
+		update_post_meta( $post->ID, '_revision_token_used_at', current_time( 'mysql' ) );
 		// Tahap revisi selesai → bila admin minta revisi lagi, email notifikasi baru boleh terkirim.
 		delete_post_meta( $post->ID, '_reviewed_email_sent_at' );
 		$history = get_post_meta( $post->ID, '_workflow_history', true ); $history = is_array( $history ) ? $history : [];
-		$history[] = [ 'stage' => 'revisi', 'status' => 'revision_submitted', 'date' => current_time( 'mysql' ), 'label' => 'Surat Kesanggupan dikirim' ];
+		$history[] = [ 'stage' => 'revisi', 'status' => 'revision_submitted', 'date' => current_time( 'mysql' ), 'label' => 'Surat Kesanggupan & Revisi File Pengajuan dikirim' ];
 		update_post_meta( $post->ID, '_workflow_history', $history );
-		return new \WP_REST_Response( [ 'success' => true, 'status' => 'revision_submitted', 'message' => 'Revisi berhasil dikirim.' ], 200 );
+		return new \WP_REST_Response( [
+			'success'             => true,
+			'status'              => 'revision_submitted',
+			'message'             => 'Revisi berhasil dikirim. Halaman ini kini hanya menampilkan data.',
+			'surat_url'           => $urls['surat_kesanggupan'] ?? '',
+			'revisi_proposal_url' => $urls['revisi_proposal'] ?? '',
+			'revision_submitted_at' => (string) get_post_meta( $post->ID, '_revision_submitted_at', true ),
+		], 200 );
 	}
 
 	/**
@@ -1984,10 +2045,33 @@ class ITSI_LP2M_Hibah_Receiver {
 			update_post_meta( $id, '_surat_kesanggupan_url', wp_get_attachment_url( $surat_att ) );
 		}
 
+		// ── Revisi File Pengajuan (opsional) — proposal hasil perbaikan sesuai catatan reviewer ──
+		$revisi_file = $file_params['revisi_proposal'] ?? null;
+		if ( is_array( $revisi_file ) && isset( $revisi_file['error'] ) && (int) $revisi_file['error'] !== UPLOAD_ERR_NO_FILE ) {
+			if ( (int) $revisi_file['error'] !== UPLOAD_ERR_OK ) {
+				return new \WP_REST_Response( [ 'success' => false, 'message' => 'Upload Revisi File Pengajuan gagal.', 'errors' => [ 'revisi_proposal' => 'Upload Revisi File Pengajuan gagal (error ' . (int) $revisi_file['error'] . ').' ] ], 400 );
+			}
+			$reg_no = (string) get_post_meta( $id, '_reg_no', true );
+			if ( '' === trim( $reg_no ) ) { $reg_no = (string) $id; }
+			$revisi_att = $this->upload_proposal( $revisi_file, $reg_no, 'proposal-revisi', 'Revisi File Pengajuan' );
+			if ( is_wp_error( $revisi_att ) ) {
+				return new \WP_REST_Response( [ 'success' => false, 'message' => $revisi_att->get_error_message(), 'errors' => [ 'revisi_proposal' => $revisi_att->get_error_message() ] ], 400 );
+			}
+			// Hapus attachment lama agar tidak menumpuk di Media Library.
+			$old_revisi = (int) get_post_meta( $id, '_revisi_proposal_id', true );
+			if ( $old_revisi && $old_revisi !== (int) $revisi_att ) {
+				wp_delete_attachment( $old_revisi, true );
+			}
+			update_post_meta( $id, '_revisi_proposal_id', $revisi_att );
+			update_post_meta( $id, '_revisi_proposal_url', wp_get_attachment_url( $revisi_att ) );
+		}
+
 		$updated_url  = (string) get_post_meta( $id, '_proposal_url', true );
 		$updated_pid  = get_post_meta( $id, '_proposal_id', true );
 		$updated_template_url = $this->resolve_surat_kesanggupan_template_url( (int) $id );
 		$updated_surat_url    = (string) get_post_meta( $id, '_surat_kesanggupan_url', true );
+		$updated_revisi_url   = (string) get_post_meta( $id, '_revisi_proposal_url', true );
+		$updated_revisi_id    = get_post_meta( $id, '_revisi_proposal_id', true );
 		$updated_list = get_post_meta( $id, '_anggota_list', true );
 		if ( is_string( $updated_list ) ) { $tmp = json_decode( $updated_list, true ); if ( is_array( $tmp ) ) { $updated_list = $tmp; } }
 		if ( ! is_array( $updated_list ) ) { $updated_list = []; }
@@ -2014,6 +2098,8 @@ class ITSI_LP2M_Hibah_Receiver {
 			'proposal_id'  => $updated_pid,
 			'surat_kesanggupan_template_url' => $updated_template_url,
 			'surat_kesanggupan_url'          => $updated_surat_url,
+			'revisi_proposal_url'            => $updated_revisi_url,
+			'revisi_proposal_id'             => $updated_revisi_id,
 			'anggota_list' => $updated_list,
 			'status'       => $status_to_notify ?: (string) get_post_meta( $id, '_status', true ),
 			'email_sent'   => $email_sent,
@@ -2279,7 +2365,12 @@ class ITSI_LP2M_Hibah_Receiver {
 				. $row( 'Nilai Dana Usulan', (string) ( $revision['nilai_dana_usulan'] ?? '' ) )
 				. $row( 'Nilai Dana Disetujui', (string) ( $revision['nilai_dana_disetujui'] ?? '' ) )
 				. '</table>'
-				. '<p style="margin:10px 0 0;color:#6b7280;font-size:12px">Komposisi dana disetujui: Honorarium 30% · Alat &amp; Bahan Habis Pakai 50% · Perjalanan Dinas 20%. Publikasi menjadi luaran wajib tanpa alokasi khusus.</p>';
+				. '<p style="margin:10px 0 0;color:#6b7280;font-size:12px">Komposisi dana disetujui: Honorarium 30% · Alat &amp; Bahan Habis Pakai 50% · Perjalanan Dinas 20%. Publikasi menjadi luaran wajib tanpa alokasi khusus.</p>'
+				. '<p style="margin:10px 0 0;color:#0f766e;font-size:13px;font-weight:600">Berkas yang wajib Anda unggah pada tahap revisi:</p>'
+				. '<ol style="margin:4px 0 0 20px;padding:0;color:#374151;font-size:13px">'
+				. '<li>Surat Kesanggupan yang sudah diisi dan ditandatangani (PDF).</li>'
+				. '<li>Revisi File Pengajuan — proposal yang diperbaiki sesuai catatan reviewer di atas (PDF).</li>'
+				. '</ol>';
 		}
 
 		// Tombol utama email: `reviewed` → "Buka Tahap Revisi" (tautan bertoken
@@ -2625,19 +2716,21 @@ class ITSI_LP2M_Hibah_Receiver {
 		}
 	}
 
-	/** Sinkron field file revisi TypeRocket ke URL kanonik tanpa menghapus file lama saat kosong. */
+	/** Sinkron field file revisi TypeRocket (surat kesanggupan + revisi proposal) ke URL kanonik tanpa menghapus file lama saat kosong. */
 	public function sync_revision_file_from_tr( int $post_id ): void {
 		if ( wp_is_post_revision( $post_id ) || ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) || 'pendaftaran_hibah' !== get_post_type( $post_id ) ) { return; }
-		$raw = get_post_meta( $post_id, '_surat_kesanggupan_id', true );
-		$id  = is_array( $raw ) ? (int) reset( $raw ) : (int) $raw;
-		if ( 0 === $id ) { return; }
-		if ( 'application/pdf' !== get_post_mime_type( $id ) ) {
-			delete_post_meta( $post_id, '_surat_kesanggupan_id' );
-			return;
-		}
-		$url = wp_get_attachment_url( $id );
-		if ( $url ) {
-			update_post_meta( $post_id, '_surat_kesanggupan_url', $url );
+		foreach ( [ '_surat_kesanggupan', '_revisi_proposal' ] as $base ) {
+			$raw = get_post_meta( $post_id, $base . '_id', true );
+			$id  = is_array( $raw ) ? (int) reset( $raw ) : (int) $raw;
+			if ( 0 === $id ) { continue; }
+			if ( 'application/pdf' !== get_post_mime_type( $id ) ) {
+				delete_post_meta( $post_id, $base . '_id' );
+				continue;
+			}
+			$url = wp_get_attachment_url( $id );
+			if ( $url ) {
+				update_post_meta( $post_id, $base . '_url', $url );
+			}
 		}
 	}
 }
