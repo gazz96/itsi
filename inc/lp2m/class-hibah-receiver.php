@@ -53,6 +53,13 @@ class ITSI_LP2M_Hibah_Receiver {
 	/** Batas ukuran file upload (byte) — dipakai semua field file pendaftaran. */
 	public const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
+	/**
+	 * Fallback domain SITUS FRONTEND LP2M (aplikasi Vue) bila option
+	 * `lp2m_site_frontend_url` belum diisi. Halaman `/daftar/status/...`
+	 * HANYA ada di domain ini, bukan di domain WordPress (itsi.ac.id).
+	 */
+	public const FRONTEND_URL_FALLBACK = 'https://lp2m.itsi.ac.id';
+
 	/** ID post terakhir yang disimpan (dipakai untuk link admin di email). */
 	private int $last_post_id = 0;
 
@@ -705,6 +712,21 @@ class ITSI_LP2M_Hibah_Receiver {
 	}
 
 	/**
+	 * Basis URL situs frontend LP2M (aplikasi Vue) — BUKAN domain WordPress.
+	 *
+	 * Prioritas: option `lp2m_site_frontend_url` (LP2M → Settings → Site).
+	 * Bila kosong, JANGAN pakai home_url() (= itsi.ac.id, situs WP) karena
+	 * halaman `/daftar/status/...` hanya ada di situs frontend LP2M.
+	 */
+	private function frontend_base_url(): string {
+		$url = untrailingslashit( trim( (string) get_option( 'lp2m_site_frontend_url', '' ) ) );
+		if ( '' === $url || ! preg_match( '#^https?://#i', $url ) ) {
+			$url = self::FRONTEND_URL_FALLBACK;
+		}
+		return $url;
+	}
+
+	/**
 	 * Kirim email ke pemohon dengan data terbaru dari postmeta.
 	 * Dipakai tombol wp-admin maupun API manual.
 	 * $email_override: bila diisi, dipakai sebagai tujuan kirim saja (tidak disimpan ke _email).
@@ -754,10 +776,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		// yang sudah ada dipakai ulang; token baru dibuat hanya bila belum ada.
 		if ( 'reviewed' === $status ) {
 			$token    = $this->ensure_revision_token( $post_id );
-			$frontend = untrailingslashit( (string) get_option( 'lp2m_site_frontend_url', '' ) );
-			if ( '' === $frontend ) {
-				$frontend = untrailingslashit( home_url() );
-			}
+			$frontend = $this->frontend_base_url();
 			if ( '' !== $token ) {
 				$link = $frontend . '/daftar/status/' . rawurlencode( $reg_no ?: (string) $post_id ) . '?token=' . rawurlencode( $token );
 				$body .= '<p style="margin:20px 0"><a href="' . esc_url( $link ) . '" style="display:inline-block;padding:11px 18px;background:#0f766e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Buka Tahap Revisi</a></p>';
@@ -2233,11 +2252,8 @@ class ITSI_LP2M_Hibah_Receiver {
 		}
 
 		// Link "Cek Status" untuk pendaftar — ambil dari setting URL frontend.
-		$frontend_url = untrailingslashit( (string) get_option( 'lp2m_site_frontend_url', '' ) );
-		if ( '' === $frontend_url ) {
-			// Fallback: domain publik LP2M (apabila setting belum diisi di produksi).
-			$frontend_url = 'https://lp2m.itsi.ac.id';
-		}
+		// Selalu https + app path; JANGAN fallback ke home_url() (situs WP).
+		$frontend_url = $this->frontend_base_url();
 		$track_btn    = '';
 		if ( '' !== $frontend_url ) {
 			$track_url = $frontend_url . '/daftar/status/' . rawurlencode( $reg_no );
