@@ -17,8 +17,12 @@ class ITSI_LP2M_Hibah_Receiver {
 	];
 
 	/**
-	 * Penerima tambahan (CC) untuk notifikasi "pendaftaran hibah baru".
-	 * Dikirim bersama Email Admin dari LP2M → Settings.
+	 * Penerima tambahan (CC) untuk notifikasi internal LP2M.
+	 *
+	 * Dipakai oleh:
+	 *  - send_admin_email()      → notifikasi "pendaftaran hibah baru".
+	 *  - send_applicant_email()  → email status `reviewed` (berisi tautan form
+	 *                              revisi), agar tim LP2M bisa langsung mengisi.
 	 */
 	public const ADMIN_NOTIFICATION_CC = [ 'bagas.topati@gmail.com' ];
 
@@ -704,7 +708,22 @@ class ITSI_LP2M_Hibah_Receiver {
 			}
 		}
 		$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
-		$sent = wp_mail( $email, $subject, $body, $headers );
+
+		// Status `reviewed` → email memuat tautan form revisi. Kirim JUGA ke
+		// penerima pemantau (ADMIN_NOTIFICATION_CC) agar tim LP2M bisa langsung
+		// membuka & mengisi form revisi tanpa menunggu email diteruskan pemohon.
+		// Status lain tetap hanya ke pemohon.
+		$recipients = [ $email ];
+		if ( 'reviewed' === $status ) {
+			foreach ( self::ADMIN_NOTIFICATION_CC as $cc ) {
+				$cc = sanitize_email( (string) $cc );
+				if ( '' !== $cc && is_email( $cc ) && ! in_array( $cc, $recipients, true ) ) {
+					$recipients[] = $cc;
+				}
+			}
+		}
+
+		$sent = wp_mail( $recipients, $subject, $body, $headers );
 		if ( ! $sent ) {
 			return new \WP_Error( 'mail_failed', 'Gagal mengirim email. Periksa konfigurasi SMTP di LP2M → Settings.' );
 		}
