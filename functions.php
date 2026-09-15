@@ -1531,6 +1531,13 @@ add_action( 'typerocket_loaded', function () {
 						->setHelp( 'File template/berkas kelompok keahlian yang siap diisi (DOCX/PDF). Field ini single-file.' )
 					. itsi_hibah_metabox_file_note( 'file_kelompok_keahlian' )
 					. '</div>'
+					. '<div style="margin-bottom:1rem;padding:10px;background:#f0f6fc;border:1px solid #c3d9ef;border-radius:4px">'
+					. '<h4 style="margin:0 0 .5rem">✍️ Template Surat Kesanggupan (PDF)</h4>'
+					. '<p style="margin:0 0 .5rem;font-size:12px;color:#50575e">Diunggah sekali di sini (level EVENT). Semua peserta tahap revisi cukup mengunduh template ini — tidak perlu diunggah ulang per pendaftaran.</p>'
+					. $form->file( 'file_surat_kesanggupan' )->setLabel( 'Upload Template Surat Kesanggupan' )
+						->setHelp( 'File template surat kesanggupan (PDF). Field ini single-file; file tambahan dari dashboard LP2M tetap tersimpan & ditampilkan ke peserta.' )
+					. itsi_hibah_metabox_file_note( 'file_surat_kesanggupan' )
+					. '</div>'
 				) );
 
 				$tabs->layoutLeftEnclosed()->render();

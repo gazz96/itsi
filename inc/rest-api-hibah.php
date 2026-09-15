@@ -183,6 +183,20 @@ function itsi_hibah_register_rest_fields() {
 		'schema' => array( 'type' => 'array', 'description' => 'File template kelompok keahlian (URLs)', 'context' => array( 'view', 'edit' ) ),
 	) );
 
+	// ── File template Surat Kesanggupan (level EVENT / hibah) ──
+	// Template surat kesanggupan diunggah sekali di event hibah, lalu semua
+	// peserta tahap revisi cukup mengunduhnya (tidak upload berulang).
+	register_rest_field( 'hibah', 'file_surat_kesanggupan', array(
+		'get_callback'    => function ( $post ) {
+			return itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $post['id'], 'file_surat_kesanggupan' ) );
+		},
+		'update_callback' => function ( $value, $post ) {
+			if ( ! current_user_can( 'edit_post', $post->ID ) ) { return false; }
+			return itsi_hibah_write_file_meta( $post->ID, 'file_surat_kesanggupan', $value );
+		},
+		'schema' => array( 'type' => 'array', 'description' => 'Template Surat Kesanggupan (URLs)', 'context' => array( 'view', 'edit' ) ),
+	) );
+
 	// ── ID media panduan (legacy dashboard form) ──
 	register_rest_field( 'hibah', 'panduan_penulisan_id', array(
 		'get_callback'    => function ( $post ) {
@@ -424,7 +438,7 @@ function itsi_hibah_sync_metabox_files_on_save( $post_id, $post, $update ) {
 		update_post_meta( $post_id, 'allow_after_deadline', ! empty( $_POST['tr']['allow_after_deadline'] ) ? '1' : '0' );
 	}
 
-	$file_keys = array( 'file_panduan', 'file_template', 'file_kelompok_keahlian' );
+	$file_keys = array( 'file_panduan', 'file_template', 'file_kelompok_keahlian', 'file_surat_kesanggupan' );
 	foreach ( $file_keys as $key ) {
 		if ( ! array_key_exists( $key, $_POST['tr'] ) ) {
 			continue; // field ini tidak diedit di metabox → jangan sentuh.
@@ -507,13 +521,40 @@ function itsi_hibah_field( $row, ...$keys ) {
 }
 
 /**
+ * URL Template Surat Kesanggupan milik sebuah event hibah.
+ *
+ * Template ini bersifat level EVENT (post type `hibah`): diunggah sekali di
+ * dashboard/metabox hibah, lalu semua peserta tahap revisi cukup mengunduh
+ * (tidak perlu upload berulang per pendaftaran).
+ *
+ * @param int $hibah_id ID post hibah.
+ * @return string URL file pertama, atau '' bila belum ada.
+ */
+function itsi_hibah_surat_kesanggupan_template_url( $hibah_id ) {
+	$hibah_id = (int) $hibah_id;
+	if ( $hibah_id <= 0 ) { return ''; }
+
+	$urls = itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $hibah_id, 'file_surat_kesanggupan' ) );
+	if ( ! empty( $urls ) ) { return (string) $urls[0]; }
+
+	// Legacy: ID/URL tunggal yang disimpan langsung tanpa `_ids`.
+	$single = get_post_meta( $hibah_id, 'file_surat_kesanggupan_id', true );
+	if ( ! empty( $single ) ) {
+		$urls = itsi_hibah_attachment_urls( $single );
+		if ( ! empty( $urls ) ) { return (string) $urls[0]; }
+	}
+
+	return '';
+}
+
+/**
  * Render daftar read-only semua file aktif untuk metabox.
  *
  * Metabox TypeRocket File field hanya menampilkan 1 file (single int).
  * Dashboard LP2M bisa menyimpan beberapa file di `{key}_ids` — tampilkan
  * semuanya di sini agar admin itsi tahu file yang terpasang.
  *
- * @param string $key Meta key (file_panduan / file_template / file_kelompok_keahlian)
+ * @param string $key Meta key (file_panduan / file_template / file_kelompok_keahlian / file_surat_kesanggupan)
  * @return string
  */
 function itsi_hibah_metabox_file_note( $key ) {
@@ -686,6 +727,8 @@ function itsi_hibah_get_nearest_deadline( WP_REST_Request $request ) {
 		'file_panduan'   => itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $id, 'file_panduan' ) ),
 		'file_template'  => itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $id, 'file_template' ) ),
 		'file_kelompok_keahlian' => itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $id, 'file_kelompok_keahlian' ) ),
+		'file_surat_kesanggupan' => itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $id, 'file_surat_kesanggupan' ) ),
+		'surat_kesanggupan_template_url' => itsi_hibah_surat_kesanggupan_template_url( $id ),
 		'timeline_items' => $timeline,
 		'category_names' => is_array( $cats ) ? $cats : array(),
 		// Apakah event masih aktif (deadline belum lewat). False = event terakhir yang sudah berakhir.

@@ -191,6 +191,17 @@ function lp2m_pendaftaran_status(WP_REST_Request $request) {
             ];
         }, $anggota_list);
 
+        // Template surat kesanggupan kini milik EVENT (CPT hibah, meta
+        // file_surat_kesanggupan). Meta lama per-pendaftaran tetap dipakai
+        // sebagai fallback agar data yang sudah ada tidak hilang.
+        $hibah_id     = (int) ($meta('_hibah_id'));
+        $template_url = ( $hibah_id && function_exists('itsi_hibah_surat_kesanggupan_template_url') )
+            ? itsi_hibah_surat_kesanggupan_template_url($hibah_id)
+            : '';
+        if ('' === $template_url) {
+            $template_url = (string) $meta('_surat_kesanggupan_template_url');
+        }
+
         return rest_ensure_response([
             'success'      => true,
             'reg_no'       => $meta('_reg_no') ?: $no,
@@ -213,7 +224,7 @@ function lp2m_pendaftaran_status(WP_REST_Request $request) {
             'catatan_substansi_eksternal' => $meta('_catatan_substansi_eksternal'),
             'nilai_dana_usulan' => $meta('_nilai_dana_usulan'),
             'nilai_dana_disetujui' => $meta('_nilai_dana_disetujui'),
-            'template_url'  => $meta('_surat_kesanggupan_template_url'),
+            'template_url'  => $template_url,
             'surat_url'     => $meta('_surat_kesanggupan_url'),
             'history'       => get_post_meta($post->ID, '_workflow_history', true) ?: [],
         ]);

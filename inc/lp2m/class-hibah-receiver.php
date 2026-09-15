@@ -38,7 +38,8 @@ class ITSI_LP2M_Hibah_Receiver {
 		add_action( 'typerocket_loaded', [ $this, 'register_tr_cpt_and_metabox' ] );
 		// Sinkron _proposal_id (TR File) ↔ _proposal_url kanonik + validasi PDF.
 		add_action( 'save_post', [ $this, 'sync_proposal_from_tr' ], 30, 1 );
-		add_action( 'save_post', [ $this, 'sync_revision_template_from_tr' ], 31, 1 );
+		// Field file template lama (per pendaftaran) sudah dipindah ke level event:
+		// tidak ada lagi hook save_post untuk template. Sinkron file surat peserta tetap.
 		add_action( 'save_post', [ $this, 'sync_revision_file_from_tr' ], 32, 1 );
 		// Safety net: pastikan token revisi selalu ada saat status `reviewed`.
 		add_action( 'save_post', [ $this, 'ensure_revision_token_on_save' ], 33, 1 );
@@ -165,7 +166,15 @@ class ITSI_LP2M_Hibah_Receiver {
 			return (string) ob_get_clean();
 		};
 		$revision_tab = function () use ( $form, $get ): string {
-			$template_url = $get( '_surat_kesanggupan_template_url' );
+			$hibah_id     = (int) $get( '_hibah_id' );
+			$event_title  = $hibah_id ? get_the_title( $hibah_id ) : '';
+			$template_url = $hibah_id && function_exists( 'itsi_hibah_surat_kesanggupan_template_url' )
+				? itsi_hibah_surat_kesanggupan_template_url( $hibah_id )
+				: '';
+			if ( '' === $template_url ) {
+				// Legacy: template yang dulu diunggah di level pendaftaran.
+				$template_url = $get( '_surat_kesanggupan_template_url' );
+			}
 			$revision_url = $get( '_surat_kesanggupan_url' );
 			ob_start();
 			//echo '<h3>Tahap 2 — Review &amp; Revisi</h3><p>Isi catatan reviewer dan nilai RAB. Pilih status Reviewed untuk mengirim tautan revisi privat.</p>';
@@ -177,14 +186,22 @@ class ITSI_LP2M_Hibah_Receiver {
 			echo $form->section( [
 				$form->text( '_nilai_dana_usulan' )->setLabel( 'Nilai Dana Usulan' ),
 				$form->text( '_nilai_dana_disetujui' )->setLabel( 'Nilai Dana Disetujui' )
-					->setHelp( 'Satu nilai total dana yang disetujui. Komposisi: Honorarium 30%, Perjalanan Dinas & Alat/Bahan Habis Pakai 20%, Publikasi 50%.' ),
+					->setHelp( 'Satu nilai total dana yang disetujui. Rincian dihitung otomatis: Honorarium 30%, Alat & Bahan Habis Pakai 50%, Perjalanan Dinas 20%. Publikasi = luaran wajib, tanpa alokasi khusus.' ),
 			] )->setTitle( 'Ringkasan Dana' );
 			echo $form->section( [
-				$form->file( '_surat_kesanggupan_template_id' )->setLabel( 'Template Surat Kesanggupan (PDF)' )->setHelp( 'Kosongkan bila tidak ingin mengganti template yang sudah tersimpan.' ),
 				$form->file( '_surat_kesanggupan_id' )->setLabel( 'Surat Kesanggupan Peserta — Upload Ulang (PDF)' )->setHelp( 'Upload ulang surat kesanggupan yang sudah diperbaiki oleh peserta. Kosongkan bila tidak ingin mengganti file yang sudah tersimpan.' ),
 			] )->setTitle( 'Dokumen Revisi' );
-			echo $template_url ? '<p><a href="' . esc_url( $template_url ) . '" target="_blank" rel="noopener">Download Template Surat Kesanggupan</a></p>' : '';
-			
+			echo '<div style="margin-top:.5rem;padding:8px 10px;background:#f0f6fc;border:1px solid #c3d9ef;border-radius:4px;font-size:12px">'
+				. '<strong style="display:block;margin-bottom:2px">✍️ Template Surat Kesanggupan (level event)</strong>'
+				. '<p style="margin:0 0 4px;color:#50575e">Template diunggah sekali di event hibah — peserta tahap revisi cukup mengunduh, tidak upload berulang di sini.</p>'
+				. ( $template_url
+					? '<a href="' . esc_url( $template_url ) . '" target="_blank" rel="noopener">Download template saat ini</a>'
+					. ( $event_title ? ' <em>(dari event: ' . esc_html( $event_title ) . ')</em>' : '' )
+					: '<em>Belum ada template di event ini.</em>' . ( $hibah_id
+						? ' <a href="' . esc_url( (string) get_edit_post_link( $hibah_id ) ) . '">Buka event hibah untuk mengunggah</a>.'
+						: '' ) )
+				. '</div>';
+
 			return (string) ob_get_clean();
 		};
 
@@ -1420,7 +1437,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			'catatan_substansi_eksternal' => get_post_meta( $post->ID, '_catatan_substansi_eksternal', true ),
 			'nilai_dana_usulan' => get_post_meta( $post->ID, '_nilai_dana_usulan', true ),
 			'nilai_dana_disetujui' => get_post_meta( $post->ID, '_nilai_dana_disetujui', true ),
-			'surat_kesanggupan_template_url' => get_post_meta( $post->ID, '_surat_kesanggupan_template_url', true ),
+			'surat_kesanggupan_template_url' => $this->resolve_surat_kesanggupan_template_url( (int) $post->ID ),
 			'surat_kesanggupan_url' => get_post_meta( $post->ID, '_surat_kesanggupan_url', true ),
 			'workflow_history' => get_post_meta( $post->ID, '_workflow_history', true ) ?: [],
 			'created_at' => $post->post_date,
@@ -1477,6 +1494,23 @@ class ITSI_LP2M_Hibah_Receiver {
 		return $posts[0] ?? null;
 	}
 
+	/**
+	 * URL Template Surat Kesanggupan untuk sebuah pendaftaran.
+	 *
+	 * Template kini milik EVENT (post type `hibah`, meta `file_surat_kesanggupan`)
+	 * supaya peserta cukup mengunduh dan tidak perlu upload berulang per
+	 * pendaftaran. Meta lama `_surat_kesanggupan_template_url` (per-pendaftaran)
+	 * tetap dibaca sebagai fallback agar data lama tidak hilang.
+	 */
+	private function resolve_surat_kesanggupan_template_url( int $post_id ): string {
+		$hibah_id = (int) get_post_meta( $post_id, '_hibah_id', true );
+		if ( $hibah_id > 0 && function_exists( 'itsi_hibah_surat_kesanggupan_template_url' ) ) {
+			$url = itsi_hibah_surat_kesanggupan_template_url( $hibah_id );
+			if ( '' !== $url ) { return $url; }
+		}
+		return (string) get_post_meta( $post_id, '_surat_kesanggupan_template_url', true );
+	}
+
 	public function handle_revision_access( \WP_REST_Request $request ): \WP_REST_Response {
 		$post = $this->find_by_reg_no( sanitize_text_field( (string) $request->get_param( 'no' ) ) );
 		$token = sanitize_text_field( (string) $request->get_param( 'token' ) );
@@ -1487,7 +1521,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			'catatan_admin' => $meta( '_catatan_admin' ), 'catatan_substansi_internal' => $meta( '_catatan_substansi_internal' ),
 			'catatan_substansi_eksternal' => $meta( '_catatan_substansi_eksternal' ), 'nilai_dana_usulan' => $meta( '_nilai_dana_usulan' ),
 			'nilai_dana_disetujui' => $meta( '_nilai_dana_disetujui' ),
-			'template_url' => $meta( '_surat_kesanggupan_template_url' ),
+			'template_url' => $this->resolve_surat_kesanggupan_template_url( (int) $post->ID ),
 			'surat_url' => $meta( '_surat_kesanggupan_url' ), 'history' => $meta( '_workflow_history' ) ?: [],
 		] ], 200 );
 	}
@@ -1571,23 +1605,15 @@ class ITSI_LP2M_Hibah_Receiver {
 		}
 
 		// Data review dan RAB diisi admin; nilainya read-only pada endpoint revisi publik.
+		// Catatan: template surat kesanggupan TIDAK diatur di sini lagi — template
+		// dimiliki event (hibah), lihat resolve_surat_kesanggupan_template_url().
 		$review_fields = [
 			'catatan_admin' => '_catatan_admin', 'catatan_substansi_internal' => '_catatan_substansi_internal',
 			'catatan_substansi_eksternal' => '_catatan_substansi_eksternal', 'nilai_dana_usulan' => '_nilai_dana_usulan',
 			'nilai_dana_disetujui' => '_nilai_dana_disetujui',
-			'surat_kesanggupan_template_url' => '_surat_kesanggupan_template_url',
 		];
 		foreach ( $review_fields as $field => $meta_key ) {
 			if ( array_key_exists( $field, $params ) ) update_post_meta( $id, $meta_key, sanitize_textarea_field( (string) $params[ $field ] ) );
-		}
-		// Template Surat Kesanggupan: hanya ganti bila ada upload baru; data lama tetap.
-		$template_file = $request->get_file_params()['surat_kesanggupan_template'] ?? null;
-		if ( is_array( $template_file ) && UPLOAD_ERR_NO_FILE !== (int) ( $template_file['error'] ?? UPLOAD_ERR_NO_FILE ) ) {
-			if ( UPLOAD_ERR_OK !== (int) $template_file['error'] ) return new \WP_REST_Response( [ 'success' => false, 'message' => 'Upload template gagal.' ], 400 );
-			$template_id = $this->upload_proposal( $template_file, (string) get_post_meta( $id, '_reg_no', true ) . '-template' );
-			if ( is_wp_error( $template_id ) ) return new \WP_REST_Response( [ 'success' => false, 'message' => $template_id->get_error_message() ], 400 );
-			update_post_meta( $id, '_surat_kesanggupan_template_id', $template_id );
-			update_post_meta( $id, '_surat_kesanggupan_template_url', wp_get_attachment_url( $template_id ) );
 		}
 		// Status reviewed → pastikan token revisi aktif. Token lama dipakai ulang
 		// (tidak dibuat baru) agar tautan yang sudah dikirim ke peserta tetap valid.
@@ -1686,7 +1712,7 @@ class ITSI_LP2M_Hibah_Receiver {
 
 		$updated_url  = (string) get_post_meta( $id, '_proposal_url', true );
 		$updated_pid  = get_post_meta( $id, '_proposal_id', true );
-		$updated_template_url = (string) get_post_meta( $id, '_surat_kesanggupan_template_url', true );
+		$updated_template_url = $this->resolve_surat_kesanggupan_template_url( (int) $id );
 		$updated_surat_url    = (string) get_post_meta( $id, '_surat_kesanggupan_url', true );
 		$updated_list = get_post_meta( $id, '_anggota_list', true );
 		if ( is_string( $updated_list ) ) { $tmp = json_decode( $updated_list, true ); if ( is_array( $tmp ) ) { $updated_list = $tmp; } }
@@ -2233,7 +2259,14 @@ class ITSI_LP2M_Hibah_Receiver {
 		}
 	}
 
-	/** Sinkron field file TypeRocket ke URL template kanonik tanpa menghapus data lama. */
+	/**
+	 * Legacy: sinkron field file template lama (per-pendaftaran) ke URL kanonik.
+	 *
+	 * Template surat kesanggupan sekarang dimiliki event (post type `hibah`,
+	 * meta `file_surat_kesanggupan`) sehingga field di metabox pendaftaran sudah
+	 * dihapus. Method ini dipertahankan (tanpa hook save_post) hanya agar data
+	 * lama yang sudah tersimpan tetap dapat diturunkan ke `_surat_kesanggupan_template_url`.
+	 */
 	public function sync_revision_template_from_tr( int $post_id ): void {
 		if ( wp_is_post_revision( $post_id ) || ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) || 'pendaftaran_hibah' !== get_post_type( $post_id ) ) { return; }
 		$raw = get_post_meta( $post_id, '_surat_kesanggupan_template_id', true );
