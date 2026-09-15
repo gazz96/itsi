@@ -16,6 +16,30 @@ class ITSI_LP2M_Hibah_Receiver {
 		'submitted', 'under_review', 'reviewed', 'revised', 'revision_submitted', 'approved', 'rejected', 'done',
 	];
 
+	/** Label manusiawi tiap status — dipakai badge kolom Status, modal list, ajax, dan email. */
+	public const STATUS_LABELS = [
+		'submitted'          => 'Submitted',
+		'under_review'       => 'Under Review',
+		'reviewed'           => 'Reviewed — Revisi Diminta',
+		'revised'            => 'Revised',
+		'revision_submitted' => 'Revisi Dikirim',
+		'approved'           => 'Approved',
+		'rejected'           => 'Rejected',
+		'done'               => 'Done',
+	];
+
+	/** Warna badge status (kolom Status di list wp-admin). */
+	public const STATUS_COLORS = [
+		'submitted'          => '#64748b',
+		'under_review'       => '#d97706',
+		'reviewed'           => '#0f766e',
+		'revised'            => '#0284c7',
+		'revision_submitted' => '#0284c7',
+		'approved'           => '#16a34a',
+		'rejected'           => '#dc2626',
+		'done'               => '#7c3aed',
+	];
+
 	/**
 	 * Penerima tambahan (CC) untuk notifikasi internal LP2M.
 	 *
@@ -31,6 +55,12 @@ class ITSI_LP2M_Hibah_Receiver {
 
 	/** ID post terakhir yang disimpan (dipakai untuk link admin di email). */
 	private int $last_post_id = 0;
+
+	/**
+	 * True selama request yang sudah mengirim email status sendiri (REST/admin-ajax),
+	 * supaya hook `save_post` tidak mengirim notifikasi yang sama dua kali.
+	 */
+	private bool $suppress_status_email = false;
 
 	/** Pesan validasi nomor registrasi saat penyimpanan dari wp-admin. */
 	private string $reg_no_admin_error = '';
@@ -56,6 +86,10 @@ class ITSI_LP2M_Hibah_Receiver {
 		add_action( 'save_post', [ $this, 'sync_revision_file_from_tr' ], 32, 1 );
 		// Safety net: pastikan token revisi selalu ada saat status `reviewed`.
 		add_action( 'save_post', [ $this, 'ensure_revision_token_on_save' ], 33, 1 );
+		// Auto-email peserta begitu status menjadi `reviewed` dari jalur mana pun
+		// (metabox wp-admin / TypeRocket / quick edit). Prioritas 34 = setelah hook 33,
+		// jadi tautan revisi sudah tersedia saat email disusun.
+		add_action( 'save_post', [ $this, 'maybe_send_review_email_on_save' ], 34, 1 );
 		// Validasi _reg_no di level meta agar TypeRocket maupun editor WP sama-sama aman.
 		add_filter( 'update_post_metadata', [ $this, 'validate_reg_no_update' ], 10, 5 );
 		add_filter( 'add_post_metadata', [ $this, 'validate_reg_no_add' ], 10, 5 );
@@ -396,43 +430,33 @@ class ITSI_LP2M_Hibah_Receiver {
 
 			case 'ph_status':
 				$status = (string) $meta( '_status' ) ?: 'submitted';
-				$labels = [
-					'submitted'    => 'Submitted',
-					'under_review' => 'Under Review',
-					'revised'      => 'Revised',
-					'approved'     => 'Approved',
-					'rejected'     => 'Rejected',
-					'done'         => 'Done',
-				];
-				$colors = [
-					'submitted'    => '#64748b',
-					'under_review' => '#d97706',
-					'revised'      => '#0284c7',
-					'approved'     => '#16a34a',
-					'rejected'     => '#dc2626',
-					'done'         => '#7c3aed',
-				];
-				$label = $labels[ $status ] ?? ucfirst( $status );
-				$color = $colors[ $status ] ?? '#64748b';
+				$label = self::STATUS_LABELS[ $status ] ?? ucfirst( $status );
+				$color = self::STATUS_COLORS[ $status ] ?? '#64748b';
 				echo '<button type="button" class="lp2m-status-badge" data-post="' . (int) $post_id . '" data-status="' . esc_attr( $status ) . '" title="Klik untuk ubah status" style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:' . esc_attr( $color ) . ';border:0;cursor:pointer">' . esc_html( $label ) . '</button>';
 				echo '<span class="lp2m-status-inline-msg" id="lp2m-status-msg-' . (int) $post_id . '" style="display:block;font-size:10px;margin-top:4px;min-height:12px"></span>';
 				break;
 
 			case 'ph_aksi':
-				$email   = (string) $meta( '_email' );
-				$nonce_s = wp_create_nonce( 'lp2m_inline_status_' . $post_id );
-				$nonce_e = wp_create_nonce( 'lp2m_inline_email_' . $post_id );
-				echo '<div class="lp2m-aksi" data-post="' . (int) $post_id . '" data-nonce-s="' . esc_attr( $nonce_s ) . '" data-nonce-e="' . esc_attr( $nonce_e ) . '" style="display:flex;flex-direction:column;gap:6px;min-width:175px">';
+				$email    = (string) $meta( '_email' );
+				$status   = (string) $meta( '_status' ) ?: 'submitted';
+				$nonce_s  = wp_create_nonce( 'lp2m_inline_status_' . $post_id );
+				$nonce_e  = wp_create_nonce( 'lp2m_inline_email_' . $post_id );
+				$valid_to = is_email( $email );
+				echo '<div class="lp2m-aksi" data-post="' . (int) $post_id . '" data-nonce-s="' . esc_attr( $nonce_s ) . '" data-nonce-e="' . esc_attr( $nonce_e ) . '" style="display:flex;flex-direction:column;gap:6px;min-width:190px">';
 				echo '<label style="font-size:11px;font-weight:600;color:#475569">Kirim Email ke Pemohon</label>';
-				$email_val = esc_attr( $email );
-				$placeholder = is_email( $email ) ? '' : 'Email belum ada — isi dulu';
-				echo '<input type="email" class="regular-text lp2m-email-input" data-post="' . (int) $post_id . '" value="' . $email_val . '" placeholder="' . esc_attr( $placeholder ) . '" style="width:100%;font-size:12px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px" />';
+				echo '<input type="email" class="regular-text lp2m-email-input" data-post="' . (int) $post_id . '" value="' . esc_attr( $valid_to ? $email : '' ) . '" placeholder="' . esc_attr( $valid_to ? '' : 'Email belum ada — isi dulu' ) . '" style="width:100%;font-size:12px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px" />';
+				echo '<label style="font-size:11px;font-weight:600;color:#475569">Status pada Email</label>';
+				echo '<select class="lp2m-status-select" data-post="' . (int) $post_id . '" style="width:100%;font-size:12px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:6px">';
+				foreach ( self::STATUS_LABELS as $key => $status_label ) {
+					echo '<option value="' . esc_attr( $key ) . '"' . selected( $key, $status, false ) . '>' . esc_html( $status_label ) . '</option>';
+				}
+				echo '</select>';
 				echo '<button type="button" class="button button-primary lp2m-btn-email" data-post="' . (int) $post_id . '" style="width:100%;justify-content:center;display:inline-flex;align-items:center;gap:6px;min-height:28px">'
 					. '<span class="lp2m-btn-email-label">📧 Kirim Email</span>'
 					. '<span class="lp2m-spinner" style="display:none;width:12px;height:12px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:lp2mSpin .6s linear infinite"></span>'
 					. '</button>';
 				echo '<span class="lp2m-email-msg" id="lp2m-email-msg-' . (int) $post_id . '" style="font-size:11px;min-height:14px;display:block"></span>';
-				echo '<span style="font-size:10px;color:#94a3b8">Email di input tidak otomatis disimpan ke data; hanya untuk tujuan kirim. Biarkan default untuk kirim ke pemohon.</span>';
+				echo '<span style="font-size:10px;color:#94a3b8">Status ikut disimpan bila berbeda dari status saat ini, lalu email dikirim memakai status terpilih. Email di kolom ini hanya tujuan kirim (tidak disimpan).</span>';
 				echo '</div>';
 				break;
 		}
@@ -458,6 +482,8 @@ class ITSI_LP2M_Hibah_Receiver {
 			.wp-list-table .column-ph_usulan{word-break:normal;overflow-wrap:anywhere;white-space:normal}
 			.wp-list-table .column-ph_usulan strong{line-height:1.35}
 			.wp-list-table .column-ph_aksi .lp2m-aksi input{max-width:100%}
+			.wp-list-table .column-ph_aksi .lp2m-aksi select.lp2m-status-select{max-width:100%;font-size:12px;line-height:1.4;height:auto;padding:3px 6px}
+			.wp-list-table .column-ph_aksi .lp2m-aksi .lp2m-email-msg{word-break:break-word}
 			@keyframes lp2mSpin{to{transform:rotate(360deg)}}
 			#lp2mStatusModal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:100050}
 			#lp2mStatusModal.lp2m-open{display:flex}
@@ -481,11 +507,17 @@ class ITSI_LP2M_Hibah_Receiver {
 		// Modal + JS list: klik status → modal, pilih → ajax; kirim email pakai input override.
 		if ( $is_list ) {
 			$ajax_url = admin_url( 'admin-ajax.php' );
+			$status_options = '';
+			foreach ( self::STATUS_LABELS as $key => $status_label ) {
+				$suffix = 'reviewed' === $key ? ' (kirim tautan revisi)' : '';
+				$status_options .= '<option value="' . esc_attr( $key ) . '">' . esc_html( $status_label . $suffix ) . '</option>';
+			}
+			$colors_js = wp_json_encode( self::STATUS_COLORS );
 			echo '<div id="lp2mStatusModal" aria-hidden="true"><div class="lp2m-backdrop"></div><div class="lp2m-card" role="dialog" aria-modal="true" aria-labelledby="lp2mModalTitle">'
 				. '<h3 id="lp2mModalTitle" style="margin:0 0 10px;font-size:15px">Update Status</h3>'
 				. '<p id="lp2mModalSub" style="margin:0 0 10px;color:#64748b;font-size:12px"></p>'
 				. '<select id="lp2mModalSelect" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px">'
-				. '<option value="submitted">Submitted</option><option value="under_review">Under Review</option><option value="revised">Revised</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="done">Done</option>'
+				. $status_options // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — sudah esc per-opsi.
 				. '</select>'
 				. '<div id="lp2mModalMsg" style="min-height:16px;margin-top:8px;font-size:12px"></div>'
 				. '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">'
@@ -505,15 +537,18 @@ class ITSI_LP2M_Hibah_Receiver {
 				. 'if(btnSave) btnSave.addEventListener("click",function(){if(!currentPost) return; var status=sel.value; var m=document.getElementById("lp2m-status-msg-"+currentPost); var badge=document.querySelector("tr#post-"+currentPost+" .lp2m-status-badge");'
 				. 'msg.textContent="Menyimpan & mengirim email…";msg.style.color="#64748b";btnSave.disabled=true;btnSave.querySelector(".lp2m-spinner").style.display="inline-block";btnSave.querySelector(".lp2m-modal-label").textContent="Menyimpan…"; if(m){m.textContent="Menyimpan…";m.style.color="#64748b";}'
 				. 'fetch(ajaxUrl,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"action=lp2m_inline_status&post="+encodeURIComponent(currentPost)+"&status="+encodeURIComponent(status)+"&_ajax_nonce="+encodeURIComponent(currentNonce)})'
-				. '.then(function(r){return r.json()}).then(function(j){var ok=j&&j.success;var text=ok?(j.data&&j.data.message?j.data.message:"Status disimpan & email terkirim."):(j&&j.data&&j.data.message?j.data.message:"Gagal");msg.textContent=(ok?"✓ ":"✕ ")+text;msg.style.color=ok?"#16a34a":"#dc2626";if(m){m.textContent=(ok?"✓ ":"✕ ")+text;m.style.color=ok?"#16a34a":"#dc2626";} if(ok&&j.data&&j.data.status_label&&badge){badge.textContent=j.data.status_label;badge.setAttribute("data-status",status);var colors={submitted:"#64748b",under_review:"#d97706",revised:"#0284c7",approved:"#16a34a",rejected:"#dc2626",done:"#7c3aed"};badge.style.background=colors[status]||"#64748b";} if(ok){setTimeout(closeModal,900);}})'
+				. '.then(function(r){return r.json()}).then(function(j){var ok=j&&j.success;var text=ok?(j.data&&j.data.message?j.data.message:"Status disimpan & email terkirim."):(j&&j.data&&j.data.message?j.data.message:"Gagal");msg.textContent=(ok?"✓ ":"✕ ")+text;msg.style.color=ok?"#16a34a":"#dc2626";if(m){m.textContent=(ok?"✓ ":"✕ ")+text;m.style.color=ok?"#16a34a":"#dc2626";} if(ok&&j.data&&j.data.status_label&&badge){badge.textContent=j.data.status_label;badge.setAttribute("data-status",status);var colors=' . $colors_js . ';badge.style.background=colors[status]||"#64748b";} var rs=document.querySelector(".lp2m-aksi[data-post=\""+currentPost+"\"] .lp2m-status-select");if(ok&&rs){rs.value=status;} if(ok){setTimeout(closeModal,900);}})'
 				. '.catch(function(){msg.textContent="✕ Gagal terhubung.";msg.style.color="#dc2626";if(m){m.textContent="✕ Gagal terhubung.";m.style.color="#dc2626";}}).finally(function(){btnSave.disabled=false;btnSave.querySelector(".lp2m-spinner").style.display="none";btnSave.querySelector(".lp2m-modal-label").textContent="Simpan";});});'
 				. 'document.querySelectorAll(".lp2m-btn-email").forEach(function(btn){btn.addEventListener("click",function(){'
-				. 'var post=btn.getAttribute("data-post");var wrap=document.querySelector(".lp2m-aksi[data-post=\""+post+"\"]"); if(!wrap) return; var nonce=wrap.getAttribute("data-nonce-e"); var input=wrap.querySelector(".lp2m-email-input"); var emailOverride=input?input.value.trim():"";'
+				. 'var post=btn.getAttribute("data-post");var wrap=document.querySelector(".lp2m-aksi[data-post=\""+post+"\"]"); if(!wrap) return;'
+				. 'var nonce=wrap.getAttribute("data-nonce-s"); var input=wrap.querySelector(".lp2m-email-input"); var emailOverride=input?input.value.trim():"";'
+				. 'var statusSel=wrap.querySelector(".lp2m-status-select"); var status=statusSel?statusSel.value:"";'
 				. 'var m=document.getElementById("lp2m-email-msg-"+post); var label=btn.querySelector(".lp2m-btn-email-label"); var spin=btn.querySelector(".lp2m-spinner");'
+				. 'var badge=document.querySelector("tr#post-"+post+" .lp2m-status-badge");'
 				. 'if(m) {m.textContent="Mengirim…";m.style.color="#64748b";} btn.disabled=true; if(spin) spin.style.display="inline-block"; if(label) label.textContent="Mengirim…";'
-				. 'var body="action=lp2m_inline_email&post="+encodeURIComponent(post)+"&_ajax_nonce="+encodeURIComponent(nonce); if(emailOverride) body+="&email_override="+encodeURIComponent(emailOverride);'
+				. 'var body="action=lp2m_inline_status&post="+encodeURIComponent(post)+"&_ajax_nonce="+encodeURIComponent(nonce); if(status) body+="&status="+encodeURIComponent(status); if(emailOverride) body+="&email_override="+encodeURIComponent(emailOverride);'
 				. 'fetch(ajaxUrl,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:body})'
-				. '.then(function(r){return r.json()}).then(function(j){if(m){var ok=j&&j.success;var t=j&&j.data&&j.data.message?j.data.message:(ok?"Email terkirim.":"Gagal");m.textContent=(ok?"✓ ":"✕ ")+t; m.style.color=ok?"#16a34a":"#dc2626";}})'
+				. '.then(function(r){return r.json()}).then(function(j){var ok=j&&j.success;if(m){var t=j&&j.data&&j.data.message?j.data.message:(ok?"Email terkirim.":"Gagal");m.textContent=(ok?"✓ ":"✕ ")+t; m.style.color=ok?"#16a34a":"#dc2626";} if(ok&&j.data&&badge&&j.data.status_label){badge.textContent=j.data.status_label;badge.setAttribute("data-status",j.data.status);var c=' . $colors_js . ';badge.style.background=c[j.data.status]||"#64748b";}})'
 				. '.catch(function(){if(m){m.textContent="✕ Gagal terhubung.";m.style.color="#dc2626"}}).finally(function(){btn.disabled=false;if(spin) spin.style.display="none";if(label) label.textContent="📧 Kirim Email";});});});'
 				. '});</script>';
 		}
@@ -590,31 +625,52 @@ class ITSI_LP2M_Hibah_Receiver {
 		if ( ! current_user_can( 'edit_post', $post_id ) ) { wp_send_json_error( [ 'message' => 'Tidak diizinkan.' ] ); }
 		$post = get_post( $post_id );
 		if ( ! $post || 'pendaftaran_hibah' !== $post->post_type ) { wp_send_json_error( [ 'message' => 'Data tidak ditemukan.' ] ); }
+		$old    = (string) get_post_meta( $post_id, '_status', true ) ?: 'submitted';
+		// Status opsional: kolom Aksi hanya butuh kirim email memakai status terpilih.
+		// Bila tidak dikirim, status saat ini dipertahankan.
 		$status = isset( $_POST['status'] ) ? sanitize_text_field( (string) $_POST['status'] ) : ''; // phpcs:ignore
-		if ( ! in_array( $status, self::STATUSES, true ) ) { wp_send_json_error( [ 'message' => 'Status tidak valid.' ] ); }
-		$old = (string) get_post_meta( $post_id, '_status', true ) ?: 'submitted';
-		update_post_meta( $post_id, '_status', $status );
-		$labels = [ 'submitted' => 'Submitted', 'under_review' => 'Under Review', 'revised' => 'Revised', 'approved' => 'Approved', 'rejected' => 'Rejected', 'done' => 'Done' ];
-		$label  = $labels[ $status ] ?? ucfirst( $status );
-		// Setiap update status → kirim email ke pemohon (sesuai permintaan).
-		if ( $old !== $status ) {
-			$note = 'Status diperbarui: ' . $label;
-			$res  = $this->send_applicant_email( $post_id, $note );
-			if ( is_wp_error( $res ) ) {
-				wp_send_json_success( [ 'message' => 'Status disimpan, tapi email gagal: ' . $res->get_error_message(), 'status' => $status, 'status_label' => $label, 'email_sent' => false ] );
-				return;
-			}
-		} else {
-			// Status sama — tetap kirim notifikasi (user sengaja menekan Simpan).
-			$res = $this->send_applicant_email( $post_id, 'Status: ' . $label );
-			if ( is_wp_error( $res ) ) {
-				wp_send_json_success( [ 'message' => 'Email gagal: ' . $res->get_error_message(), 'status' => $status, 'status_label' => $label, 'email_sent' => false ] );
-				return;
-			}
+		if ( '' === $status ) {
+			$status = $old;
 		}
-		wp_send_json_success( [ 'message' => '✓ Status ' . $label . ' & email terkirim.', 'status' => $status, 'status_label' => $label, 'email_sent' => true ] );
+		if ( ! in_array( $status, self::STATUSES, true ) ) { wp_send_json_error( [ 'message' => 'Status tidak valid.' ] ); }
+		// Tujuan kirim manual (opsional) — tidak disimpan ke meta `_email`.
+		$override = isset( $_POST['email_override'] ) ? sanitize_email( (string) $_POST['email_override'] ) : ''; // phpcs:ignore
+
+		update_post_meta( $post_id, '_status', $status );
+		// Email dikirim eksplisit di bawah (bukan lewat hook save_post), jadi tandai
+		// supaya tidak dobel; status di luar tahap revisi → buka peluang email ulang
+		// bila admin memilih `reviewed` lagi nanti.
+		$this->suppress_status_email = true;
+		if ( 'reviewed' === $status ) {
+			update_post_meta( $post_id, '_reviewed_email_sent_at', current_time( 'mysql' ) );
+		} else {
+			delete_post_meta( $post_id, '_reviewed_email_sent_at' );
+		}
+		$label = self::STATUS_LABELS[ $status ] ?? ucfirst( $status );
+		// Status berubah → pastikan token revisi siap sebelum email disusun.
+		if ( 'reviewed' === $status ) { $this->ensure_revision_token( $post_id ); }
+		// Setiap update status → kirim email ke pemohon (sesuai permintaan).
+		$note = $old !== $status ? ( 'Status diperbarui: ' . $label ) : ( 'Status: ' . $label );
+		$res  = $this->send_applicant_email( $post_id, $note, $override ?: null );
+		if ( is_wp_error( $res ) ) {
+			$msg = $old !== $status
+				? 'Status ' . $label . ' disimpan, tapi email gagal: ' . $res->get_error_message()
+				: 'Email gagal: ' . $res->get_error_message();
+			wp_send_json_success( [ 'message' => $msg, 'status' => $status, 'status_label' => $label, 'email_sent' => false ] );
+			return;
+		}
+		$to = $override ?: (string) get_post_meta( $post_id, '_email', true );
+		$msg = $old !== $status
+			? 'Status ' . $label . ' disimpan & email terkirim ke ' . $to . '.'
+			: 'Email status ' . $label . ' terkirim ke ' . $to . '.';
+		wp_send_json_success( [ 'message' => $msg, 'status' => $status, 'status_label' => $label, 'email_sent' => true ] );
 	}
 
+	/**
+	 * Kirim email saja dari list wp-admin (kolom Aksi) — status tidak diubah.
+	 * Dipertahankan untuk kompatibilitas/backup; tombol utama memakai
+	 * `lp2m_inline_status` agar status + email ditangani satu request.
+	 */
 	public function ajax_inline_email(): void {
 		$post_id = isset( $_POST['post'] ) ? (int) $_POST['post'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		if ( ! $post_id ) { wp_send_json_error( [ 'message' => 'ID tidak valid.' ] ); }
@@ -1628,6 +1684,42 @@ class ITSI_LP2M_Hibah_Receiver {
 		$this->ensure_revision_token( $post_id );
 	}
 
+	/**
+	 * Kirim email status ke peserta begitu status pendaftaran menjadi `reviewed`,
+	 * dari jalur penyimpanan mana pun (metabox wp-admin, TypeRocket, quick edit).
+	 *
+	 * Email ini memuat tautan tahap revisi (`send_applicant_email()` menambahkan
+	 * tombol "Buka Tahap Revisi" + token privat), sehingga peserta langsung bisa
+	 * membuka tab Revisi di halaman Track Status.
+	 *
+	 * Anti-dobel: meta `_reviewed_email_sent_at` diisi setelah email terkirim dan
+	 * dihapus saat status keluar dari `reviewed` — jadi satu siklus review hanya
+	 * mengirim satu email.
+	 */
+	public function maybe_send_review_email_on_save( int $post_id ): void {
+		if ( $this->suppress_status_email ) { return; }
+		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) { return; }
+		if ( 'pendaftaran_hibah' !== get_post_type( $post_id ) ) { return; }
+
+		$status = (string) get_post_meta( $post_id, '_status', true ) ?: 'submitted';
+		if ( 'reviewed' !== $status ) {
+			// Keluar dari tahap revisi → siklus berikutnya boleh kirim email lagi.
+			delete_post_meta( $post_id, '_reviewed_email_sent_at' );
+			return;
+		}
+		if ( '' !== (string) get_post_meta( $post_id, '_reviewed_email_sent_at', true ) ) { return; }
+
+		// Tautan revisi wajib sudah ada di email (dibuat di hook prioritas 33).
+		$this->ensure_revision_token( $post_id );
+
+		$res = $this->send_applicant_email( $post_id, 'Status diperbarui: Reviewed — Revisi Diminta' );
+		// Tandai hanya bila email benar-benar terkirim, supaya kegagalan SMTP
+		// dicoba ulang pada penyimpanan berikutnya (dan bisa juga via tombol kirim manual).
+		if ( ! is_wp_error( $res ) ) {
+			update_post_meta( $post_id, '_reviewed_email_sent_at', current_time( 'mysql' ) );
+		}
+	}
+
 	private function find_by_reg_no( string $no ): ?\WP_Post {
 		$posts = get_posts( [ 'post_type' => 'pendaftaran_hibah', 'post_status' => 'any', 'posts_per_page' => 1, 'meta_key' => '_reg_no', 'meta_value' => $no ] );
 		return $posts[0] ?? null;
@@ -1679,6 +1771,8 @@ class ITSI_LP2M_Hibah_Receiver {
 		update_post_meta( $post->ID, '_status', 'revision_submitted' );
 		update_post_meta( $post->ID, '_revision_submitted_at', current_time( 'mysql' ) );
 		update_post_meta( $post->ID, '_revision_token_active', '0' );
+		// Tahap revisi selesai → bila admin minta revisi lagi, email notifikasi baru boleh terkirim.
+		delete_post_meta( $post->ID, '_reviewed_email_sent_at' );
 		$history = get_post_meta( $post->ID, '_workflow_history', true ); $history = is_array( $history ) ? $history : [];
 		$history[] = [ 'stage' => 'revisi', 'status' => 'revision_submitted', 'date' => current_time( 'mysql' ), 'label' => 'Surat Kesanggupan dikirim' ];
 		update_post_meta( $post->ID, '_workflow_history', $history );
@@ -1698,6 +1792,11 @@ class ITSI_LP2M_Hibah_Receiver {
 		if ( ! $post || 'pendaftaran_hibah' !== $post->post_type ) {
 			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Data tidak ditemukan.' ], 404 );
 		}
+
+		// Email status dikirim eksplisit di akhir handler ini (blok $status_to_notify),
+		// sehingga hook save_post tidak boleh mengirim notifikasi kedua saat
+		// wp_update_post() dipanggil untuk sinkronisasi anggota tim.
+		$this->suppress_status_email = true;
 
 		$params = $request->get_params();
 
@@ -1741,6 +1840,13 @@ class ITSI_LP2M_Hibah_Receiver {
 			update_post_meta( $id, '_status', $status );
 			$status_to_notify = $status;
 			$status_changed   = ( $old_status !== $status );
+			// Penanda anti-dobel untuk hook save_post; `reviewed` ditandai terkirim di
+			// sini karena emailnya benar-benar dikirim di akhir handler.
+			if ( 'reviewed' === $status ) {
+				update_post_meta( $id, '_reviewed_email_sent_at', current_time( 'mysql' ) );
+			} else {
+				delete_post_meta( $id, '_reviewed_email_sent_at' );
+			}
 		}
 
 		// Data review dan RAB diisi admin; nilainya read-only pada endpoint revisi publik.
@@ -1861,8 +1967,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		$email_sent  = null;
 		$email_error = '';
 		if ( '' !== $status_to_notify ) {
-			$label_map = [ 'submitted' => 'Submitted', 'under_review' => 'Under Review', 'reviewed' => 'Reviewed — Revisi Diminta', 'revised' => 'Revised', 'revision_submitted' => 'Revision Submitted', 'approved' => 'Approved', 'rejected' => 'Rejected', 'done' => 'Done' ];
-			$label     = $label_map[ $status_to_notify ] ?? ucfirst( $status_to_notify );
+			$label     = self::STATUS_LABELS[ $status_to_notify ] ?? ucfirst( $status_to_notify );
 			$note      = $status_changed ? ( 'Status diperbarui: ' . $label ) : ( 'Status: ' . $label );
 			$res       = $this->send_applicant_email( $id, $note );
 			if ( is_wp_error( $res ) ) {
