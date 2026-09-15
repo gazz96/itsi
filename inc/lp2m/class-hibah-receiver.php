@@ -1241,7 +1241,7 @@ class ITSI_LP2M_Hibah_Receiver {
 	 * @param string $reg_no Nomor registrasi (untuk penamaan file).
 	 * @return int|\WP_Error Attachment ID.
 	 */
-	private function upload_proposal( array $file, string $reg_no ): int|\WP_Error {
+	private function upload_proposal( array $file, string $reg_no, string $prefix = 'proposal', string $label = 'Proposal' ): int|\WP_Error {
 		if ( ! function_exists( 'wp_handle_upload' ) ) {
 			require_once ABSPATH . 'wp-admin/includes/file.php';
 		}
@@ -1255,10 +1255,10 @@ class ITSI_LP2M_Hibah_Receiver {
 		// ── Validasi isi file (jangan percaya nama file / header MIME klien) ──
 		$tmp = $file['tmp_name'] ?? '';
 		if ( '' === $tmp || ! is_string( $tmp ) || ! is_file( $tmp ) ) {
-			return new \WP_Error( 'upload_invalid', 'File proposal tidak valid.' );
+			return new \WP_Error( 'upload_invalid', 'File ' . $label . ' tidak valid.' );
 		}
 		if ( ! is_readable( $tmp ) ) {
-			return new \WP_Error( 'upload_unreadable', 'File proposal tidak dapat dibaca.' );
+			return new \WP_Error( 'upload_unreadable', 'File ' . $label . ' tidak dapat dibaca.' );
 		}
 
 		$size = (int) ( $file['size'] ?? 0 );
@@ -1283,7 +1283,10 @@ class ITSI_LP2M_Hibah_Receiver {
 		}
 
 		// Ekstensi dipaksa .pdf — nama file asli tidak dipercaya.
-		$base = sanitize_file_name( sprintf( 'proposal-%s.pdf', $reg_no ) );
+		$base = sanitize_file_name( sprintf( '%s-%s.pdf', $prefix, $reg_no ) );
+		if ( '' !== $base ) {
+			$file['name'] = $base;
+		}
 
 		$overrides = [
 			'test_form' => false,
@@ -1297,7 +1300,7 @@ class ITSI_LP2M_Hibah_Receiver {
 
 		$attachment_id = wp_insert_attachment( [
 			'post_mime_type' => $moved['type'],
-			'post_title'     => 'Proposal ' . $reg_no,
+			'post_title'     => $label . ' ' . $reg_no,
 			'post_content'   => '',
 			'post_status'    => 'inherit',
 		], $moved['file'], 0 );
@@ -1636,8 +1639,31 @@ class ITSI_LP2M_Hibah_Receiver {
 			update_post_meta( $id, '_proposal_url', wp_get_attachment_url( $new_att ) );
 		}
 
+		// ── Surat Kesanggupan (opsional) — admin boleh mengunggah/mengganti, peserta juga via halaman revisi ──
+		$surat_file = $file_params['surat_kesanggupan'] ?? null;
+		if ( is_array( $surat_file ) && isset( $surat_file['error'] ) && (int) $surat_file['error'] !== UPLOAD_ERR_NO_FILE ) {
+			if ( (int) $surat_file['error'] !== UPLOAD_ERR_OK ) {
+				return new \WP_REST_Response( [ 'success' => false, 'message' => 'Upload Surat Kesanggupan gagal.', 'errors' => [ 'surat_kesanggupan' => 'Upload Surat Kesanggupan gagal (error ' . (int) $surat_file['error'] . ').' ] ], 400 );
+			}
+			$reg_no = (string) get_post_meta( $id, '_reg_no', true );
+			if ( '' === trim( $reg_no ) ) { $reg_no = (string) $id; }
+			$surat_att = $this->upload_proposal( $surat_file, $reg_no, 'surat-kesanggupan', 'Surat Kesanggupan' );
+			if ( is_wp_error( $surat_att ) ) {
+				return new \WP_REST_Response( [ 'success' => false, 'message' => $surat_att->get_error_message(), 'errors' => [ 'surat_kesanggupan' => $surat_att->get_error_message() ] ], 400 );
+			}
+			// Hapus attachment lama agar tidak menumpuk di Media Library.
+			$old_surat = (int) get_post_meta( $id, '_surat_kesanggupan_id', true );
+			if ( $old_surat && $old_surat !== (int) $surat_att ) {
+				wp_delete_attachment( $old_surat, true );
+			}
+			update_post_meta( $id, '_surat_kesanggupan_id', $surat_att );
+			update_post_meta( $id, '_surat_kesanggupan_url', wp_get_attachment_url( $surat_att ) );
+		}
+
 		$updated_url  = (string) get_post_meta( $id, '_proposal_url', true );
 		$updated_pid  = get_post_meta( $id, '_proposal_id', true );
+		$updated_template_url = (string) get_post_meta( $id, '_surat_kesanggupan_template_url', true );
+		$updated_surat_url    = (string) get_post_meta( $id, '_surat_kesanggupan_url', true );
 		$updated_list = get_post_meta( $id, '_anggota_list', true );
 		if ( is_string( $updated_list ) ) { $tmp = json_decode( $updated_list, true ); if ( is_array( $tmp ) ) { $updated_list = $tmp; } }
 		if ( ! is_array( $updated_list ) ) { $updated_list = []; }
@@ -1663,6 +1689,8 @@ class ITSI_LP2M_Hibah_Receiver {
 			'message'      => 'Data diperbarui.',
 			'proposal_url' => $updated_url,
 			'proposal_id'  => $updated_pid,
+			'surat_kesanggupan_template_url' => $updated_template_url,
+			'surat_kesanggupan_url'          => $updated_surat_url,
 			'anggota_list' => $updated_list,
 			'status'       => $status_to_notify ?: (string) get_post_meta( $id, '_status', true ),
 			'email_sent'   => $email_sent,
