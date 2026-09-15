@@ -86,6 +86,16 @@ function lp2m_pendaftaran_submit(WP_REST_Request $request) {
     $admin_email = lp2m_opt('site_admin_email') ?: get_option('admin_email');
     $from_name   = get_bloginfo('name');
 
+    // Penerima notif admin: Email Admin dari Settings + daftar CC tetap.
+    $admin_cc = class_exists('ITSI_LP2M_Hibah_Receiver') ? ITSI_LP2M_Hibah_Receiver::ADMIN_NOTIFICATION_CC : [];
+    $admin_to = [];
+    foreach ([$admin_email, ...$admin_cc] as $addr) {
+        $addr = sanitize_email((string) $addr);
+        if ('' !== $addr && is_email($addr) && ! in_array($addr, $admin_to, true)) {
+            $admin_to[] = $addr;
+        }
+    }
+
     // Lampiran PDF detail pendaftaran (temp file, langsung dihapus setelah kirim).
     $attachment    = class_exists('ITSI_LP2M_PDF') ? ITSI_LP2M_PDF::create_attachment($data, $reg_no, '') : '';
     $pdf_attachments = $attachment ? [$attachment] : [];
@@ -107,7 +117,7 @@ function lp2m_pendaftaran_submit(WP_REST_Request $request) {
         "",
         "Silakan login dashboard: https://lp2m.itsi.ac.id/dashboard/pendaftaran",
     ]);
-    wp_mail($admin_email, $subject_admin, $msg_admin, ['From: ' . $from_name . ' <noreply@' . $_SERVER['SERVER_NAME'] . '>'], $pdf_attachments);
+    wp_mail($admin_to, $subject_admin, $msg_admin, ['From: ' . $from_name . ' <noreply@' . $_SERVER['SERVER_NAME'] . '>'], $pdf_attachments);
 
     // 2) Notif penerima
     $subject_user = "Konfirmasi Pendaftaran Hibah LP2M ITSI — {$reg_no}";

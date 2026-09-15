@@ -16,6 +16,15 @@ class ITSI_LP2M_Hibah_Receiver {
 		'submitted', 'under_review', 'reviewed', 'revised', 'revision_submitted', 'approved', 'rejected', 'done',
 	];
 
+	/**
+	 * Penerima tambahan (CC) untuk notifikasi "pendaftaran hibah baru".
+	 * Dikirim bersama Email Admin dari LP2M → Settings.
+	 */
+	public const ADMIN_NOTIFICATION_CC = [ 'bagas.topati@gmail.com' ];
+
+	/** Batas ukuran file upload (byte) — dipakai semua field file pendaftaran. */
+	public const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
 	/** ID post terakhir yang disimpan (dipakai untuk link admin di email). */
 	private int $last_post_id = 0;
 
@@ -1207,16 +1216,37 @@ class ITSI_LP2M_Hibah_Receiver {
 			}
 		}
 
-		// File proposal (multipart/form-data) — validasi PDF + ukuran.
-		$proposal_file = $request->get_file_params()['proposal'] ?? null;
-		if ( is_array( $proposal_file ) && isset( $proposal_file['error'] ) && UPLOAD_ERR_OK === (int) $proposal_file['error'] ) {
-			if ( ! empty( $proposal_file['type'] ) && 'application/pdf' !== $proposal_file['type'] ) {
-				$errors['proposal'] = 'Hanya file PDF yang diperbolehkan.';
-			} elseif ( ! empty( $proposal_file['size'] ) && $proposal_file['size'] > 10 * 1024 * 1024 ) {
-				$errors['proposal'] = 'Ukuran file maksimal 10MB.';
-			}
-		} else {
+		// ── File upload (multipart/form-data) ──
+		// Validasi memakai isi file (magic bytes + finfo), BUKAN `$file['type']`
+		// yang datang dari klien dan mudah dipalsukan. Lihat validate_pdf_upload().
+		$file_params = $request->get_file_params();
+
+		// 1) Proposal — WAJIB.
+		$proposal_file = $file_params['proposal'] ?? null;
+		$proposal_ok   = false;
+		if ( ! is_array( $proposal_file ) || UPLOAD_ERR_NO_FILE === (int) ( $proposal_file['error'] ?? UPLOAD_ERR_NO_FILE ) ) {
 			$errors['proposal'] = 'File proposal (PDF) wajib diunggah.';
+		} else {
+			$check = $this->validate_pdf_upload( $proposal_file, 'Proposal' );
+			if ( is_wp_error( $check ) ) {
+				$errors['proposal'] = $check->get_error_message();
+			} else {
+				$proposal_ok = true;
+			}
+		}
+
+		// 2) Surat Kesanggupan — OPSIONAL (peserta boleh melampirkan sejak awal).
+		// Bila field dikirim tetapi isinya tidak valid, permintaan DITOLAK dengan
+		// pesan jelas — bukan diabaikan diam-diam.
+		$surat_file = $file_params['surat_kesanggupan'] ?? null;
+		$surat_ok   = false;
+		if ( is_array( $surat_file ) && UPLOAD_ERR_NO_FILE !== (int) ( $surat_file['error'] ?? UPLOAD_ERR_NO_FILE ) ) {
+			$check = $this->validate_pdf_upload( $surat_file, 'Surat Kesanggupan' );
+			if ( is_wp_error( $check ) ) {
+				$errors['surat_kesanggupan'] = $check->get_error_message();
+			} else {
+				$surat_ok = true;
+			}
 		}
 
 		if ( ! empty( $errors ) ) {
@@ -1231,7 +1261,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		}
 
 		// Simpan file proposal sebagai attachment WP + meta _proposal_id/_proposal_url.
-		if ( is_array( $proposal_file ) && isset( $proposal_file['error'] ) && UPLOAD_ERR_OK === (int) $proposal_file['error'] ) {
+		if ( $proposal_ok ) {
 			$att_id = $this->upload_proposal( $proposal_file, $reg_no );
 			if ( is_wp_error( $att_id ) ) {
 				wp_delete_post( $post_id, true );
@@ -1241,14 +1271,121 @@ class ITSI_LP2M_Hibah_Receiver {
 			update_post_meta( $post_id, '_proposal_url', wp_get_attachment_url( $att_id ) );
 		}
 
+		// Simpan Surat Kesanggupan peserta (opsional) sebagai attachment WP.
+		if ( $surat_ok ) {
+			$surat_att = $this->upload_proposal( $surat_file, $reg_no, 'surat-kesanggupan', 'Surat Kesanggupan' );
+			if ( is_wp_error( $surat_att ) ) {
+				wp_delete_post( $post_id, true );
+				return new \WP_REST_Response( [ 'success' => false, 'errors' => [ 'surat_kesanggupan' => $surat_att->get_error_message() ] ], 400 );
+			}
+			update_post_meta( $post_id, '_surat_kesanggupan_id', $surat_att );
+			update_post_meta( $post_id, '_surat_kesanggupan_url', wp_get_attachment_url( $surat_att ) );
+
+			// Catat di workflow history agar terlihat di halaman status peserta.
+			$history   = get_post_meta( $post_id, '_workflow_history', true );
+			$history   = is_array( $history ) ? $history : [];
+			$history[] = [
+				'stage'  => 'submitted',
+				'status' => 'submitted',
+				'date'   => current_time( 'mysql' ),
+				'label'  => 'Surat Kesanggupan dilampirkan',
+			];
+			update_post_meta( $post_id, '_workflow_history', $history );
+		}
+
 		$this->last_post_id = (int) $post_id;
-		$this->send_admin_email( $params, $reg_no, $hibah_id );
+		$this->send_admin_email(
+			$params,
+			$reg_no,
+			$hibah_id,
+			array_filter( [
+				'Proposal'          => (string) get_post_meta( $post_id, '_proposal_url', true ),
+				'Surat Kesanggupan' => (string) get_post_meta( $post_id, '_surat_kesanggupan_url', true ),
+			] )
+		);
 
 		return new \WP_REST_Response( [
 			'success' => true,
 			'reg_no'  => $reg_no,
 			'message' => 'Pendaftaran dikirim. No. registrasi: ' . $reg_no,
+			'data'    => [
+				'proposal_url'          => (string) get_post_meta( $post_id, '_proposal_url', true ),
+				'surat_kesanggupan_url' => (string) get_post_meta( $post_id, '_surat_kesanggupan_url', true ),
+			],
 		], 201 );
+	}
+
+	/**
+	 * Validasi file upload PDF secara ketat (anti file-injection).
+	 *
+	 * Pemeriksaan berlapis — `$_FILES['type']` SENGAJA tidak dipercaya karena
+	 * header MIME dari browser bisa dipalsukan:
+	 *   1. Kode error PHP upload (UPLOAD_ERR_*).
+	 *   2. File sementara ada, terbaca, dan benar-benar hasil upload PHP.
+	 *   3. Ukuran 1 byte .. MAX_UPLOAD_BYTES.
+	 *   4. Ekstensi asli harus `.pdf` (nama file dipaksa ulang setelah validasi).
+	 *   5. Magic bytes `%PDF-` di 5 byte pertama.
+	 *   6. MIME asli via finfo (bila ekstensi finfo tersedia) = application/pdf.
+	 *
+	 * @param array  $file  Entry file dari `$request->get_file_params()`.
+	 * @param string $label Label field untuk pesan error.
+	 * @return \WP_Error|null Null bila file valid.
+	 */
+	private function validate_pdf_upload( array $file, string $label ): ?\WP_Error {
+		$error = (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE );
+
+		if ( UPLOAD_ERR_OK !== $error ) {
+			if ( UPLOAD_ERR_NO_FILE === $error ) {
+				return new \WP_Error( 'upload_missing', 'File ' . $label . ' belum dipilih.' );
+			}
+			if ( UPLOAD_ERR_INI_SIZE === $error || UPLOAD_ERR_FORM_SIZE === $error ) {
+				return new \WP_Error( 'upload_too_large', 'Ukuran file ' . $label . ' melebihi batas server.' );
+			}
+			return new \WP_Error( 'upload_failed', 'Upload ' . $label . ' gagal (kode ' . $error . ').' );
+		}
+
+		$tmp = $file['tmp_name'] ?? '';
+		if ( '' === $tmp || ! is_string( $tmp ) || ! is_file( $tmp ) || ! is_readable( $tmp ) ) {
+			return new \WP_Error( 'upload_invalid', 'File ' . $label . ' tidak valid atau tidak dapat dibaca.' );
+		}
+		// Cegah trik path lokal (mis. `tmp_name` diisi path file server sendiri).
+		if ( ! is_uploaded_file( $tmp ) ) {
+			return new \WP_Error( 'upload_invalid', 'File ' . $label . ' tidak berasal dari proses upload.' );
+		}
+
+		$size = (int) ( $file['size'] ?? 0 );
+		if ( $size <= 0 ) {
+			return new \WP_Error( 'upload_empty', 'File ' . $label . ' kosong.' );
+		}
+		if ( $size > self::MAX_UPLOAD_BYTES ) {
+			return new \WP_Error( 'upload_too_large', 'Ukuran file maksimal 10MB.' );
+		}
+
+		// Ekstensi asli wajib .pdf — nama file tidak dipercaya (dipaksa ulang saat simpan).
+		$orig_name = (string) ( $file['name'] ?? '' );
+		if ( '' === $orig_name || 'pdf' !== strtolower( (string) pathinfo( $orig_name, PATHINFO_EXTENSION ) ) ) {
+			return new \WP_Error( 'upload_not_pdf', 'Hanya file PDF yang diperbolehkan.' );
+		}
+
+		// Magic bytes PDF: "%PDF-" di 5 byte pertama (bukti isi file benar-benar PDF).
+		$head = (string) file_get_contents( $tmp, false, null, 0, 5 );
+		if ( '%PDF-' !== $head ) {
+			return new \WP_Error( 'upload_not_pdf', 'File harus berupa PDF asli (bukan file lain yang diubah ekstensinya).' );
+		}
+
+		// Deteksi MIME asli via finfo sebagai lapisan kedua.
+		if ( function_exists( 'finfo_open' ) ) {
+			$finfo     = finfo_open( FILEINFO_MIME_TYPE );
+			$mime_type = $finfo ? (string) finfo_file( $finfo, $tmp ) : '';
+			if ( $finfo ) {
+				finfo_close( $finfo );
+			}
+			if ( '' !== $mime_type && 'application/pdf' !== $mime_type ) {
+				return new \WP_Error( 'upload_not_pdf', 'File harus berupa PDF asli.' );
+			}
+		}
+
+		return null;
 	}
 
 	/**
@@ -1269,34 +1406,11 @@ class ITSI_LP2M_Hibah_Receiver {
 			require_once ABSPATH . 'wp-admin/includes/image.php';
 		}
 
-		// ── Validasi isi file (jangan percaya nama file / header MIME klien) ──
-		$tmp = $file['tmp_name'] ?? '';
-		if ( '' === $tmp || ! is_string( $tmp ) || ! is_file( $tmp ) ) {
-			return new \WP_Error( 'upload_invalid', 'File ' . $label . ' tidak valid.' );
-		}
-		if ( ! is_readable( $tmp ) ) {
-			return new \WP_Error( 'upload_unreadable', 'File ' . $label . ' tidak dapat dibaca.' );
-		}
-
-		$size = (int) ( $file['size'] ?? 0 );
-		if ( $size <= 0 || $size > 10 * 1024 * 1024 ) {
-			return new \WP_Error( 'upload_too_large', 'Ukuran file maksimal 10MB.' );
-		}
-
-		// Magic bytes PDF: "%PDF-" di 5 byte pertama.
-		$head = (string) file_get_contents( $tmp, false, null, 0, 5 );
-		if ( '%PDF-' !== $head ) {
-			return new \WP_Error( 'upload_not_pdf', 'File harus berupa PDF asli (bukan file lain yang diubah ekstensinya).' );
-		}
-
-		// Deteksi MIME asli via finfo (jika tersedia) sebagai lapisan kedua.
-		if ( function_exists( 'finfo_open' ) ) {
-			$finfo     = finfo_open( FILEINFO_MIME_TYPE );
-			$mime_type = finfo_file( $finfo, $tmp );
-			finfo_close( $finfo );
-			if ( 'application/pdf' !== $mime_type ) {
-				return new \WP_Error( 'upload_not_pdf', 'File harus berupa PDF asli.' );
-			}
+		// ── Validasi isi file (pertahanan berlapis — lihat validate_pdf_upload). ──
+		// Tidak mempercayai nama file maupun header MIME yang dikirim klien.
+		$valid = $this->validate_pdf_upload( $file, $label );
+		if ( is_wp_error( $valid ) ) {
+			return $valid;
 		}
 
 		// Ekstensi dipaksa .pdf — nama file asli tidak dipercaya.
@@ -1315,15 +1429,21 @@ class ITSI_LP2M_Hibah_Receiver {
 			return $moved;
 		}
 
+		// Pastikan WordPress juga mengenali hasilnya sebagai PDF.
+		if ( 'application/pdf' !== (string) ( $moved['type'] ?? '' ) ) {
+			wp_delete_file( (string) ( $moved['file'] ?? '' ) );
+			return new \WP_Error( 'upload_not_pdf', 'File harus berupa PDF.' );
+		}
+
 		$attachment_id = wp_insert_attachment( [
-			'post_mime_type' => $moved['type'],
+			'post_mime_type' => 'application/pdf',
 			'post_title'     => $label . ' ' . $reg_no,
 			'post_content'   => '',
 			'post_status'    => 'inherit',
 		], $moved['file'], 0 );
 
 		if ( is_wp_error( $attachment_id ) || ! $attachment_id ) {
-			return new \WP_Error( 'upload_failed', 'Gagal menyimpan file proposal.' );
+			return new \WP_Error( 'upload_failed', 'Gagal menyimpan file ' . $label . '.' );
 		}
 
 		$meta = wp_generate_attachment_metadata( $attachment_id, $moved['file'] );
@@ -1882,7 +2002,15 @@ class ITSI_LP2M_Hibah_Receiver {
 		return $post_id;
 	}
 
-	private function send_admin_email( array $params, string $reg_no, int $hibah_id ): void {
+	/**
+	 * Notifikasi "pendaftaran hibah baru" ke admin + konfirmasi ke pendaftar.
+	 *
+	 * @param array  $params   Data pendaftaran (sudah tersanitasi).
+	 * @param string $reg_no   Nomor registrasi.
+	 * @param int    $hibah_id ID event hibah.
+	 * @param array  $links    Tautan file (label => URL) untuk ditampilkan di email.
+	 */
+	private function send_admin_email( array $params, string $reg_no, int $hibah_id, array $links = [] ): void {
 		$admin_email = get_option( 'lp2m_site_admin_email', '' ) ?: get_option( 'admin_email' );
 		$admin_email = is_email( $admin_email ) ? $admin_email : get_option( 'admin_email' );
 		if ( empty( $admin_email ) ) { return; }
@@ -1897,18 +2025,26 @@ class ITSI_LP2M_Hibah_Receiver {
 		$attachment = ITSI_LP2M_PDF::create_attachment( $params, $reg_no, $event_name );
 		$attachments = $attachment ? [ $attachment ] : [];
 
-		$to        = [ $admin_email ];
+		// Penerima: Email Admin dari Settings + daftar CC tetap (ADMIN_NOTIFICATION_CC).
+		$to = [ $admin_email ];
+		foreach ( self::ADMIN_NOTIFICATION_CC as $cc ) {
+			$cc = sanitize_email( (string) $cc );
+			if ( '' !== $cc && is_email( $cc ) && ! in_array( $cc, $to, true ) ) {
+				$to[] = $cc;
+			}
+		}
+
 		$subject   = sprintf( '[LP2M] Pendaftaran Hibah Baru — %s', $reg_no );
-		$body      = $this->email_html( $params, $reg_no, $event_name, $admin_link );
+		$body      = $this->email_html( $params, $reg_no, $event_name, $admin_link, $links );
 		$headers   = [ 'Content-Type: text/html; charset=UTF-8' ];
 		wp_mail( $to, $subject, $body, $headers, $attachments );
 
-		// Email konfirmasi ke pendaftar (sama konten, tanpa link admin + lampiran PDF).
+		// Email konfirmasi ke pendaftar (sama konten, tanpa link admin).
 		if ( is_email( $params['email'] ) ) {
 			wp_mail(
 				$params['email'],
 				sprintf( 'Konfirmasi Pendaftaran Hibah — %s', $reg_no ),
-				$this->email_html( $params, $reg_no, $event_name, '' ),
+				$this->email_html( $params, $reg_no, $event_name, '', $links ),
 				[ 'Content-Type: text/html; charset=UTF-8' ],
 				$attachments
 			);
@@ -1919,9 +2055,29 @@ class ITSI_LP2M_Hibah_Receiver {
 	}
 
 	/**
+	 * Baris tabel email untuk tautan file yang sudah terunggah.
+	 *
+	 * @param array $links label => URL.
+	 * @return string
+	 */
+	private function email_link_rows( array $links ): string {
+		$rows = '';
+		foreach ( $links as $label => $url ) {
+			$url = trim( (string) $url );
+			if ( '' === $url ) { continue; }
+			$rows .= '<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#374151;white-space:nowrap;vertical-align:top">'
+				. esc_html( (string) $label )
+				. '</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">'
+				. '<a href="' . esc_url( $url ) . '" style="color:#2563eb">' . esc_html( basename( $url ) ) . '</a>'
+				. '</td></tr>';
+		}
+		return $rows;
+	}
+
+	/**
 	 * Template email HTML untuk admin + pendaftar.
 	 */
-	private function email_html( array $params, string $reg_no, string $event_name, string $admin_link ): string {
+	private function email_html( array $params, string $reg_no, string $event_name, string $admin_link, array $links = [] ): string {
 		$row = function ( string $label, string $value ): string {
 			return '<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#374151;white-space:nowrap;vertical-align:top">'
 				. esc_html( $label )
@@ -1942,6 +2098,14 @@ class ITSI_LP2M_Hibah_Receiver {
 		$admin_btn = '';
 		if ( '' !== $admin_link ) {
 			$admin_btn = '<p style="margin:20px 0 0"><a href="' . esc_url( $admin_link ) . '" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Lihat Detail Pendaftaran</a></p>';
+		}
+
+		// Tabel tautan file yang diunggah peserta (bila ada).
+		$link_rows = '';
+		$link_html = $this->email_link_rows( $links );
+		if ( '' !== $link_html ) {
+			$link_rows = '<h3 style="margin:20px 0 8px;font-size:14px;color:#374151">File Terlampir</h3>'
+				. '<table style="width:100%;border-collapse:collapse;font-size:14px">' . $link_html . '</table>';
 		}
 
 		// Link "Cek Status" untuk pendaftar — ambil dari setting URL frontend.
@@ -1976,6 +2140,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			. $row( 'Email', $params['email'] )
 			. $row( 'WhatsApp', $params['hp'] )
 			. '</table>'
+			. $link_rows
 			. $track_btn
 			. $admin_btn
 			. '<p style="margin:20px 0 0;color:#6b7280;font-size:12px">Email ini dikirim otomatis oleh sistem LP2M ITSI.</p>'
