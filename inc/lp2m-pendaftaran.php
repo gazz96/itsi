@@ -229,6 +229,10 @@ function lp2m_pendaftaran_status(WP_REST_Request $request) {
             'anggota_list' => $anggota_list,
             'tanggal'      => $post->post_date,
             'status'       => $meta('_status') ?: 'submitted',
+            // Status Tahap 2 (Revisi): '' | 'perbaiki_usulan' | 'diterima'.
+            // Ini yang menentukan tab Revisi bisa diisi atau read-only — independen
+            // dari `status` tahap 1 di atas.
+            'status_tahap2' => (string) $meta('_status_tahap2'),
             'catatan_admin' => $meta('_catatan_admin'),
             'catatan_substansi_internal' => $meta('_catatan_substansi_internal'),
             'catatan_substansi_eksternal' => $meta('_catatan_substansi_eksternal'),

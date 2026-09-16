@@ -23,9 +23,27 @@ class ITSI_LP2M_Hibah_Receiver {
 		'reviewed'           => 'Reviewed — Revisi Diminta',
 		'revised'            => 'Revised',
 		'revision_submitted' => 'Revisi Dikirim',
-		'approved'           => 'Approved',
+		'approved'           => 'Disetujui',
 		'rejected'           => 'Rejected',
 		'done'               => 'Done',
+	];
+
+	/**
+	 * Status TAHAP 2 (Revisi) — meta `_status_tahap2`, default kosong.
+	 *
+	 * Field INILAH yang memicu email tahap revisi (bukan lagi `_status` = reviewed).
+	 */
+	public const STATUS_TAHAP2 = [ '', 'perbaiki_usulan', 'diterima' ];
+
+	/** Nilai `_status_tahap2` yang bermakna — pakai konstanta ini, jangan string literal. */
+	public const STATUS_TAHAP2_PERBAIKAN = 'perbaiki_usulan';
+	public const STATUS_TAHAP2_DITERIMA  = 'diterima';
+
+	/** Label manusiawi Status Tahap 2 (''= belum diputuskan). */
+	public const STATUS_TAHAP2_LABELS = [
+		''                => 'Belum Diputuskan',
+		'perbaiki_usulan' => 'Perbaiki Usulan',
+		'diterima'        => 'Diterima',
 	];
 
 	/** Warna badge status (kolom Status di list wp-admin). */
@@ -91,12 +109,12 @@ class ITSI_LP2M_Hibah_Receiver {
 		// Field file template lama (per pendaftaran) sudah dipindah ke level event:
 		// tidak ada lagi hook save_post untuk template. Sinkron file surat peserta tetap.
 		add_action( 'save_post', [ $this, 'sync_revision_file_from_tr' ], 32, 1 );
-		// Safety net: pastikan token revisi selalu ada saat status `reviewed`.
+		// Safety net: pastikan token revisi selalu ada saat Status Tahap 2 = Perbaiki Usulan.
 		add_action( 'save_post', [ $this, 'ensure_revision_token_on_save' ], 33, 1 );
-		// Auto-email peserta begitu status menjadi `reviewed` dari jalur mana pun
-		// (metabox wp-admin / TypeRocket / quick edit). Prioritas 34 = setelah hook 33,
-		// jadi tautan revisi sudah tersedia saat email disusun.
-		add_action( 'save_post', [ $this, 'maybe_send_review_email_on_save' ], 34, 1 );
+		// Auto-email peserta begitu Status Tahap 2 menjadi `perbaiki_usulan`, dari jalur
+		// mana pun (metabox TypeRocket / wp-admin / quick edit). Prioritas 34 = setelah
+		// hook 33, jadi tautan revisi sudah tersedia saat email disusun.
+		add_action( 'save_post', [ $this, 'maybe_send_revision_email_on_save' ], 34, 1 );
 		// Validasi _reg_no di level meta agar TypeRocket maupun editor WP sama-sama aman.
 		add_filter( 'update_post_metadata', [ $this, 'validate_reg_no_update' ], 10, 5 );
 		add_filter( 'add_post_metadata', [ $this, 'validate_reg_no_add' ], 10, 5 );
@@ -116,9 +134,14 @@ class ITSI_LP2M_Hibah_Receiver {
 
 		// File proposal presisi reset: blank = kosong → true nullify,
 		// false = biarkan apa adanya (dipakai sinkron).
+		// `_status_tahap2` ikut didaftarkan agar admin bisa mengosongkannya kembali
+		// (mis. membatalkan keputusan tahap 2).
 		add_filter( 'typerocket_set_null_blank_fields', function ( $fields ) {
 			$screen = get_current_screen();
-			if ( $screen && 'pendaftaran_hibah' === $screen->post_type ) { $fields[] = '_proposal_id'; }
+			if ( $screen && 'pendaftaran_hibah' === $screen->post_type ) {
+				$fields[] = '_proposal_id';
+				$fields[] = '_status_tahap2';
+			}
 			return $fields;
 		} );
 
@@ -133,29 +156,23 @@ class ITSI_LP2M_Hibah_Receiver {
 	}
 
 	public function render_tr_status_metabox(): void {
-		$post_id = (int) get_the_ID();
-		$status  = get_post_meta( $post_id, '_status', true ) ?: 'submitted';
-		$labels  = [
+		$labels = [
 			'submitted'          => 'Submitted (baru dikirim)',
 			'under_review'       => 'Under Review (sedang dinilai)',
 			'reviewed'           => 'Reviewed (revisi diminta)',
 			'revised'            => 'Revised (revisi)',
 			'revision_submitted' => 'Revision Submitted (revisi dikirim)',
-			'approved'           => 'Approved (diterima)',
+			'approved'           => 'Disetujui',
 			'rejected'           => 'Rejected (ditolak)',
 			'done'               => 'Done (selesai)',
 		];
-		$options = [];
-		foreach ( $labels as $value => $label ) {
-			$options[ $label ] = $value;
-		}
 
 		$form = \TypeRocket\Utility\Helper::form();
 		echo $form->select( '_status' )
 			->setLabel( 'Status' )
-			->setOptions( $options )
-			->setAttribute( 'style', 'width:100%' );
-		echo '<p style="margin:.45rem 0 0;color:#64748b;font-size:.85em">Status menentukan tahap proses dan notifikasi kepada pemohon.</p>';
+			->setOptions( array_flip( $labels ) )
+			->setAttribute( 'style', 'width:100%' )
+			->setHelp( 'Status tahap 1 (pengajuan) — menentukan tahap proses dan email notifikasi ke pemohon. Tahap revisi diatur di tab Revisi → "Status Tahap 2".' );
 	}
 
 	public function render_tr_metabox(): void {
@@ -215,8 +232,18 @@ class ITSI_LP2M_Hibah_Receiver {
 				$form->text( '_email' )->setLabel( 'Email' ),
 				$form->text( '_hp' )->setLabel( 'WhatsApp' ),
 			] )->setTitle( 'Kontak' );
-			echo $proposal_url ? '<p><a href="' . esc_url( $proposal_url ) . '" target="_blank" rel="noopener">⬇ Download proposal saat ini</a></p>' : '<p><em>Belum ada file proposal.</em></p>';
-			echo $form->file( '_proposal_id' )->setLabel( 'Ganti / Upload Proposal (PDF, max 10 MB)' )->setHelp( 'Kosongkan bila tidak ingin mengganti.' );
+			?>
+			<p>
+				<?php if ( $proposal_url ) : ?>
+					<a href="<?php echo esc_url( $proposal_url ); ?>" target="_blank" rel="noopener">⬇ Download proposal saat ini</a>
+				<?php else : ?>
+					<em>Belum ada file proposal.</em>
+				<?php endif; ?>
+			</p>
+			<?php
+			echo $form->file( '_proposal_id' )
+				->setLabel( 'Ganti / Upload Proposal (PDF, max 10 MB)' )
+				->setHelp( 'Kosongkan bila tidak ingin mengganti.' );
 			return (string) ob_get_clean();
 		};
 		$revision_tab = function () use ( $form, $get ): string {
@@ -232,7 +259,18 @@ class ITSI_LP2M_Hibah_Receiver {
 			$surat_url   = $get( '_surat_kesanggupan_url' );
 			$revisi_url  = $get( '_revisi_proposal_url' );
 			ob_start();
-			//echo '<h3>Tahap 2 — Review &amp; Revisi</h3><p>Isi catatan reviewer dan nilai RAB. Pilih status Reviewed untuk mengirim tautan revisi privat.</p>';
+			// Status Tahap 2 = pemicu email tahap revisi + tautan bertoken.
+			echo $form->section( [
+				$form->select( '_status_tahap2' )
+					->setLabel( 'Status Tahap 2 — Keputusan Reviewer' )
+					->setOptions( [
+						'— Belum diputuskan —' => '',
+						'Perbaiki Usulan'      => self::STATUS_TAHAP2_PERBAIKAN,
+						'Diterima'             => self::STATUS_TAHAP2_DITERIMA,
+					] )
+					->setAttribute( 'style', 'width:100%' )
+					->setHelp( 'Perbaiki Usulan = membuka tautan revisi & mengirim email + catatan reviewer ke peserta. Diterima = usulan disetujui (tanpa email revisi). Kosongkan bila belum diputuskan.' ),
+			] )->setTitle( 'Status Tahap 2 (Revisi)' );
 			echo $form->section( [
 				$form->textarea( '_catatan_admin' )->setLabel( 'Catatan Admin' ),
 				$form->textarea( '_catatan_substansi_internal' )->setLabel( 'Catatan Substansi Internal' ),
@@ -241,31 +279,42 @@ class ITSI_LP2M_Hibah_Receiver {
 			echo $form->section( [
 				$form->text( '_nilai_dana_usulan' )->setLabel( 'Nilai Dana Usulan' ),
 				$form->text( '_nilai_dana_disetujui' )->setLabel( 'Nilai Dana Disetujui' )
-					->setHelp( 'Satu nilai total dana yang disetujui. Rincian dihitung otomatis: Honorarium 30%, Alat & Bahan Habis Pakai 50%, Perjalanan Dinas 20%. Publikasi = luaran wajib, tanpa alokasi khusus.' ),
+					->setHelp( 'Satu nilai total dana yang disetujui — tanpa rincian per komponen. Peserta hanya melihat Nilai Dana Usulan & Nilai Dana Disetujui.' ),
 			] )->setTitle( 'Ringkasan Dana' );
 			echo $form->section( [
 				$form->file( '_surat_kesanggupan_id' )->setLabel( 'Surat Kesanggupan Peserta — Upload Ulang (PDF)' )->setHelp( 'Upload ulang surat kesanggupan yang sudah diperbaiki oleh peserta. Kosongkan bila tidak ingin mengganti file yang sudah tersimpan.' ),
 				$form->file( '_revisi_proposal_id' )->setLabel( 'Revisi File Pengajuan — Upload Ulang (PDF)' )->setHelp( 'Proposal yang sudah diperbaiki sesuai catatan reviewer. Kosongkan bila tidak ingin mengganti file yang sudah tersimpan.' ),
 			] )->setTitle( 'Dokumen Revisi' );
-			echo '<div style="margin:-.5rem 0 1rem;font-size:12px">'
-				. ( $surat_url
-					? '<a href="' . esc_url( (string) $surat_url ) . '" target="_blank" rel="noopener">⬇ Download Surat Kesanggupan tersimpan</a>'
-					: '<em>Surat Kesanggupan belum ada.</em>' )
-				. ' &nbsp;|&nbsp; '
-				. ( $revisi_url
-					? '<a href="' . esc_url( (string) $revisi_url ) . '" target="_blank" rel="noopener">⬇ Download Revisi File Pengajuan tersimpan</a>'
-					: '<em>Revisi File Pengajuan belum ada.</em>' )
-				. '</div>';
-			echo '<div style="margin-top:.5rem;padding:8px 10px;background:#f0f6fc;border:1px solid #c3d9ef;border-radius:4px;font-size:12px">'
-				. '<strong style="display:block;margin-bottom:2px">✍️ Template Surat Kesanggupan (level event)</strong>'
-				. '<p style="margin:0 0 4px;color:#50575e">Template diunggah sekali di event hibah — peserta tahap revisi cukup mengunduh, tidak upload berulang di sini.</p>'
-				. ( $template_url
-					? '<a href="' . esc_url( $template_url ) . '" target="_blank" rel="noopener">Download template saat ini</a>'
-					. ( $event_title ? ' <em>(dari event: ' . esc_html( $event_title ) . ')</em>' : '' )
-					: '<em>Belum ada template di event ini.</em>' . ( $hibah_id
-						? ' <a href="' . esc_url( (string) get_edit_post_link( $hibah_id ) ) . '">Buka event hibah untuk mengunggah</a>.'
-						: '' ) )
-				. '</div>';
+			?>
+			<div style="margin:-.5rem 0 1rem;font-size:12px">
+				<?php if ( $surat_url ) : ?>
+					<a href="<?php echo esc_url( (string) $surat_url ); ?>" target="_blank" rel="noopener">⬇ Download Surat Kesanggupan tersimpan</a>
+				<?php else : ?>
+					<em>Surat Kesanggupan belum ada.</em>
+				<?php endif; ?>
+				&nbsp;|&nbsp;
+				<?php if ( $revisi_url ) : ?>
+					<a href="<?php echo esc_url( (string) $revisi_url ); ?>" target="_blank" rel="noopener">⬇ Download Revisi File Pengajuan tersimpan</a>
+				<?php else : ?>
+					<em>Revisi File Pengajuan belum ada.</em>
+				<?php endif; ?>
+			</div>
+			<div style="margin-top:.5rem;padding:8px 10px;background:#f0f6fc;border:1px solid #c3d9ef;border-radius:4px;font-size:12px">
+				<strong style="display:block;margin-bottom:2px">✍️ Template Surat Kesanggupan (level event)</strong>
+				<p style="margin:0 0 4px;color:#50575e">Template diunggah sekali di event hibah — peserta tahap revisi cukup mengunduh, tidak upload berulang di sini.</p>
+				<?php if ( $template_url ) : ?>
+					<a href="<?php echo esc_url( $template_url ); ?>" target="_blank" rel="noopener">Download template saat ini</a>
+					<?php if ( $event_title ) : ?>
+						<em>(dari event: <?php echo esc_html( $event_title ); ?>)</em>
+					<?php endif; ?>
+				<?php else : ?>
+					<em>Belum ada template di event ini.</em>
+					<?php if ( $hibah_id ) : ?>
+						<a href="<?php echo esc_url( (string) get_edit_post_link( $hibah_id ) ); ?>">Buka event hibah untuk mengunggah</a>.
+					<?php endif; ?>
+				<?php endif; ?>
+			</div>
+			<?php
 
 			return (string) ob_get_clean();
 		};
@@ -527,8 +576,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			$ajax_url = admin_url( 'admin-ajax.php' );
 			$status_options = '';
 			foreach ( self::STATUS_LABELS as $key => $status_label ) {
-				$suffix = 'reviewed' === $key ? ' (kirim tautan revisi)' : '';
-				$status_options .= '<option value="' . esc_attr( $key ) . '">' . esc_html( $status_label . $suffix ) . '</option>';
+				$status_options .= '<option value="' . esc_attr( $key ) . '">' . esc_html( $status_label ) . '</option>';
 			}
 			$colors_js = wp_json_encode( self::STATUS_COLORS );
 			echo '<div id="lp2mStatusModal" aria-hidden="true"><div class="lp2m-backdrop"></div><div class="lp2m-card" role="dialog" aria-modal="true" aria-labelledby="lp2mModalTitle">'
@@ -656,17 +704,15 @@ class ITSI_LP2M_Hibah_Receiver {
 
 		update_post_meta( $post_id, '_status', $status );
 		// Email dikirim eksplisit di bawah (bukan lewat hook save_post), jadi tandai
-		// supaya tidak dobel; status di luar tahap revisi → buka peluang email ulang
-		// bila admin memilih `reviewed` lagi nanti.
+		// supaya tidak dobel.
 		$this->suppress_status_email = true;
-		if ( 'reviewed' === $status ) {
-			update_post_meta( $post_id, '_reviewed_email_sent_at', current_time( 'mysql' ) );
-		} else {
-			delete_post_meta( $post_id, '_reviewed_email_sent_at' );
-		}
 		$label = self::STATUS_LABELS[ $status ] ?? ucfirst( $status );
-		// Status berubah → pastikan token revisi siap sebelum email disusun.
-		if ( 'reviewed' === $status ) { $this->ensure_revision_token( $post_id ); }
+		// Tahap revisi kini dipicu "Status Tahap 2", bukan `_status` = reviewed:
+		// pastikan tautan revisi + penanda email siap selama tahap itu terbuka.
+		if ( self::STATUS_TAHAP2_PERBAIKAN === $this->get_status_tahap2( $post_id ) ) {
+			$this->ensure_revision_token( $post_id );
+			update_post_meta( $post_id, '_revision_email_sent_at', current_time( 'mysql' ) );
+		}
 		// Setiap update status → kirim email ke pemohon (sesuai permintaan).
 		$note = $old !== $status ? ( 'Status diperbarui: ' . $label ) : ( 'Status: ' . $label );
 		$res  = $this->send_applicant_email( $post_id, $note, $override ?: null );
@@ -779,11 +825,13 @@ class ITSI_LP2M_Hibah_Receiver {
 		];
 		$status = (string) get_post_meta( $post_id, '_status', true ) ?: 'submitted';
 
-		// Email berstatus `reviewed` = email tahap revisi: isi blok "Detail Revisi"
-		// dari data tab Revisi dan pakai tautan bertoken sebagai tombol utama.
+		// "Status Tahap 2 = Perbaiki Usulan" = email tahap revisi: isi blok "Detail
+		// Revisi" dari data tab Revisi dan pakai tautan bertoken sebagai tombol utama.
 		// Token aktif yang sudah ada dipakai ulang; token baru dibuat hanya bila belum ada.
+		// Status `_status` = `reviewed` TIDAK lagi memicu email ini.
+		$is_revision_email = ( self::STATUS_TAHAP2_PERBAIKAN === $this->get_status_tahap2( $post_id ) );
 		$revision = [];
-		if ( 'reviewed' === $status ) {
+		if ( $is_revision_email ) {
 			$token = $this->ensure_revision_token( $post_id );
 			$revision = [
 				'active'                      => true,
@@ -805,12 +853,12 @@ class ITSI_LP2M_Hibah_Receiver {
 		}
 		$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
 
-		// Status `reviewed` → email memuat tautan form revisi. Kirim JUGA ke
-		// penerima pemantau (ADMIN_NOTIFICATION_CC) agar tim LP2M bisa langsung
-		// membuka & mengisi form revisi tanpa menunggu email diteruskan pemohon.
+		// Email tahap revisi memuat tautan form revisi. Kirim JUGA ke penerima
+		// pemantau (ADMIN_NOTIFICATION_CC) agar tim LP2M bisa langsung membuka &
+		// mengisi form revisi tanpa menunggu email diteruskan pemohon.
 		// Status lain tetap hanya ke pemohon.
 		$recipients = [ $email ];
-		if ( 'reviewed' === $status ) {
+		if ( $is_revision_email ) {
 			foreach ( self::ADMIN_NOTIFICATION_CC as $cc ) {
 				$cc = sanitize_email( (string) $cc );
 				if ( '' !== $cc && is_email( $cc ) && ! in_array( $cc, $recipients, true ) ) {
@@ -1665,6 +1713,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			'email'      => get_post_meta( $post->ID, '_email', true ),
 			'hp'         => get_post_meta( $post->ID, '_hp', true ),
 			'status'     => (string) ( get_post_meta( $post->ID, '_status', true ) ?: 'submitted' ),
+			'status_tahap2' => $this->get_status_tahap2( (int) $post->ID ),
 			'proposal_id'  => get_post_meta( $post->ID, '_proposal_id', true ),
 			'proposal_url' => get_post_meta( $post->ID, '_proposal_url', true ),
 			'catatan_admin' => get_post_meta( $post->ID, '_catatan_admin', true ),
@@ -1679,6 +1728,14 @@ class ITSI_LP2M_Hibah_Receiver {
 			'workflow_history' => get_post_meta( $post->ID, '_workflow_history', true ) ?: [],
 			'created_at' => $post->post_date,
 		] ], 200 );
+	}
+
+	/**
+	 * Nilai meta `_status_tahap2` (Status Tahap 2) — '' bila belum diputuskan / tidak valid.
+	 */
+	private function get_status_tahap2( int $post_id ): string {
+		$value = (string) get_post_meta( $post_id, '_status_tahap2', true );
+		return in_array( $value, self::STATUS_TAHAP2, true ) ? $value : '';
 	}
 
 	/** Create a revision token and record a workflow event. */
@@ -1718,49 +1775,57 @@ class ITSI_LP2M_Hibah_Receiver {
 	}
 
 	/**
-	 * Safety net: jaga agar token revisi selalu ada begitu status menjadi `reviewed`,
-	 * termasuk bila status diubah dari wp-admin / TypeRocket (bukan lewat REST).
+	 * Safety net: jaga agar tautan revisi selalu ada selama "Status Tahap 2" =
+	 * Perbaiki Usulan, termasuk bila disimpan dari wp-admin / TypeRocket (bukan REST).
 	 */
 	public function ensure_revision_token_on_save( int $post_id ): void {
 		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) { return; }
 		if ( 'pendaftaran_hibah' !== get_post_type( $post_id ) ) { return; }
-		if ( 'reviewed' !== (string) get_post_meta( $post_id, '_status', true ) ) { return; }
+		$tahap2 = $this->get_status_tahap2( $post_id );
+		if ( self::STATUS_TAHAP2_DITERIMA === $tahap2 ) {
+			// Usulan sudah diterima → tutup tautan revisi (berlaku juga bila diubah
+			// lewat metabox/wp-admin, bukan hanya REST).
+			update_post_meta( $post_id, '_revision_token_active', '0' );
+			return;
+		}
+		if ( self::STATUS_TAHAP2_PERBAIKAN !== $tahap2 ) { return; }
 		$this->ensure_revision_token( $post_id );
 	}
 
 	/**
-	 * Kirim email status ke peserta begitu status pendaftaran menjadi `reviewed`,
-	 * dari jalur penyimpanan mana pun (metabox wp-admin, TypeRocket, quick edit).
+	 * Kirim email tahap revisi ke peserta begitu "Status Tahap 2" menjadi
+	 * `perbaiki_usulan`, dari jalur penyimpanan mana pun (metabox TypeRocket,
+	 * metabox wp-admin, quick edit).
 	 *
-	 * Email ini memuat tautan tahap revisi (`send_applicant_email()` menambahkan
-	 * tombol "Buka Tahap Revisi" + token privat), sehingga peserta langsung bisa
-	 * membuka tab Revisi di halaman Track Status.
+	 * Email ini memuat catatan reviewer + tautan tahap revisi bertoken
+	 * (`send_applicant_email()` menambahkan tombol "Buka Tahap Revisi"), sehingga
+	 * peserta langsung bisa membuka tab Revisi di halaman Track Status.
+	 * Status `_status` = `reviewed` TIDAK lagi memicu email ini.
 	 *
-	 * Anti-dobel: meta `_reviewed_email_sent_at` diisi setelah email terkirim dan
-	 * dihapus saat status keluar dari `reviewed` — jadi satu siklus review hanya
-	 * mengirim satu email.
+	 * Anti-dobel: meta `_revision_email_sent_at` diisi setelah email terkirim dan
+	 * dihapus saat Status Tahap 2 keluar dari `perbaiki_usulan` — jadi satu siklus
+	 * revisi hanya mengirim satu email.
 	 */
-	public function maybe_send_review_email_on_save( int $post_id ): void {
+	public function maybe_send_revision_email_on_save( int $post_id ): void {
 		if ( $this->suppress_status_email ) { return; }
 		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) { return; }
 		if ( 'pendaftaran_hibah' !== get_post_type( $post_id ) ) { return; }
 
-		$status = (string) get_post_meta( $post_id, '_status', true ) ?: 'submitted';
-		if ( 'reviewed' !== $status ) {
+		if ( self::STATUS_TAHAP2_PERBAIKAN !== $this->get_status_tahap2( $post_id ) ) {
 			// Keluar dari tahap revisi → siklus berikutnya boleh kirim email lagi.
-			delete_post_meta( $post_id, '_reviewed_email_sent_at' );
+			delete_post_meta( $post_id, '_revision_email_sent_at' );
 			return;
 		}
-		if ( '' !== (string) get_post_meta( $post_id, '_reviewed_email_sent_at', true ) ) { return; }
+		if ( '' !== (string) get_post_meta( $post_id, '_revision_email_sent_at', true ) ) { return; }
 
 		// Tautan revisi wajib sudah ada di email (dibuat di hook prioritas 33).
 		$this->ensure_revision_token( $post_id );
 
-		$res = $this->send_applicant_email( $post_id, 'Status diperbarui: Reviewed — Revisi Diminta' );
+		$res = $this->send_applicant_email( $post_id, 'Status Tahap 2: Perbaiki Usulan' );
 		// Tandai hanya bila email benar-benar terkirim, supaya kegagalan SMTP
 		// dicoba ulang pada penyimpanan berikutnya (dan bisa juga via tombol kirim manual).
 		if ( ! is_wp_error( $res ) ) {
-			update_post_meta( $post_id, '_reviewed_email_sent_at', current_time( 'mysql' ) );
+			update_post_meta( $post_id, '_revision_email_sent_at', current_time( 'mysql' ) );
 		}
 	}
 
@@ -1792,7 +1857,9 @@ class ITSI_LP2M_Hibah_Receiver {
 		if ( ! $post || ! $this->revision_token_valid( $post->ID, $token ) ) return new \WP_REST_Response( [ 'success' => false, 'message' => 'Link revisi tidak valid atau sudah ditutup.' ], 403 );
 		$meta = static fn( string $key ) => get_post_meta( $post->ID, $key, true );
 		return new \WP_REST_Response( [ 'success' => true, 'data' => [
-			'reg_no' => $meta( '_reg_no' ), 'nama' => $meta( '_nama' ), 'status' => $meta( '_status' ) ?: 'reviewed',
+			'reg_no' => $meta( '_reg_no' ), 'nama' => $meta( '_nama' ), 'status' => $meta( '_status' ) ?: 'submitted',
+			// Status Tahap 2 = penentu apakah form unggah revisi harus tampil.
+			'status_tahap2' => (string) $meta( '_status_tahap2' ),
 			'catatan_admin' => $meta( '_catatan_admin' ), 'catatan_substansi_internal' => $meta( '_catatan_substansi_internal' ),
 			'catatan_substansi_eksternal' => $meta( '_catatan_substansi_eksternal' ), 'nilai_dana_usulan' => $meta( '_nilai_dana_usulan' ),
 			'nilai_dana_disetujui' => $meta( '_nilai_dana_disetujui' ),
@@ -1854,7 +1921,9 @@ class ITSI_LP2M_Hibah_Receiver {
 		delete_post_meta( $post->ID, '_revision_token_hash' );
 		delete_post_meta( $post->ID, '_revision_token_preview' );
 		update_post_meta( $post->ID, '_revision_token_used_at', current_time( 'mysql' ) );
-		// Tahap revisi selesai → bila admin minta revisi lagi, email notifikasi baru boleh terkirim.
+		// Bersihkan meta legacy (sebelum tahap 2 ada) supaya tidak jadi sisa data.
+		// `_revision_email_sent_at` sengaja TIDAK dihapus: selama Status Tahap 2 masih
+		// "Perbaiki Usulan", penyimpanan berikutnya tidak boleh mengirim email dobel.
 		delete_post_meta( $post->ID, '_reviewed_email_sent_at' );
 		$history = get_post_meta( $post->ID, '_workflow_history', true ); $history = is_array( $history ) ? $history : [];
 		$history[] = [ 'stage' => 'revisi', 'status' => 'revision_submitted', 'date' => current_time( 'mysql' ), 'label' => 'Surat Kesanggupan & Revisi File Pengajuan dikirim' ];
@@ -1918,7 +1987,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			update_post_meta( $id, '_reg_no', $reg_no );
 		}
 
-		// Status: whitelist — setiap update status otomatis kirim email ke pemohon.
+		// Status tahap 1: whitelist — setiap update status otomatis kirim email ke pemohon.
 		$old_status       = (string) get_post_meta( $id, '_status', true ) ?: 'submitted';
 		$status_to_notify = '';
 		$status_changed   = false;
@@ -1930,12 +1999,25 @@ class ITSI_LP2M_Hibah_Receiver {
 			update_post_meta( $id, '_status', $status );
 			$status_to_notify = $status;
 			$status_changed   = ( $old_status !== $status );
-			// Penanda anti-dobel untuk hook save_post; `reviewed` ditandai terkirim di
-			// sini karena emailnya benar-benar dikirim di akhir handler.
-			if ( 'reviewed' === $status ) {
-				update_post_meta( $id, '_reviewed_email_sent_at', current_time( 'mysql' ) );
+		}
+
+		// ── Status Tahap 2 (Revisi) ── satu-satunya pemicu email + tautan revisi.
+		// Default kosong; `perbaiki_usulan` = minta revisi, `diterima` = usulan disetujui.
+		$old_tahap2     = $this->get_status_tahap2( $id );
+		$tahap2_changed = false;
+		if ( array_key_exists( 'status_tahap2', $params ) ) {
+			$tahap2 = sanitize_text_field( (string) $params['status_tahap2'] );
+			if ( ! in_array( $tahap2, self::STATUS_TAHAP2, true ) ) {
+				return new \WP_REST_Response( [ 'success' => false, 'message' => 'Status Tahap 2 tidak valid.' ], 400 );
+			}
+			update_post_meta( $id, '_status_tahap2', $tahap2 );
+			$tahap2_changed = ( $old_tahap2 !== $tahap2 );
+			// Penanda anti-dobel untuk hook save_post; email tahap revisi dikirim
+			// eksplisit di akhir handler ini.
+			if ( self::STATUS_TAHAP2_PERBAIKAN === $tahap2 ) {
+				update_post_meta( $id, '_revision_email_sent_at', current_time( 'mysql' ) );
 			} else {
-				delete_post_meta( $id, '_reviewed_email_sent_at' );
+				delete_post_meta( $id, '_revision_email_sent_at' );
 			}
 		}
 
@@ -1950,12 +2032,12 @@ class ITSI_LP2M_Hibah_Receiver {
 		foreach ( $review_fields as $field => $meta_key ) {
 			if ( array_key_exists( $field, $params ) ) update_post_meta( $id, $meta_key, sanitize_textarea_field( (string) $params[ $field ] ) );
 		}
-		// Status reviewed → pastikan token revisi aktif. Token lama dipakai ulang
-		// (tidak dibuat baru) agar tautan yang sudah dikirim ke peserta tetap valid.
-		if ( 'reviewed' === $status_to_notify ) {
+		// Status Tahap 2 = Perbaiki Usulan → pastikan token revisi aktif. Token lama
+		// dipakai ulang (tidak dibuat baru) agar tautan yang sudah dikirim ke peserta
+		// tetap valid. Pindah ke Diterima / kosong → nonaktifkan agar tautan lama mati.
+		if ( self::STATUS_TAHAP2_PERBAIKAN === $this->get_status_tahap2( $id ) ) {
 			$this->ensure_revision_token( $id );
-		} elseif ( $status_changed ) {
-			// Status keluar dari tahap revisi → nonaktifkan token agar tautan lama mati.
+		} elseif ( $tahap2_changed ) {
 			update_post_meta( $id, '_revision_token_active', '0' );
 		}
 
@@ -2077,12 +2159,18 @@ class ITSI_LP2M_Hibah_Receiver {
 		if ( ! is_array( $updated_list ) ) { $updated_list = []; }
 
 		// Setiap update status → kirim email ke pemohon (otomatis, sesuai permintaan table).
+		// Bila hanya Status Tahap 2 yang berubah, itu yang jadi subjek emailnya.
 		$email_sent  = null;
 		$email_error = '';
+		$note        = '';
 		if ( '' !== $status_to_notify ) {
-			$label     = self::STATUS_LABELS[ $status_to_notify ] ?? ucfirst( $status_to_notify );
-			$note      = $status_changed ? ( 'Status diperbarui: ' . $label ) : ( 'Status: ' . $label );
-			$res       = $this->send_applicant_email( $id, $note );
+			$label = self::STATUS_LABELS[ $status_to_notify ] ?? ucfirst( $status_to_notify );
+			$note  = $status_changed ? ( 'Status diperbarui: ' . $label ) : ( 'Status: ' . $label );
+		} elseif ( $tahap2_changed ) {
+			$note = 'Status Tahap 2 diperbarui: ' . ( self::STATUS_TAHAP2_LABELS[ $this->get_status_tahap2( $id ) ] ?? '' );
+		}
+		if ( '' !== $note ) {
+			$res = $this->send_applicant_email( $id, $note );
 			if ( is_wp_error( $res ) ) {
 				$email_sent  = false;
 				$email_error = $res->get_error_message();
@@ -2102,6 +2190,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			'revisi_proposal_id'             => $updated_revisi_id,
 			'anggota_list' => $updated_list,
 			'status'       => $status_to_notify ?: (string) get_post_meta( $id, '_status', true ),
+			'status_tahap2' => $this->get_status_tahap2( $id ),
 			'email_sent'   => $email_sent,
 			'email_error'  => $email_error,
 		], 200 );
@@ -2353,8 +2442,8 @@ class ITSI_LP2M_Hibah_Receiver {
 				. '<table style="width:100%;border-collapse:collapse;font-size:14px">' . $link_html . '</table>';
 		}
 
-		// Blok "Detail Revisi" (hanya email `reviewed`) — diletakkan TEPAT di bawah
-		// baris Kelompok Keahlian, memakai data tab Revisi apa adanya.
+		// Blok "Detail Revisi" (hanya saat Status Tahap 2 = Perbaiki Usulan) — diletakkan TEPAT
+		// di bawah baris Kelompok Keahlian, memakai data tab Revisi apa adanya.
 		$revision_block = '';
 		if ( $rev_active ) {
 			$revision_block = '<h3 style="margin:22px 0 8px;font-size:14px;color:#0f766e">Detail Revisi</h3>'
@@ -2365,7 +2454,6 @@ class ITSI_LP2M_Hibah_Receiver {
 				. $row( 'Nilai Dana Usulan', (string) ( $revision['nilai_dana_usulan'] ?? '' ) )
 				. $row( 'Nilai Dana Disetujui', (string) ( $revision['nilai_dana_disetujui'] ?? '' ) )
 				. '</table>'
-				. '<p style="margin:10px 0 0;color:#6b7280;font-size:12px">Komposisi dana disetujui: Honorarium 30% · Alat &amp; Bahan Habis Pakai 50% · Perjalanan Dinas 20%. Publikasi menjadi luaran wajib tanpa alokasi khusus.</p>'
 				. '<p style="margin:10px 0 0;color:#0f766e;font-size:13px;font-weight:600">Berkas yang wajib Anda unggah pada tahap revisi:</p>'
 				. '<ol style="margin:4px 0 0 20px;padding:0;color:#374151;font-size:13px">'
 				. '<li>Surat Kesanggupan yang sudah diisi dan ditandatangani (PDF).</li>'
@@ -2373,7 +2461,7 @@ class ITSI_LP2M_Hibah_Receiver {
 				. '</ol>';
 		}
 
-		// Tombol utama email: `reviewed` → "Buka Tahap Revisi" (tautan bertoken
+		// Tombol utama email: tahap revisi → "Buka Tahap Revisi" (tautan bertoken
 		// dari data revisi); status lain → "Cek Status Pendaftaran".
 		// Selalu domain FRONTEND LP2M; JANGAN fallback ke home_url() (situs WP).
 		$frontend_url = $this->frontend_base_url();
