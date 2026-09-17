@@ -5,6 +5,24 @@
  * @link https://developer.wordpress.org/themes/basics/theme-functions/
  *
  * @package itsi
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * THEME STRUCTURE MAP
+ * ───────────────────────────────────────────────────────────────────────────
+ * Root templates:  header.php, footer.php, single*.php, archive-*.php,
+ *                  page.php, search.php, 404.php, comments.php, sidebar.php,
+ *                  index.php, template-home-static.php
+ * Styling:         style.css (design system), style-rtl.css,
+ *                  assets/css/{program-studi,artikel-detail}.css
+ * Scripts:         js/itsi-main.js (front), js/typerocket-compat.js (admin)
+ * Partials:        template-parts/
+ * Includes (inc/): inc/README.md documents the full folder layout.
+ *   inc/setup/     — WP theme bootstrap (admin-menu, menu-walker, widgets,
+ *                    schema, typerocket-compat)
+ *   inc/lp2m/      — LP2M integration (REST, auth, CORS, SMTP, settings,
+ *                    pendaftaran, hibah receiver, PDF, user password, fpdf/)
+ * Unused code archived under _backups/_unused/ (never loaded — keep for ref).
+ * ───────────────────────────────────────────────────────────────────────────
  */
 
 if ( ! defined( '_S_VERSION' ) ) {
@@ -440,7 +458,7 @@ add_action( 'wp_enqueue_scripts', 'itsi_scripts' );
  * WP_Widget, which is only fully available after WordPress core widgets
  * have been registered.
  */
-require_once get_template_directory() . '/inc/widgets.php';
+require_once get_template_directory() . '/inc/setup/widgets.php';
 
 /**
  * REST API enhancement untuk CPT Hibah LP2M.
@@ -449,10 +467,10 @@ require_once get_template_directory() . '/inc/widgets.php';
  * so the Vue frontend at lp2m.itsi.ac.id can fetch event data directly
  * from /wp-json/wp/v2/hibah.
  */
-require_once get_template_directory() . '/inc/rest-api-hibah.php';
-require_once get_template_directory() . '/inc/lp2m-settings.php';
-require_once get_template_directory() . '/inc/lp2m-pendaftaran.php';
-require_once get_template_directory() . '/inc/lp2m-smtp.php';
+require_once get_template_directory() . '/inc/lp2m/rest-api-hibah.php';
+require_once get_template_directory() . '/inc/lp2m/settings.php';
+require_once get_template_directory() . '/inc/lp2m/pendaftaran.php';
+require_once get_template_directory() . '/inc/lp2m/smtp.php';
 
 /**
  * TypeRocket jQuery 3.x compatibility shim (admin).
@@ -460,9 +478,9 @@ require_once get_template_directory() . '/inc/lp2m-smtp.php';
  * Mutes jquery-migrate warnings and re-implements deprecated static APIs
  * (`$.isFunction`, `$.type`, `$.trim`, `$.parseJSON`, `$.now`) so the
  * TypeRocket page builder loads cleanly under WP 6.9.1 — without touching
- * the shared plugin itself. See inc/typerocket-compat.php.
+ * the shared plugin itself. See inc/setup/typerocket-compat.php.
  */
-require_once get_template_directory() . '/inc/typerocket-compat.php';
+require_once get_template_directory() . '/inc/setup/typerocket-compat.php';
 
 /**
  * LP2M CORS — izinkan akses lintas-origin dari SPA LP2M.
@@ -472,7 +490,7 @@ require_once get_template_directory() . '/inc/typerocket-compat.php';
  * hanya mengirim header CORS untuk origin same-site, jadi tanpa filter ini
  * semua request /wp-json dari domain LP2M diblokir browser.
  */
-require_once get_template_directory() . '/inc/lp2m-cors.php';
+require_once get_template_directory() . '/inc/lp2m/cors.php';
 
 /**
  * LP2M Auth — fallback autentikasi REST dengan password akun.
@@ -482,7 +500,7 @@ require_once get_template_directory() . '/inc/lp2m-cors.php';
  * akun biasa agar SPA LP2M bisa login & mengakses /wp-json langsung dengan
  * password akun. Application password lama tetap valid (diproses core dulu).
  */
-require_once get_template_directory() . '/inc/lp2m-auth.php';
+require_once get_template_directory() . '/inc/lp2m/auth.php';
 
 /**
  * LP2M User Password — ganti password akun via REST (POST /lp2m/v1/me/password).
@@ -2086,13 +2104,13 @@ add_action( 'wp_head', 'itsi_adsense_script', 10 );
  * sections into admin pages. Required here — not autoloaded — so it runs in the
  * admin context only when wp-admin/admin.php loads.
  */
-require_once get_template_directory() . '/inc/admin-menu.php';
+require_once get_template_directory() . '/inc/setup/admin-menu.php';
 
 /**
  * Load schema.org JSON-LD emitter (EducationalOrganization + Article/WebPage/Course).
  * Hooked to wp_head at priority 20 (after Clarity at 1, after Clarity inline at 99).
  */
-require_once get_template_directory() . '/inc/schema.php';
+require_once get_template_directory() . '/inc/setup/schema.php';
 
 /**
  * Fakultas taxonomy term meta: image picker di form Add/Edit term.
@@ -2492,4 +2510,4 @@ function itsi_bootstrap_icons_map() {
  * Load custom nav-menu walkers so wp_nav_menu() output matches the theme's
  * CSS selectors (.nli, .nl-a, .dd, .dd-a for navbar; .mob-a for mobile).
  */
-require_once get_template_directory() . '/inc/menu-walker.php';
+require_once get_template_directory() . '/inc/setup/menu-walker.php';

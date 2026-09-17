@@ -1,0 +1,18 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Build / tooling
+.vscode/
+.wrangler/
+.hermes/
+
+# Safety backups (local snapshots — never ship or commit)
+_backups/
+*.bak
+*.bak.*
+
+# OS
+.DS_Store
+Thumbs.db

@@ -6,7 +6,7 @@
  * Memverifikasi password lama (wp_check_password) lalu mengganti password
  * akun user yang sedang login (wp_set_password). Autentikasi dilakukan oleh
  * core (application password) atau fallback password akun
- * (inc/lp2m-auth.php).
+ * (inc/lp2m/auth.php).
  *
  * @package itsi
  */

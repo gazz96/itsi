@@ -86,7 +86,7 @@ function itsi_handle_settings_save() {
 		'itsi_footer_social_youtube'  => 'esc_url_raw',
 		'itsi_footer_social_x'        => 'esc_url_raw',
 		// 2026-07-08: Tambah 3 social lain agar konsisten dengan schema set
-		// (inc/schema.php line 110-127 itsi_schema_same_as baca tiktok/twitter/linkedin).
+		// (inc/setup/schema.php line 110-127 itsi_schema_same_as baca tiktok/twitter/linkedin).
 		'itsi_footer_social_tiktok'   => 'esc_url_raw',
 		'itsi_footer_social_twitter'  => 'esc_url_raw',   // twitter.com klasik (X = rebrand, field terpisah)
 		'itsi_footer_social_linkedin' => 'esc_url_raw',

@@ -2,7 +2,7 @@
 
 > **Untuk Hermes:** Implementasi task-by-task langsung di WordPress ITSI theme + LP2M Vue frontend. Setiap task diverifikasi sebelum lanjut.
 
-**Goal:** Buat post type `hibah` di WordPress (ITSI theme) supaya LP2M bisa mengelola event hibah internal/eksternal, panduan, timeline, template file, dan form pendaftaran — semua lewat admin WordPress. Data di-expose via REST API untuk dikonsumsi Vue frontend lp2m.bagistudio.com.
+**Goal:** Buat post type `hibah` di WordPress (ITSI theme) supaya LP2M bisa mengelola event hibah internal/eksternal, panduan, timeline, template file, dan form pendaftaran — semua lewat admin WordPress. Data di-expose via REST API untuk dikonsumsi Vue frontend lp2m.itsi.ac.id.
 
 **Architecture:**
 - WordPress admin → TypeRocket CPT `hibah` + meta box → REST API `/wp-json/wp/v2/hibah`
