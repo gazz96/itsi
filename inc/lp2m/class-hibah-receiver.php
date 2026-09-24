@@ -46,6 +46,30 @@ class ITSI_LP2M_Hibah_Receiver {
 		'diterima'        => 'Diterima',
 	];
 
+	/**
+	 * Tahap FORM PESERTA setelah pengajuan: Lap. Kemajuan & Lap. Akhir.
+	 *
+	 * Polanya sama dengan tahap revisi (token privat + email undangan), tetapi
+	 * isian & berkasnya berbeda. Semua field per tahap dipusatkan di
+	 * `lap_stage_config()` supaya metabox admin, endpoint peserta, sinkron
+	 * TypeRocket, dan email memakai satu daftar yang sama.
+	 */
+	public const LAP_STAGES = [ 'kemajuan', 'akhir' ];
+
+	/** Status per tahap lap — '' belum dibuka, 'dibuka' form peserta aktif, 'dikirim' sudah dikirim. */
+	public const LAP_STATUS_DIBUKA  = 'dibuka';
+	public const LAP_STATUS_DIKIRIM = 'dikirim';
+
+	/** Label manusiawi status tiap tahap lap. */
+	public const LAP_STATUS_LABELS = [
+		''        => 'Belum Dibuka',
+		'dibuka'  => 'Form Dibuka',
+		'dikirim' => 'Sudah Dikirim',
+	];
+
+	/** Batas jumlah kata kunci pada tahap Lap. Kemajuan. */
+	public const MAX_KEYWORDS = 5;
+
 	/** Warna badge status (kolom Status di list wp-admin). */
 	public const STATUS_COLORS = [
 		'submitted'          => '#64748b',
@@ -115,6 +139,14 @@ class ITSI_LP2M_Hibah_Receiver {
 		// mana pun (metabox TypeRocket / wp-admin / quick edit). Prioritas 34 = setelah
 		// hook 33, jadi tautan revisi sudah tersedia saat email disusun.
 		add_action( 'save_post', [ $this, 'maybe_send_revision_email_on_save' ], 34, 1 );
+		// Tab "Lap. Kemajuan" / "Lap. Akhir" — sinkron file (template, laporan,
+		// artikel, SPTB, berita acara, anggaran, …) + normalisasi field teks &
+		// status tahap. Prioritas 36 = setelah semua hook TypeRocket menulis meta.
+		add_action( 'save_post', [ $this, 'sync_lap_files_from_tr' ], 36, 1 );
+		// Safety net: tautan form peserta selalu ada selama status tahap = "dibuka".
+		add_action( 'save_post', [ $this, 'ensure_lap_tokens_on_save' ], 38, 1 );
+		// Auto-email undangan begitu status tahap menjadi "dibuka", dari jalur mana pun.
+		add_action( 'save_post', [ $this, 'maybe_send_lap_stage_email_on_save' ], 40, 1 );
 		// Validasi _reg_no di level meta agar TypeRocket maupun editor WP sama-sama aman.
 		add_filter( 'update_post_metadata', [ $this, 'validate_reg_no_update' ], 10, 5 );
 		add_filter( 'add_post_metadata', [ $this, 'validate_reg_no_add' ], 10, 5 );
@@ -141,6 +173,13 @@ class ITSI_LP2M_Hibah_Receiver {
 			if ( $screen && 'pendaftaran_hibah' === $screen->post_type ) {
 				$fields[] = '_proposal_id';
 				$fields[] = '_status_tahap2';
+				// Tab "Lap. Kemajuan" — Status Artikel boleh dikosongkan kembali.
+				// (File TIDAK didaftarkan: pengosongan file ditangani
+				// sync_lap_files_from_tr() agar tidak menghapus berkas lama.)
+				$fields[] = '_lapkem_status_artikel';
+				// Status tahap form peserta — boleh dikembalikan ke "Belum Dibuka".
+				$fields[] = '_lapkem_status';
+				$fields[] = '_lapakhir_status';
 			}
 			return $fields;
 		} );
@@ -172,7 +211,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			->setLabel( 'Status' )
 			->setOptions( array_flip( $labels ) )
 			->setAttribute( 'style', 'width:100%' )
-			->setHelp( 'Status tahap 1 (pengajuan) — menentukan tahap proses dan email notifikasi ke pemohon. Tahap revisi diatur di tab Revisi → "Status Tahap 2".' );
+			->setHelp( 'Status tahap 1 (pengajuan) — menentukan tahap proses dan email notifikasi ke pemohon. Tahap revisi diatur di tab Usulan → "Status Tahap 2".' );
 	}
 
 	public function render_tr_metabox(): void {
@@ -319,9 +358,176 @@ class ITSI_LP2M_Hibah_Receiver {
 			return (string) ob_get_clean();
 		};
 
+		// ── Tab: Lap. Kemajuan ──
+		// Ringkasan + keyword + status artikel + berkas luaran (template/laporan,
+		// artikel, SPTB). Pengosongan file (tombol Clear) + normalisasi field
+		// ditangani sync_lap_files_from_tr(). Status tahap membuka/menutup FORM
+		// PESERTA (tautan bertoken + email undangan — lihat lap_stage_config()).
+		$lapkem_tab = function () use ( $form, $get ): string {
+			$saved_files = array_filter( [
+				'Template Laporan Kemajuan' => $get( '_lapkem_template_url' ),
+				'Laporan Kemajuan'          => $get( '_lapkem_laporan_url' ),
+				'File Artikel'              => $get( '_lapkem_artikel_url' ),
+				'Template SPTB'             => $get( '_lapkem_sptb_template_url' ),
+				'SPTB'                      => $get( '_lapkem_sptb_url' ),
+			], static function ( $url ) {
+				return '' !== trim( (string) $url );
+			} );
+
+			$submitted_at = $get( '_lapkem_submitted_at' );
+
+			ob_start();
+			echo $form->section( [
+				$form->select( '_lapkem_status' )
+					->setLabel( 'Status Tahap — Buka Form Peserta' )
+					->setOptions( [
+						'— Belum dibuka —'                => '',
+						'Buka Form Peserta (kirim email)' => self::LAP_STATUS_DIBUKA,
+						'Sudah Dikirim Peserta'           => self::LAP_STATUS_DIKIRIM,
+					] )
+					->setAttribute( 'style', 'width:100%' )
+					->setHelp( 'Buka Form Peserta = tautan bertoken + email dikirim ke peserta agar mereka mengisi ringkasan & mengunggah berkas tahap ini. Status berubah otomatis ke "Sudah Dikirim" setelah peserta mengirim (tautan lalu mati).' ),
+			] )->setTitle( 'Status Tahap (Laporan Kemajuan)' );
+			echo $form->section( [
+				$form->textarea( '_lapkem_ringkasan' )->setLabel( 'Ringkasan' )->setAttribute( 'rows', 4 ),
+				$form->text( '_lapkem_keywords' )
+					->setLabel( 'Keyword' )
+					->setHelp( 'Maksimal 5 kata kunci — pisahkan dengan koma. Kelebihan akan dipotong otomatis saat simpan.' )
+					->setAttribute( 'placeholder', 'kata kunci 1, kata kunci 2, ...' ),
+				$form->select( '_lapkem_status_artikel' )
+					->setLabel( 'Status Artikel' )
+					->setOptions( [
+						'— Belum dipilih —' => '',
+						'Submitted'         => 'submitted',
+						'Accept'            => 'accept',
+						'Publish'           => 'publish',
+						'Draft'             => 'draft',
+						'Sedang Direview'   => 'sedang_direview',
+					] )
+					->setAttribute( 'style', 'width:100%' ),
+			] )->setTitle( 'Ringkasan Laporan Kemajuan' );
+			echo $form->section( [
+				$form->file( '_lapkem_template_id' )->setLabel( 'Template Laporan Kemajuan (DOCX)' )->setHelp( 'Template resmi laporan kemajuan — hanya DOC/DOCX.' ),
+				$form->file( '_lapkem_laporan_id' )->setLabel( 'Laporan Kemajuan (PDF)' )->setHelp( 'Laporan kemajuan yang sudah diisi — hanya PDF.' ),
+				$form->file( '_lapkem_artikel_id' )->setLabel( 'File Artikel (PDF)' )->setHelp( 'Artikel / luaran ilmiah terkait hibah — hanya PDF.' ),
+			] )->setTitle( 'Laporan & Artikel' );
+			echo $form->section( [
+				$form->file( '_lapkem_sptb_template_id' )->setLabel( 'Template SPTB (DOCX)' )->setHelp( 'Template Surat Pernyataan Tanggung Jawab Belanja — hanya DOC/DOCX.' ),
+				$form->file( '_lapkem_sptb_id' )->setLabel( 'SPTB (PDF)' )->setHelp( 'SPTB yang sudah diisi & ditandatangani — hanya PDF.' ),
+			] )->setTitle( 'SPTB' );
+			?>
+			<p style="margin:-.5rem 0 .5rem;font-size:12px;color:#50575e">
+				<?php if ( '' !== trim( $submitted_at ) ) : ?>
+					✓ Peserta sudah mengirim form ini pada <strong><?php echo esc_html( $submitted_at ); ?></strong> — tautan form sudah mati.
+				<?php else : ?>
+					Form peserta belum dikirim. Email undangan otomatis terkirim saat Status Tahap di atas diset <strong>Buka Form Peserta</strong>.
+				<?php endif; ?>
+			</p>
+			<div style="margin:-.5rem 0 1rem;font-size:12px">
+				<?php if ( $saved_files ) : ?>
+					<?php foreach ( $saved_files as $label => $url ) : ?>
+						<a href="<?php echo esc_url( (string) $url ); ?>" target="_blank" rel="noopener">⬇ Download <?php echo esc_html( $label ); ?></a><br>
+					<?php endforeach; ?>
+				<?php else : ?>
+					<em>Belum ada berkas Lap. Kemajuan tersimpan.</em>
+				<?php endif; ?>
+			</div>
+			<?php
+
+			return (string) ob_get_clean();
+		};
+
+		// ── Tab: Lap. Akhir ──
+		// Laporan akhir + luaran (artikel, poster, HKI, media massa, video) dan
+		// dokumen serah terima (berita acara, penyelesaian pekerjaan, anggaran).
+		// Pengosongan file (tombol Clear) + normalisasi field ditangani
+		// sync_lap_files_from_tr(); status tahap membuka FORM PESERTA bertoken.
+		$lapakhir_tab = function () use ( $form, $get ): string {
+			$saved_files = array_filter( [
+				'Template Laporan Akhir'                 => $get( '_lapakhir_template_url' ),
+				'Laporan Akhir'                          => $get( '_lapakhir_laporan_url' ),
+				'Artikel Jurnal'                         => $get( '_lapakhir_artikel_url' ),
+				'Poster'                                 => $get( '_lapakhir_poster_url' ),
+				'HKI'                                    => $get( '_lapakhir_hki_url' ),
+				'Template Berita Acara'                  => $get( '_lapakhir_ba_template_url' ),
+				'Berita Acara'                           => $get( '_lapakhir_ba_url' ),
+				'Template Berita Penyelesaian Pekerjaan' => $get( '_lapakhir_bpp_template_url' ),
+				'Berita Penyelesaian Pekerjaan'          => $get( '_lapakhir_bpp_url' ),
+				'Template Penggunaan Anggaran'           => $get( '_lapakhir_anggaran_template_url' ),
+				'Penggunaan Anggaran'                    => $get( '_lapakhir_anggaran_url' ),
+			], static function ( $url ) {
+				return '' !== trim( (string) $url );
+			} );
+
+			$submitted_at = $get( '_lapakhir_submitted_at' );
+
+			ob_start();
+			echo $form->section( [
+				$form->select( '_lapakhir_status' )
+					->setLabel( 'Status Tahap — Buka Form Peserta' )
+					->setOptions( [
+						'— Belum dibuka —'                => '',
+						'Buka Form Peserta (kirim email)' => self::LAP_STATUS_DIBUKA,
+						'Sudah Dikirim Peserta'           => self::LAP_STATUS_DIKIRIM,
+					] )
+					->setAttribute( 'style', 'width:100%' )
+					->setHelp( 'Buka Form Peserta = tautan bertoken + email dikirim ke peserta agar mereka mengisi ringkasan & mengunggah berkas tahap ini. Status berubah otomatis ke "Sudah Dikirim" setelah peserta mengirim (tautan lalu mati).' ),
+			] )->setTitle( 'Status Tahap (Laporan Akhir)' );
+			echo $form->section( [
+				$form->textarea( '_lapakhir_ringkasan' )->setLabel( 'Ringkasan' )->setAttribute( 'rows', 4 ),
+				$form->text( '_lapakhir_video_url' )
+					->setLabel( 'Link Video (URL)' )
+					->setHelp( 'URL lengkap video luaran, mis. YouTube. Kosongkan bila tidak ada.' )
+					->setAttribute( 'placeholder', 'https://youtube.com/watch?v=...' ),
+				$form->textarea( '_lapakhir_media_massa' )
+					->setLabel( 'Media Massa' )
+					->setHelp( 'Nama media / tautan publikasi (satu per baris bila lebih dari satu).' )
+					->setAttribute( 'rows', 3 ),
+			] )->setTitle( 'Ringkasan & Publikasi' );
+			echo $form->section( [
+				$form->file( '_lapakhir_template_id' )->setLabel( 'Template Laporan Akhir' )->setHelp( 'Template resmi laporan akhir — hanya DOC/DOCX.' ),
+				$form->file( '_lapakhir_laporan_id' )->setLabel( 'Laporan Akhir' )->setHelp( 'Laporan akhir yang sudah diisi — hanya PDF.' ),
+				$form->file( '_lapakhir_artikel_id' )->setLabel( 'Artikel Jurnal' )->setHelp( 'Artikel jurnal hasil hibah — hanya PDF.' ),
+				$form->file( '_lapakhir_poster_id' )->setLabel( 'Poster' )->setHelp( 'Poster luaran — hanya PDF.' ),
+				$form->file( '_lapakhir_hki_id' )->setLabel( 'HKI' )->setHelp( 'Dokumen HKI — PDF, DOC/DOCX, atau XLS/XLSX.' ),
+			] )->setTitle( 'Laporan & Luaran' );
+			echo $form->section( [
+				$form->file( '_lapakhir_ba_template_id' )->setLabel( 'Template Berita Acara (DOCX)' )->setHelp( 'Template berita acara — hanya DOC/DOCX.' ),
+				$form->file( '_lapakhir_ba_id' )->setLabel( 'Berita Acara (PDF)' )->setHelp( 'Berita acara terisi & ditandatangani — hanya PDF.' ),
+				$form->file( '_lapakhir_bpp_template_id' )->setLabel( 'Template Berita Penyelesaian Pekerjaan (DOCX)' )->setHelp( 'Template berita penyelesaian pekerjaan — hanya DOC/DOCX.' ),
+				$form->file( '_lapakhir_bpp_id' )->setLabel( 'Berita Penyelesaian Pekerjaan (PDF)' )->setHelp( 'Berita penyelesaian pekerjaan terisi — hanya PDF.' ),
+			] )->setTitle( 'Berita Acara & Penyelesaian' );
+			echo $form->section( [
+				$form->file( '_lapakhir_anggaran_template_id' )->setLabel( 'Template Penggunaan Anggaran (DOCX)' )->setHelp( 'Template laporan penggunaan anggaran — hanya DOC/DOCX.' ),
+				$form->file( '_lapakhir_anggaran_id' )->setLabel( 'Penggunaan Anggaran' )->setHelp( 'Laporan penggunaan anggaran — PDF, DOC/DOCX, atau XLS/XLSX.' ),
+			] )->setTitle( 'Penggunaan Anggaran' );
+			?>
+			<p style="margin:-.5rem 0 .5rem;font-size:12px;color:#50575e">
+				<?php if ( '' !== trim( $submitted_at ) ) : ?>
+					✓ Peserta sudah mengirim form ini pada <strong><?php echo esc_html( $submitted_at ); ?></strong> — tautan form sudah mati.
+				<?php else : ?>
+					Form peserta belum dikirim. Email undangan otomatis terkirim saat Status Tahap di atas diset <strong>Buka Form Peserta</strong>.
+				<?php endif; ?>
+			</p>
+			<div style="margin:-.5rem 0 1rem;font-size:12px">
+				<?php if ( $saved_files ) : ?>
+					<?php foreach ( $saved_files as $label => $url ) : ?>
+						<a href="<?php echo esc_url( (string) $url ); ?>" target="_blank" rel="noopener">⬇ Download <?php echo esc_html( $label ); ?></a><br>
+					<?php endforeach; ?>
+				<?php else : ?>
+					<em>Belum ada berkas Lap. Akhir tersimpan.</em>
+				<?php endif; ?>
+			</div>
+			<?php
+
+			return (string) ob_get_clean();
+		};
+
 		$tabs = \TypeRocket\Elements\Tabs::new();
-		$tabs->tab( 'Data Pengajuan', 'dashicons-clipboard', [ $data_tab() ] );
-		$tabs->tab( 'Revisi', 'dashicons-edit', [ $revision_tab() ] );
+		$tabs->tab( 'Pengajuan', 'dashicons-clipboard', [ $data_tab() ] );
+		$tabs->tab( 'Usulan', 'dashicons-edit', [ $revision_tab() ] );
+		$tabs->tab( 'Lap. Kemajuan', 'dashicons-chart-line', [ $lapkem_tab() ] );
+		$tabs->tab( 'Lap. Akhir', 'dashicons-awards', [ $lapakhir_tab() ] );
 		$tabs->render();
 	}
 
@@ -784,6 +990,36 @@ class ITSI_LP2M_Hibah_Receiver {
 	}
 
 	/**
+	 * Data pendaftaran (postmeta) dalam bentuk array untuk template email.
+	 * Dipakai `send_applicant_email()` maupun email undangan tahap lap.
+	 *
+	 * @param int    $post_id Post ID.
+	 * @param string $email   Override email tujuan (opsional).
+	 */
+	private function applicant_params( int $post_id, string $email = '' ): array {
+		$raw_list     = get_post_meta( $post_id, '_anggota_list', true );
+		$anggota_list = is_array( $raw_list )
+			? $raw_list
+			: ( is_string( $raw_list ) && '' !== trim( $raw_list ) ? ( json_decode( $raw_list, true ) ?: [] ) : [] );
+
+		return [
+			'nama'              => (string) get_post_meta( $post_id, '_nama', true ),
+			'nip'               => (string) get_post_meta( $post_id, '_nip', true ),
+			'jenis'             => (string) get_post_meta( $post_id, '_jenis', true ),
+			'prodi'             => (string) get_post_meta( $post_id, '_prodi', true ),
+			'skema'             => (string) get_post_meta( $post_id, '_skema', true ),
+			'jenis_hibah'       => (string) get_post_meta( $post_id, '_jenis_hibah', true ),
+			'sdgs'              => (string) get_post_meta( $post_id, '_sdgs', true ),
+			'kelompok_keahlian' => (string) get_post_meta( $post_id, '_kelompok_keahlian', true ),
+			'judul'             => (string) get_post_meta( $post_id, '_judul', true ),
+			'ringkasan'         => (string) get_post_meta( $post_id, '_ringkasan', true ),
+			'anggota_list'      => $anggota_list,
+			'email'             => '' !== $email ? $email : (string) get_post_meta( $post_id, '_email', true ),
+			'hp'                => (string) get_post_meta( $post_id, '_hp', true ),
+		];
+	}
+
+	/**
 	 * Kirim email ke pemohon dengan data terbaru dari postmeta.
 	 * Dipakai tombol wp-admin maupun API manual.
 	 * $email_override: bila diisi, dipakai sebagai tujuan kirim saja (tidak disimpan ke _email).
@@ -806,23 +1042,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		$reg_no = (string) get_post_meta( $post_id, '_reg_no', true );
 		$hibah_id = (int) get_post_meta( $post_id, '_hibah_id', true );
 		$event_name = $hibah_id ? (string) get_the_title( $hibah_id ) : '';
-		$raw_list = get_post_meta( $post_id, '_anggota_list', true );
-		$anggota_list = is_array( $raw_list ) ? $raw_list : ( is_string( $raw_list ) && '' !== trim( $raw_list ) ? ( json_decode( $raw_list, true ) ?: [] ) : [] );
-		$params = [
-			'nama' => (string) get_post_meta( $post_id, '_nama', true ),
-			'nip'  => (string) get_post_meta( $post_id, '_nip', true ),
-			'jenis' => (string) get_post_meta( $post_id, '_jenis', true ),
-			'prodi' => (string) get_post_meta( $post_id, '_prodi', true ),
-			'skema' => (string) get_post_meta( $post_id, '_skema', true ),
-			'jenis_hibah' => (string) get_post_meta( $post_id, '_jenis_hibah', true ),
-			'sdgs'  => (string) get_post_meta( $post_id, '_sdgs', true ),
-			'kelompok_keahlian' => (string) get_post_meta( $post_id, '_kelompok_keahlian', true ),
-			'judul' => (string) get_post_meta( $post_id, '_judul', true ),
-			'ringkasan' => (string) get_post_meta( $post_id, '_ringkasan', true ),
-			'anggota_list' => $anggota_list,
-			'email' => $email,
-			'hp'    => (string) get_post_meta( $post_id, '_hp', true ),
-		];
+		$params = $this->applicant_params( $post_id, $email );
 		$status = (string) get_post_meta( $post_id, '_status', true ) ?: 'submitted';
 
 		// "Status Tahap 2 = Perbaiki Usulan" = email tahap revisi: isi blok "Detail
@@ -859,12 +1079,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		// Status lain tetap hanya ke pemohon.
 		$recipients = [ $email ];
 		if ( $is_revision_email ) {
-			foreach ( self::ADMIN_NOTIFICATION_CC as $cc ) {
-				$cc = sanitize_email( (string) $cc );
-				if ( '' !== $cc && is_email( $cc ) && ! in_array( $cc, $recipients, true ) ) {
-					$recipients[] = $cc;
-				}
-			}
+			$recipients = $this->with_admin_cc( $recipients );
 		}
 
 		$sent = wp_mail( $recipients, $subject, $body, $headers );
@@ -975,6 +1190,19 @@ class ITSI_LP2M_Hibah_Receiver {
 		register_rest_route( 'lp2m/v1', '/pendaftaran/revisi', [
 			'methods'             => 'POST',
 			'callback'            => [ $this, 'handle_revision_submit' ],
+			'permission_callback' => '__return_true',
+		] );
+
+		// Form peserta tahap Lap. Kemajuan / Lap. Akhir — token privat terpisah
+		// per tahap (`?no=…&token=…&stage=kemajuan|akhir`).
+		register_rest_route( 'lp2m/v1', '/pendaftaran/laporan', [
+			'methods'             => 'GET',
+			'callback'            => [ $this, 'handle_lap_stage_access' ],
+			'permission_callback' => '__return_true',
+		] );
+		register_rest_route( 'lp2m/v1', '/pendaftaran/laporan', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'handle_lap_stage_submit' ],
 			'permission_callback' => '__return_true',
 		] );
 
@@ -1615,6 +1843,136 @@ class ITSI_LP2M_Hibah_Receiver {
 		return $attachment_id;
 	}
 
+	/**
+	 * Validasi berkas tahap lap (PDF / DOC/DOCX / XLS/XLSX) tanpa menyimpan.
+	 *
+	 * Lapisan pemeriksaan:
+	 *   1. kode error PHP upload & ukuran (1 byte .. MAX_UPLOAD_BYTES);
+	 *   2. ekstensi asli harus termasuk aturan `ext`;
+	 *   3. tipe yang dikenali WordPress (`wp_check_filetype`) harus termasuk MIME aturan;
+	 *   4. DOCX/XLSX wajib paket ZIP ("PK") — cegah file yang hanya diganti ekstensi.
+	 *
+	 * Untuk `ext = pdf` validasi didelegasikan ke `validate_pdf_upload()` yang lebih
+	 * ketat (magic bytes `%PDF-` + finfo).
+	 *
+	 * @return \WP_Error|null Null bila berkas valid.
+	 */
+	private function validate_document_upload( array $file, string $label, string $ext ): ?\WP_Error {
+		if ( 'pdf' === $ext ) {
+			return $this->validate_pdf_upload( $file, $label );
+		}
+
+		$rules = $this->lap_ext_rules( $ext );
+		$error = (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE );
+
+		if ( UPLOAD_ERR_OK !== $error ) {
+			if ( UPLOAD_ERR_NO_FILE === $error ) {
+				return new \WP_Error( 'upload_missing', 'File ' . $label . ' belum dipilih.' );
+			}
+			if ( UPLOAD_ERR_INI_SIZE === $error || UPLOAD_ERR_FORM_SIZE === $error ) {
+				return new \WP_Error( 'upload_too_large', 'Ukuran file ' . $label . ' melebihi batas server.' );
+			}
+			return new \WP_Error( 'upload_failed', 'Upload ' . $label . ' gagal (kode ' . $error . ').' );
+		}
+
+		$tmp = $file['tmp_name'] ?? '';
+		if ( '' === $tmp || ! is_string( $tmp ) || ! is_file( $tmp ) || ! is_readable( $tmp ) || ! is_uploaded_file( $tmp ) ) {
+			return new \WP_Error( 'upload_invalid', 'File ' . $label . ' tidak valid atau tidak berasal dari proses upload.' );
+		}
+
+		$size = (int) ( $file['size'] ?? 0 );
+		if ( $size <= 0 ) {
+			return new \WP_Error( 'upload_empty', 'File ' . $label . ' kosong.' );
+		}
+		if ( $size > self::MAX_UPLOAD_BYTES ) {
+			return new \WP_Error( 'upload_too_large', 'Ukuran file maksimal 10MB.' );
+		}
+
+		$orig_ext = strtolower( (string) pathinfo( (string) ( $file['name'] ?? '' ), PATHINFO_EXTENSION ) );
+		if ( '' === $orig_ext || ! in_array( $orig_ext, $rules['exts'], true ) ) {
+			return new \WP_Error( 'upload_bad_type', $label . ' harus berformat ' . $rules['format'] . '.' );
+		}
+
+		$detected = wp_check_filetype( 'berkas.' . $orig_ext );
+		if ( empty( $detected['type'] ) || ! in_array( (string) $detected['type'], $rules['mimes'], true ) ) {
+			return new \WP_Error( 'upload_bad_type', $label . ' harus berformat ' . $rules['format'] . '.' );
+		}
+
+		// DOCX/XLSX = paket ZIP → dua byte pertama harus "PK".
+		if ( in_array( $orig_ext, [ 'docx', 'xlsx' ], true ) ) {
+			$head = (string) file_get_contents( $tmp, false, null, 0, 2 );
+			if ( 'PK' !== $head ) {
+				return new \WP_Error( 'upload_bad_type', $label . ' bukan berkas Office yang valid (isi tidak sesuai ekstensi).' );
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Simpan berkas tahap lap ke Media Library.
+	 *
+	 * Nama berkas dipaksa `{prefix}-{reg_no}.{ext}` (ekstensi asli dipertahankan
+	 * selama termasuk whitelist) supaya nama kiriman klien tidak dipercaya.
+	 *
+	 * @param string $ext Aturan format: 'pdf' | 'doc' | 'any'.
+	 * @return int|\WP_Error Attachment ID.
+	 */
+	private function upload_document( array $file, string $reg_no, string $prefix, string $label, string $ext ): int|\WP_Error {
+		if ( ! function_exists( 'wp_handle_upload' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+		}
+		if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/image.php';
+		}
+
+		$valid = $this->validate_document_upload( $file, $label, $ext );
+		if ( is_wp_error( $valid ) ) {
+			return $valid;
+		}
+
+		$rules    = $this->lap_ext_rules( $ext );
+		$orig_ext = strtolower( (string) pathinfo( (string) ( $file['name'] ?? '' ), PATHINFO_EXTENSION ) );
+		if ( ! in_array( $orig_ext, $rules['exts'], true ) ) {
+			$orig_ext = $rules['exts'][0];
+		}
+
+		// Peta ekstensi → MIME untuk `test_type` WordPress.
+		$mimes = [];
+		foreach ( $rules['exts'] as $e ) {
+			$t = wp_check_filetype( 'berkas.' . $e );
+			if ( ! empty( $t['type'] ) ) { $mimes[ $e ] = (string) $t['type']; }
+		}
+
+		$base = sanitize_file_name( sprintf( '%s-%s.%s', $prefix, $reg_no, $orig_ext ) );
+		if ( '' !== $base ) { $file['name'] = $base; }
+
+		$moved = wp_handle_upload( $file, [ 'test_form' => false, 'test_type' => true, 'mimes' => $mimes ] );
+		if ( is_wp_error( $moved ) ) {
+			return $moved;
+		}
+		if ( empty( $moved['type'] ) || ! in_array( (string) $moved['type'], array_values( $mimes ), true ) ) {
+			wp_delete_file( (string) ( $moved['file'] ?? '' ) );
+			return new \WP_Error( 'upload_bad_type', $label . ' harus berformat ' . $rules['format'] . '.' );
+		}
+
+		$attachment_id = wp_insert_attachment( [
+			'post_mime_type' => (string) $moved['type'],
+			'post_title'     => $label . ' ' . $reg_no,
+			'post_content'   => '',
+			'post_status'    => 'inherit',
+		], $moved['file'], 0 );
+
+		if ( is_wp_error( $attachment_id ) || ! $attachment_id ) {
+			return new \WP_Error( 'upload_failed', 'Gagal menyimpan file ' . $label . '.' );
+		}
+
+		$meta = wp_generate_attachment_metadata( $attachment_id, $moved['file'] );
+		wp_update_attachment_metadata( $attachment_id, $meta );
+
+		return $attachment_id;
+	}
+
 	public function handle_list( \WP_REST_Request $request ): \WP_REST_Response {
 		$per_page = max( 1, min( (int) ( $request->get_param( 'per_page' ) ?? 20 ), 100 ) );
 		$page     = max( 1, (int) ( $request->get_param( 'page' ) ?? 1 ) );
@@ -1725,6 +2083,35 @@ class ITSI_LP2M_Hibah_Receiver {
 			'surat_kesanggupan_url' => get_post_meta( $post->ID, '_surat_kesanggupan_url', true ),
 			'revisi_proposal_id'  => get_post_meta( $post->ID, '_revisi_proposal_id', true ),
 			'revisi_proposal_url' => get_post_meta( $post->ID, '_revisi_proposal_url', true ),
+			// Tab "Lap. Kemajuan" — ringkasan, keyword, status artikel & berkas luaran.
+			'lapkem_ringkasan'      => get_post_meta( $post->ID, '_lapkem_ringkasan', true ),
+			'lapkem_keywords'       => get_post_meta( $post->ID, '_lapkem_keywords', true ),
+			'lapkem_status_artikel' => get_post_meta( $post->ID, '_lapkem_status_artikel', true ),
+			'lapkem_template_url'   => get_post_meta( $post->ID, '_lapkem_template_url', true ),
+			'lapkem_laporan_url'    => get_post_meta( $post->ID, '_lapkem_laporan_url', true ),
+			'lapkem_artikel_url'    => get_post_meta( $post->ID, '_lapkem_artikel_url', true ),
+			'lapkem_sptb_template_url' => get_post_meta( $post->ID, '_lapkem_sptb_template_url', true ),
+			'lapkem_sptb_url'       => get_post_meta( $post->ID, '_lapkem_sptb_url', true ),
+			// Tab "Lap. Akhir" — ringkasan, publikasi & dokumen serah terima.
+			'lapakhir_ringkasan'      => get_post_meta( $post->ID, '_lapakhir_ringkasan', true ),
+			'lapakhir_video_url'      => get_post_meta( $post->ID, '_lapakhir_video_url', true ),
+			'lapakhir_media_massa'    => get_post_meta( $post->ID, '_lapakhir_media_massa', true ),
+			'lapakhir_template_url'   => get_post_meta( $post->ID, '_lapakhir_template_url', true ),
+			'lapakhir_laporan_url'    => get_post_meta( $post->ID, '_lapakhir_laporan_url', true ),
+			'lapakhir_artikel_url'    => get_post_meta( $post->ID, '_lapakhir_artikel_url', true ),
+			'lapakhir_poster_url'     => get_post_meta( $post->ID, '_lapakhir_poster_url', true ),
+			'lapakhir_hki_url'        => get_post_meta( $post->ID, '_lapakhir_hki_url', true ),
+			'lapakhir_ba_template_url' => get_post_meta( $post->ID, '_lapakhir_ba_template_url', true ),
+			'lapakhir_ba_url'         => get_post_meta( $post->ID, '_lapakhir_ba_url', true ),
+			'lapakhir_bpp_template_url' => get_post_meta( $post->ID, '_lapakhir_bpp_template_url', true ),
+			'lapakhir_bpp_url'        => get_post_meta( $post->ID, '_lapakhir_bpp_url', true ),
+			'lapakhir_anggaran_template_url' => get_post_meta( $post->ID, '_lapakhir_anggaran_template_url', true ),
+			'lapakhir_anggaran_url'   => get_post_meta( $post->ID, '_lapakhir_anggaran_url', true ),
+			// Status tahap form peserta ('' | dibuka | dikirim) + waktu kirim peserta.
+			'lapkem_status'           => $this->lap_stage_status( (int) $post->ID, 'kemajuan' ),
+			'lapkem_submitted_at'     => (string) get_post_meta( $post->ID, '_lapkem_submitted_at', true ),
+			'lapakhir_status'         => $this->lap_stage_status( (int) $post->ID, 'akhir' ),
+			'lapakhir_submitted_at'   => (string) get_post_meta( $post->ID, '_lapakhir_submitted_at', true ),
 			'workflow_history' => get_post_meta( $post->ID, '_workflow_history', true ) ?: [],
 			'created_at' => $post->post_date,
 		] ], 200 );
@@ -1827,6 +2214,226 @@ class ITSI_LP2M_Hibah_Receiver {
 		if ( ! is_wp_error( $res ) ) {
 			update_post_meta( $post_id, '_revision_email_sent_at', current_time( 'mysql' ) );
 		}
+	}
+
+	/* ────────────────────────────────────────────────────────────
+	 *  Token & email tahap lap (Lap. Kemajuan / Lap. Akhir)
+	 *  Pola identik dengan tahap revisi, tetapi tokennya terpisah per
+	 *  tahap: peserta bisa membuka form kemajuan tanpa menutup form akhir.
+	 * ──────────────────────────────────────────────────────────── */
+
+	/**
+	 * Nama meta turunan untuk sebuah tahap lap.
+	 *
+	 * @param string $stage  'kemajuan' | 'akhir'.
+	 * @param string $suffix token_hash | token_active | token_preview |
+	 *                       token_used_at | requested_at | submitted_at | email_sent_at.
+	 */
+	private function lap_meta( string $stage, string $suffix ): string {
+		$cfg = $this->lap_stage_config( $stage );
+		return '_' . $cfg['prefix'] . '_' . $suffix;
+	}
+
+	/** Status tahap lap yang tervalidasi ('' bila belum dibuka / nilai asing). */
+	private function lap_stage_status( int $post_id, string $stage ): string {
+		$cfg = $this->lap_stage_config( $stage );
+		$val = (string) get_post_meta( $post_id, $cfg['status_meta'], true );
+		return in_array( $val, [ '', self::LAP_STATUS_DIBUKA, self::LAP_STATUS_DIKIRIM ], true ) ? $val : '';
+	}
+
+	/** Buat token privat baru untuk sebuah tahap lap + catat di workflow history. */
+	private function open_lap_stage( int $post_id, string $stage ): string {
+		$cfg   = $this->lap_stage_config( $stage );
+		$token = wp_generate_password( 48, false, false );
+
+		update_post_meta( $post_id, $this->lap_meta( $stage, 'token_hash' ), wp_hash_password( $token ) );
+		update_post_meta( $post_id, $this->lap_meta( $stage, 'token_active' ), '1' );
+		update_post_meta( $post_id, $this->lap_meta( $stage, 'requested_at' ), current_time( 'mysql' ) );
+		// Siklus baru → halaman peserta kembali bisa mengirim.
+		delete_post_meta( $post_id, $this->lap_meta( $stage, 'submitted_at' ) );
+
+		$history   = get_post_meta( $post_id, '_workflow_history', true );
+		$history   = is_array( $history ) ? $history : [];
+		$history[] = [
+			'stage'  => $cfg['prefix'],
+			'status' => self::LAP_STATUS_DIBUKA,
+			'date'   => current_time( 'mysql' ),
+			'label'  => $cfg['label'] . ' — form dibuka untuk peserta',
+		];
+		update_post_meta( $post_id, '_workflow_history', $history );
+
+		return $token;
+	}
+
+	/**
+	 * Pastikan tautan form sebuah tahap lap tersedia.
+	 * Token aktif yang sudah ada dipakai ulang supaya tautan yang sudah dikirim
+	 * ke email peserta tidak batal.
+	 */
+	private function ensure_lap_token( int $post_id, string $stage ): string {
+		$active  = '1' === (string) get_post_meta( $post_id, $this->lap_meta( $stage, 'token_active' ), true );
+		$preview = (string) get_post_meta( $post_id, $this->lap_meta( $stage, 'token_preview' ), true );
+		if ( $active && '' !== $preview ) {
+			return $preview;
+		}
+		$token = $this->open_lap_stage( $post_id, $stage );
+		update_post_meta( $post_id, $this->lap_meta( $stage, 'token_preview' ), $token );
+		return $token;
+	}
+
+	/** Verifikasi token sebuah tahap lap. */
+	private function lap_token_valid( int $post_id, string $stage, string $token ): bool {
+		$hash = (string) get_post_meta( $post_id, $this->lap_meta( $stage, 'token_hash' ), true );
+		return '1' === (string) get_post_meta( $post_id, $this->lap_meta( $stage, 'token_active' ), true )
+			&& '' !== $hash
+			&& wp_check_password( $token, $hash );
+	}
+
+	/** Tambah penerima pemantau (ADMIN_NOTIFICATION_CC) ke daftar tujuan email. */
+	private function with_admin_cc( array $recipients ): array {
+		foreach ( self::ADMIN_NOTIFICATION_CC as $cc ) {
+			$cc = sanitize_email( (string) $cc );
+			if ( '' !== $cc && is_email( $cc ) && ! in_array( $cc, $recipients, true ) ) {
+				$recipients[] = $cc;
+			}
+		}
+		return $recipients;
+	}
+
+	/**
+	 * Safety net: selama status tahap lap = "dibuka", tautan peserta selalu ada —
+	 * termasuk bila status diubah dari wp-admin / quick edit (bukan REST).
+	 */
+	public function ensure_lap_tokens_on_save( int $post_id ): void {
+		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) { return; }
+		if ( 'pendaftaran_hibah' !== get_post_type( $post_id ) ) { return; }
+
+		foreach ( self::LAP_STAGES as $stage ) {
+			if ( self::LAP_STATUS_DIBUKA !== $this->lap_stage_status( $post_id, $stage ) ) { continue; }
+			$this->ensure_lap_token( $post_id, $stage );
+		}
+	}
+
+	/**
+	 * Kirim email undangan form begitu status tahap lap menjadi "dibuka", dari
+	 * jalur penyimpanan mana pun (metabox TypeRocket / wp-admin / REST).
+	 *
+	 * Anti-dobel: meta `{prefix}_email_sent_at` diisi hanya bila email benar-benar
+	 * terkirim dan dihapus saat status keluar dari "dibuka" — jadi satu pembukaan
+	 * hanya mengirim satu email.
+	 */
+	public function maybe_send_lap_stage_email_on_save( int $post_id ): void {
+		if ( $this->suppress_status_email ) { return; }
+		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) { return; }
+		if ( 'pendaftaran_hibah' !== get_post_type( $post_id ) ) { return; }
+
+		foreach ( self::LAP_STAGES as $stage ) {
+			if ( self::LAP_STATUS_DIBUKA !== $this->lap_stage_status( $post_id, $stage ) ) {
+				// Keluar dari tahap ini → pembukaan berikutnya boleh kirim email lagi.
+				delete_post_meta( $post_id, $this->lap_meta( $stage, 'email_sent_at' ) );
+				continue;
+			}
+			if ( '' !== (string) get_post_meta( $post_id, $this->lap_meta( $stage, 'email_sent_at' ), true ) ) { continue; }
+
+			$res = $this->send_lap_stage_email( $post_id, $stage );
+			if ( ! is_wp_error( $res ) ) {
+				update_post_meta( $post_id, $this->lap_meta( $stage, 'email_sent_at' ), current_time( 'mysql' ) );
+			}
+		}
+	}
+
+	/**
+	 * Kirim email undangan "isi form" untuk sebuah tahap lap.
+	 *
+	 * Email memuat tautan bertoken (`?token=…&stage=…`) sehingga peserta langsung
+	 * membuka tab tahap yang sesuai pada halaman Track Status. Tim LP2M (CC) juga
+	 * menerimanya agar bisa memantau.
+	 */
+	private function send_lap_stage_email( int $post_id, string $stage ): bool|\WP_Error {
+		$cfg = $this->lap_stage_config( $stage );
+
+		$email = (string) get_post_meta( $post_id, '_email', true );
+		if ( ! is_email( $email ) ) {
+			return new \WP_Error( 'invalid_email', 'Email pemohon tidak valid (isi di Detail Pendaftaran / kolom Email).' );
+		}
+
+		$reg_no     = (string) get_post_meta( $post_id, '_reg_no', true );
+		$hibah_id   = (int) get_post_meta( $post_id, '_hibah_id', true );
+		$event_name = $hibah_id ? (string) get_the_title( $hibah_id ) : '';
+
+		$token = $this->ensure_lap_token( $post_id, $stage );
+		$link  = '';
+		if ( '' !== $token ) {
+			$link = $this->frontend_base_url() . '/daftar/status/' . rawurlencode( $reg_no ?: (string) $post_id )
+				. '?token=' . rawurlencode( $token ) . '&stage=' . rawurlencode( $stage );
+		}
+
+		// Berkas yang harus diunggah peserta (template milik admin dijadikan
+		// tautan unduh, bukan kewajiban unggah).
+		$stage_files = [];
+		foreach ( $cfg['files'] as $f ) {
+			if ( 'admin' === $f['owner'] ) { continue; }
+			$stage_files[] = $f['label'];
+		}
+
+		$stage_block = [
+			'label' => $cfg['label'],
+			'link'  => $link,
+			'files' => $stage_files,
+		];
+
+		$params  = $this->applicant_params( $post_id, $email );
+		$subject = sprintf( '[LP2M] %s — Form %s Dibuka', $reg_no ?: ( 'Pendaftaran #' . $post_id ), $cfg['label'] );
+		$body    = $this->email_html( $params, $reg_no ?: (string) $post_id, $event_name, '', [], [], $stage_block );
+		$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+
+		$sent = wp_mail( $this->with_admin_cc( [ $email ] ), $subject, $body, $headers );
+		if ( ! $sent ) {
+			return new \WP_Error( 'mail_failed', 'Gagal mengirim email. Periksa konfigurasi SMTP di LP2M → Settings.' );
+		}
+		return true;
+	}
+
+	/**
+	 * Pemberitahuan ke admin/LP2M bahwa peserta sudah mengirim form sebuah tahap.
+	 * Email teks sederhana + daftar berkas yang tersimpan.
+	 */
+	private function notify_admin_lap_submission( int $post_id, string $stage ): void {
+		$cfg = $this->lap_stage_config( $stage );
+
+		// Tujuan: Email Admin dari Settings + daftar CC tetap.
+		$admin_email = get_option( 'lp2m_site_admin_email', '' ) ?: get_option( 'admin_email' );
+		$admin_email = is_email( $admin_email ) ? $admin_email : (string) get_option( 'admin_email' );
+		$to          = '' !== $admin_email ? [ $admin_email ] : [];
+		$to          = $this->with_admin_cc( $to );
+		if ( empty( $to ) ) { return; }
+
+		$reg_no = (string) get_post_meta( $post_id, '_reg_no', true );
+		$nama   = (string) get_post_meta( $post_id, '_nama', true );
+
+		$lines = [
+			'Peserta telah mengirim form ' . $cfg['label'] . '.',
+			'',
+			'Nomor Registrasi : ' . ( $reg_no ?: (string) $post_id ),
+			'Nama             : ' . $nama,
+			'Waktu            : ' . current_time( 'mysql' ),
+			'',
+			'Berkas tersimpan:',
+		];
+		foreach ( $cfg['files'] as $f ) {
+			if ( 'admin' === $f['owner'] ) { continue; }
+			$url     = (string) get_post_meta( $post_id, $f['url_key'], true );
+			$lines[] = '- ' . $f['label'] . ': ' . ( '' !== $url ? $url : '— belum ada' );
+		}
+		$lines[] = '';
+		$lines[] = 'Lihat detail: ' . admin_url( 'post.php?post=' . $post_id . '&action=edit' );
+
+		wp_mail(
+			$to,
+			sprintf( '[LP2M] %s — Form %s Dikirim Peserta', $reg_no ?: ( 'Pendaftaran #' . $post_id ), $cfg['label'] ),
+			implode( "\n", $lines ),
+			[ 'Content-Type: text/plain; charset=UTF-8' ]
+		);
 	}
 
 	private function find_by_reg_no( string $no ): ?\WP_Post {
@@ -1938,6 +2545,162 @@ class ITSI_LP2M_Hibah_Receiver {
 		], 200 );
 	}
 
+	/* ────────────────────────────────────────────────────────────
+	 *  FORM PESERTA — Lap. Kemajuan & Lap. Akhir
+	 *  GET/POST /lp2m/v1/pendaftaran/laporan (?stage=kemajuan|akhir)
+	 * ──────────────────────────────────────────────────────────── */
+
+	/** Normalisasi nama tahap dari request; '' bila tidak dikenal. */
+	private function requested_lap_stage( \WP_REST_Request $request ): string {
+		$stage = sanitize_text_field( (string) $request->get_param( 'stage' ) );
+		return in_array( $stage, self::LAP_STAGES, true ) ? $stage : '';
+	}
+
+	/**
+	 * Buka data sebuah tahap lap dengan token privat.
+	 *
+	 * Balasan memakai key yang SAMA dengan endpoint status publik
+	 * (`lapkem_ringkasan`, `lapkem_laporan_url`, …) supaya frontend tidak perlu
+	 * dua bentuk data: mode baca (status) dan mode edit (token) memakai peta yang
+	 * sama; token hanya menambah `can_edit` + status tahap.
+	 */
+	public function handle_lap_stage_access( \WP_REST_Request $request ): \WP_REST_Response {
+		$stage = $this->requested_lap_stage( $request );
+		if ( '' === $stage ) {
+			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Tahap laporan tidak dikenal.' ], 400 );
+		}
+
+		$post  = $this->find_by_reg_no( sanitize_text_field( (string) $request->get_param( 'no' ) ) );
+		$token = sanitize_text_field( (string) $request->get_param( 'token' ) );
+		if ( ! $post || ! $this->lap_token_valid( $post->ID, $stage, $token ) ) {
+			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Link form tidak valid atau sudah ditutup.' ], 403 );
+		}
+
+		$cfg = $this->lap_stage_config( $stage );
+
+		$data = [
+			'success'      => true,
+			'stage'        => $stage,
+			'status'       => $this->lap_stage_status( $post->ID, $stage ),
+			'submitted_at' => (string) get_post_meta( $post->ID, $this->lap_meta( $stage, 'submitted_at' ), true ),
+			'can_edit'     => true,
+		];
+
+		// Field teks — key = meta tanpa garis bawah awal (selaras endpoint status).
+		foreach ( $cfg['text'] as $meta_key => $t ) {
+			$data[ ltrim( $meta_key, '_' ) ] = (string) get_post_meta( $post->ID, $meta_key, true );
+		}
+		// URL berkas (template milik admin maupun berkas peserta).
+		foreach ( $cfg['files'] as $f ) {
+			$data[ ltrim( $f['url_key'], '_' ) ] = (string) get_post_meta( $post->ID, $f['url_key'], true );
+		}
+
+		return new \WP_REST_Response( $data, 200 );
+	}
+
+	/**
+	 * Kirim form sebuah tahap lap (multipart/form-data).
+	 *
+	 * Berkas wajib (flag `required` di konfigurasi) divalidasi SEMUA lebih dulu
+	 * supaya tidak ada unggahan separuh jalan. Sukses → token dihanguskan
+	 * (sekali pakai) dan status tahap menjadi `dikirim`.
+	 */
+	public function handle_lap_stage_submit( \WP_REST_Request $request ): \WP_REST_Response {
+		$stage = $this->requested_lap_stage( $request );
+		if ( '' === $stage ) {
+			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Tahap laporan tidak dikenal.' ], 400 );
+		}
+
+		$post  = $this->find_by_reg_no( sanitize_text_field( (string) $request->get_param( 'no' ) ) );
+		$token = sanitize_text_field( (string) $request->get_param( 'token' ) );
+		if ( ! $post || ! $this->lap_token_valid( $post->ID, $stage, $token ) ) {
+			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Link form tidak valid atau sudah ditutup.' ], 403 );
+		}
+		if ( self::LAP_STATUS_DIKIRIM === $this->lap_stage_status( $post->ID, $stage ) ) {
+			return new \WP_REST_Response( [ 'success' => false, 'message' => 'Form ini sudah pernah dikirim. Tautan tidak dapat dipakai lagi.' ], 403 );
+		}
+
+		$cfg    = $this->lap_stage_config( $stage );
+		$reg_no = (string) get_post_meta( $post->ID, '_reg_no', true );
+		if ( '' === trim( $reg_no ) ) { $reg_no = (string) $post->ID; }
+		$uploaded = $request->get_file_params();
+
+		// 1) Validasi seluruh berkas peserta sebelum menyimpan apa pun.
+		foreach ( $cfg['files'] as $f ) {
+			if ( 'admin' === $f['owner'] ) { continue; }
+			$file     = $uploaded[ $f['param'] ] ?? null;
+			$has_file = is_array( $file ) && UPLOAD_ERR_NO_FILE !== (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE );
+			if ( ! $has_file ) {
+				if ( ! empty( $f['required'] ) ) {
+					return new \WP_REST_Response( [ 'success' => false, 'message' => $f['label'] . ' wajib diunggah.' ], 400 );
+				}
+				continue;
+			}
+			$valid = $this->validate_document_upload( $file, $f['label'], $f['ext'] );
+			if ( is_wp_error( $valid ) ) {
+				return new \WP_REST_Response( [ 'success' => false, 'message' => $valid->get_error_message(), 'errors' => [ $f['param'] => $valid->get_error_message() ] ], 400 );
+			}
+		}
+
+		// 2) Simpan berkas (opsional: hanya yang benar-benar dikirim).
+		$urls = [];
+		foreach ( $cfg['files'] as $meta_key => $f ) {
+			if ( 'admin' === $f['owner'] ) { continue; }
+			$file = $uploaded[ $f['param'] ] ?? null;
+			if ( ! is_array( $file ) || UPLOAD_ERR_NO_FILE === (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE ) ) { continue; }
+
+			$att = $this->upload_document( $file, $reg_no, $f['param'], $f['label'], $f['ext'] );
+			if ( is_wp_error( $att ) ) {
+				return new \WP_REST_Response( [ 'success' => false, 'message' => $att->get_error_message(), 'errors' => [ $f['param'] => $att->get_error_message() ] ], 400 );
+			}
+			$old = (int) get_post_meta( $post->ID, $meta_key, true );
+			if ( $old && $old !== (int) $att ) { wp_delete_attachment( $old, true ); }
+
+			$url = (string) wp_get_attachment_url( $att );
+			update_post_meta( $post->ID, $meta_key, $att );
+			update_post_meta( $post->ID, $f['url_key'], $url );
+			// Key tanpa garis bawah awal = siap di-merge ke payload status di frontend.
+			$urls[ ltrim( $f['url_key'], '_' ) ] = $url;
+		}
+
+		// 3) Field teks (nama param = `key` konfigurasi).
+		foreach ( $cfg['text'] as $meta_key => $t ) {
+			if ( ! $request->has_param( $t['key'] ) ) { continue; }
+			update_post_meta( $post->ID, $meta_key, $this->sanitize_lap_text( $t, (string) $request->get_param( $t['key'] ) ) );
+		}
+
+		// 4) Kunci tahap: status → dikirim, token dihanguskan permanen.
+		$now = current_time( 'mysql' );
+		update_post_meta( $post->ID, $this->lap_meta( $stage, 'submitted_at' ), $now );
+		update_post_meta( $post->ID, $cfg['status_meta'], self::LAP_STATUS_DIKIRIM );
+		update_post_meta( $post->ID, $this->lap_meta( $stage, 'token_active' ), '0' );
+		delete_post_meta( $post->ID, $this->lap_meta( $stage, 'token_hash' ) );
+		delete_post_meta( $post->ID, $this->lap_meta( $stage, 'token_preview' ) );
+		update_post_meta( $post->ID, $this->lap_meta( $stage, 'token_used_at' ), $now );
+
+		$history   = get_post_meta( $post->ID, '_workflow_history', true );
+		$history   = is_array( $history ) ? $history : [];
+		$history[] = [
+			'stage'  => $cfg['prefix'],
+			'status' => self::LAP_STATUS_DIKIRIM,
+			'date'   => $now,
+			'label'  => $cfg['label'] . ' dikirim peserta',
+		];
+		update_post_meta( $post->ID, '_workflow_history', $history );
+
+		// 5) Beri tahu admin/LP2M (tidak fatal bila gagal).
+		$this->notify_admin_lap_submission( $post->ID, $stage );
+
+		return new \WP_REST_Response( [
+			'success'      => true,
+			'stage'        => $stage,
+			'status'       => self::LAP_STATUS_DIKIRIM,
+			'submitted_at' => $now,
+			'urls'         => $urls,
+			'message'      => 'Form ' . $cfg['label'] . ' berhasil dikirim. Halaman ini kini hanya menampilkan data.',
+		], 200 );
+	}
+
 	/**
 	 * Update status + data pendaftaran (admin).
 	 *
@@ -2040,6 +2803,10 @@ class ITSI_LP2M_Hibah_Receiver {
 		} elseif ( $tahap2_changed ) {
 			update_post_meta( $id, '_revision_token_active', '0' );
 		}
+
+		// Status tahap form peserta (Lap. Kemajuan / Lap. Akhir) TIDAK diubah dari
+		// endpoint admin ini — ambang kirimnya adalah metabox wp-admin (TypeRocket),
+		// yang otomatis membuat tautan + mengirim email undangan lewat save_post.
 
 		// Field opsional lain (semua divalidasi ulang lewat sanitize_input + whitelist).
 		$editable = [
@@ -2148,6 +2915,71 @@ class ITSI_LP2M_Hibah_Receiver {
 			update_post_meta( $id, '_revisi_proposal_url', wp_get_attachment_url( $revisi_att ) );
 		}
 
+		// ── Tahap form peserta (Lap. Kemajuan / Lap. Akhir) ──
+		// Admin boleh mengganti template maupun berkas hasil peserta; nama param
+		// multipart sama dengan yang dipakai endpoint peserta (`param` konfigurasi).
+		// Status "dibuka" → tautan dibuat + email undangan dikirim sekali.
+		$lap_email_result = [];
+		$lap_urls         = [];
+		foreach ( self::LAP_STAGES as $stage ) {
+			$cfg       = $this->lap_stage_config( $stage );
+			$file_base = (string) get_post_meta( $id, '_reg_no', true );
+			if ( '' === trim( $file_base ) ) { $file_base = (string) $id; }
+
+			foreach ( $cfg['files'] as $meta_key => $f ) {
+				$file = $file_params[ $f['param'] ] ?? null;
+				if ( ! is_array( $file ) || UPLOAD_ERR_NO_FILE === (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE ) ) { continue; }
+
+				$att = $this->upload_document( $file, $file_base, $f['param'], $f['label'], $f['ext'] );
+				if ( is_wp_error( $att ) ) {
+					return new \WP_REST_Response( [
+						'success' => false,
+						'message' => $att->get_error_message(),
+						'errors'  => [ $f['param'] => $att->get_error_message() ],
+					], 400 );
+				}
+				$old_file = (int) get_post_meta( $id, $meta_key, true );
+				if ( $old_file && $old_file !== (int) $att ) {
+					wp_delete_attachment( $old_file, true );
+				}
+				update_post_meta( $id, $meta_key, $att );
+				update_post_meta( $id, $f['url_key'], wp_get_attachment_url( $att ) );
+				// Key tanpa garis bawah awal → dipakai langsung oleh dashboard.
+				$lap_urls[ ltrim( $f['url_key'], '_' ) ] = (string) wp_get_attachment_url( $att );
+			}
+
+			foreach ( $cfg['text'] as $meta_key => $t ) {
+				if ( ! array_key_exists( $t['key'], $params ) ) { continue; }
+				update_post_meta( $id, $meta_key, $this->sanitize_lap_text( $t, (string) $params[ $t['key'] ] ) );
+			}
+
+			$status_meta = $cfg['status_meta'];
+			if ( array_key_exists( $status_meta, $params ) ) {
+				$new_status = sanitize_text_field( (string) $params[ $status_meta ] );
+				if ( ! in_array( $new_status, [ '', self::LAP_STATUS_DIBUKA, self::LAP_STATUS_DIKIRIM ], true ) ) {
+					return new \WP_REST_Response( [ 'success' => false, 'message' => 'Status tahap ' . $cfg['label'] . ' tidak valid.' ], 400 );
+				}
+				update_post_meta( $id, $status_meta, $new_status );
+
+				if ( self::LAP_STATUS_DIBUKA === $new_status ) {
+					$this->ensure_lap_token( $id, $stage );
+					// Email undangan hanya sekali per pembukaan (penanda `email_sent_at`).
+					if ( '' === (string) get_post_meta( $id, $this->lap_meta( $stage, 'email_sent_at' ), true ) ) {
+						$mail = $this->send_lap_stage_email( $id, $stage );
+						if ( is_wp_error( $mail ) ) {
+							$lap_email_result[ $stage ] = [ 'sent' => false, 'error' => $mail->get_error_message() ];
+						} else {
+							update_post_meta( $id, $this->lap_meta( $stage, 'email_sent_at' ), current_time( 'mysql' ) );
+							$lap_email_result[ $stage ] = [ 'sent' => true ];
+						}
+					}
+				} else {
+					// Keluar dari tahap ini → pembukaan berikutnya boleh kirim email lagi.
+					delete_post_meta( $id, $this->lap_meta( $stage, 'email_sent_at' ) );
+				}
+			}
+		}
+
 		$updated_url  = (string) get_post_meta( $id, '_proposal_url', true );
 		$updated_pid  = get_post_meta( $id, '_proposal_id', true );
 		$updated_template_url = $this->resolve_surat_kesanggupan_template_url( (int) $id );
@@ -2191,6 +3023,13 @@ class ITSI_LP2M_Hibah_Receiver {
 			'anggota_list' => $updated_list,
 			'status'       => $status_to_notify ?: (string) get_post_meta( $id, '_status', true ),
 			'status_tahap2' => $this->get_status_tahap2( $id ),
+			// Status tahap form peserta + hasil pengiriman email undangannya.
+			'lap_status'   => [
+				'kemajuan' => $this->lap_stage_status( $id, 'kemajuan' ),
+				'akhir'    => $this->lap_stage_status( $id, 'akhir' ),
+			],
+			'lap_email'    => $lap_email_result,
+			'lap_urls'     => $lap_urls,
 			'email_sent'   => $email_sent,
 			'email_error'  => $email_error,
 		], 200 );
@@ -2408,8 +3247,10 @@ class ITSI_LP2M_Hibah_Receiver {
 	 * @param array  $revision Data tab Revisi (dipakai hanya untuk email `reviewed`).
 	 *                         Kunci: active, link, catatan_admin, catatan_substansi_internal,
 	 *                         catatan_substansi_eksternal, nilai_dana_usulan, nilai_dana_disetujui.
+	 * @param array  $stage    Data tahap lap (dipakai email undangan Lap. Kemajuan /
+	 *                         Lap. Akhir). Kunci: label, link, files[] (label berkas).
 	 */
-	private function email_html( array $params, string $reg_no, string $event_name, string $admin_link, array $links = [], array $revision = [] ): string {
+	private function email_html( array $params, string $reg_no, string $event_name, string $admin_link, array $links = [], array $revision = [], array $stage = [] ): string {
 		$row = function ( string $label, string $value ): string {
 			return '<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#374151;white-space:nowrap;vertical-align:top">'
 				. esc_html( $label )
@@ -2461,17 +3302,40 @@ class ITSI_LP2M_Hibah_Receiver {
 				. '</ol>';
 		}
 
-		// Tombol utama email: tahap revisi → "Buka Tahap Revisi" (tautan bertoken
-		// dari data revisi); status lain → "Cek Status Pendaftaran".
+		// Blok "Form Tahap" — dipakai email undangan Lap. Kemajuan / Lap. Akhir.
+		$stage_label = (string) ( $stage['label'] ?? '' );
+		$stage_link  = (string) ( $stage['link'] ?? '' );
+		$stage_block = '';
+		if ( '' !== $stage_label ) {
+			$stage_block = '<h3 style="margin:22px 0 8px;font-size:14px;color:#0f766e">Form ' . esc_html( $stage_label ) . ' — Sudah Dibuka</h3>'
+				. '<p style="margin:0;color:#374151;font-size:14px">Admin LP2M telah membuka form <strong>' . esc_html( $stage_label ) . '</strong>. '
+				. 'Silakan isi ringkasan dan unggah berkas pada tautan di bawah, lalu tekan <strong>Kirim</strong>. '
+				. 'Tautan ini berlaku satu kali kirim.</p>';
+			if ( ! empty( $stage['files'] ) ) {
+				$stage_block .= '<p style="margin:10px 0 0;color:#0f766e;font-size:13px;font-weight:600">Berkas yang perlu Anda siapkan:</p>'
+					. '<ol style="margin:4px 0 0 20px;padding:0;color:#374151;font-size:13px">';
+				foreach ( (array) $stage['files'] as $file_label ) {
+					$stage_block .= '<li>' . esc_html( (string) $file_label ) . '</li>';
+				}
+				$stage_block .= '</ol>';
+			}
+		}
+
+		// Tombol utama email (prioritas): tahap lap → "Isi Form {label}";
+		// tahap revisi → "Buka Tahap Revisi"; status lain → "Cek Status Pendaftaran".
 		// Selalu domain FRONTEND LP2M; JANGAN fallback ke home_url() (situs WP).
 		$frontend_url = $this->frontend_base_url();
 		$rev_link     = (string) ( $revision['link'] ?? '' );
-		$btn_url      = ( $rev_active && '' !== $rev_link )
-			? $rev_link
-			: ( '' !== $frontend_url ? $frontend_url . '/daftar/status/' . rawurlencode( $reg_no ) : '' );
 		$primary_btn  = '';
-		if ( '' !== $btn_url ) {
-			$primary_btn = '<p style="margin:20px 0 0"><a href="' . esc_url( $btn_url ) . '" style="display:inline-block;padding:11px 18px;background:' . ( $rev_active ? '#0f766e' : '#1f4d36' ) . ';color:#fff;text-decoration:none;border-radius:6px;font-weight:600">' . ( $rev_active ? 'Buka Tahap Revisi' : 'Cek Status Pendaftaran' ) . '</a></p>';
+		if ( '' !== $stage_link ) {
+			$primary_btn = '<p style="margin:20px 0 0"><a href="' . esc_url( $stage_link ) . '" style="display:inline-block;padding:11px 18px;background:#0f766e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Isi Form ' . esc_html( $stage_label ) . '</a></p>';
+		} else {
+			$btn_url = ( $rev_active && '' !== $rev_link )
+				? $rev_link
+				: ( '' !== $frontend_url ? $frontend_url . '/daftar/status/' . rawurlencode( $reg_no ) : '' );
+			if ( '' !== $btn_url ) {
+				$primary_btn = '<p style="margin:20px 0 0"><a href="' . esc_url( $btn_url ) . '" style="display:inline-block;padding:11px 18px;background:' . ( $rev_active ? '#0f766e' : '#1f4d36' ) . ';color:#fff;text-decoration:none;border-radius:6px;font-weight:600">' . ( $rev_active ? 'Buka Tahap Revisi' : 'Cek Status Pendaftaran' ) . '</a></p>';
+			}
 		}
 
 		return '<div style="background:#f3f4f6;padding:24px;font-family:Segoe UI,Arial,sans-serif">'
@@ -2490,6 +3354,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			. $row( 'Kelompok Keahlian', $params['kelompok_keahlian'] )
 			. '</table>'
 			. $revision_block
+			. $stage_block
 			. '<table style="width:100%;border-collapse:collapse;font-size:14px">'
 			. $row( 'Judul Usulan', $params['judul'] )
 			. $row( 'Ringkasan', $params['ringkasan'] )
@@ -2818,6 +3683,256 @@ class ITSI_LP2M_Hibah_Receiver {
 			$url = wp_get_attachment_url( $id );
 			if ( $url ) {
 				update_post_meta( $post_id, $base . '_url', $url );
+			}
+		}
+	}
+
+	/* ────────────────────────────────────────────────────────────
+	 *  Tahap form peserta "Lap. Kemajuan" & "Lap. Akhir"
+	 *  Satu konfigurasi dipakai bersama oleh metabox admin, endpoint
+	 *  peserta, sinkron TypeRocket, dan email undangan.
+	 * ──────────────────────────────────────────────────────────── */
+
+	/**
+	 * Konfigurasi field sebuah tahap lap.
+	 *
+	 * Struktur:
+	 *  - stage / prefix  : id tahap + prefix meta (`_lapkem_` / `_lapakhir_`).
+	 *  - label           : nama manusiawi tahap.
+	 *  - status_meta     : meta select status tahap ('' | dibuka | dikirim).
+	 *  - text            : meta_key => [ label, type, key, options? ].
+	 *                      `key` dipakai sebagai nama param REST (peserta/admin).
+	 *  - files           : meta_id => [ url_key, label, ext, owner, param, required? ].
+	 *                      `owner` = 'admin' (template, hanya diunduh peserta) atau
+	 *                      'peserta' (berkas yang diunggah peserta). `ext` = aturan
+	 *                      format (pdf | doc | any) lewat lap_ext_rules().
+	 *
+	 * @param string $stage 'kemajuan' | 'akhir'.
+	 * @return array
+	 */
+	private function lap_stage_config( string $stage ): array {
+		if ( 'kemajuan' === $stage ) {
+			return [
+				'stage'       => 'kemajuan',
+				'prefix'      => 'lapkem',
+				'label'       => 'Laporan Kemajuan',
+				'status_meta' => '_lapkem_status',
+				'text'        => [
+					'_lapkem_ringkasan'      => [ 'label' => 'Ringkasan', 'type' => 'textarea', 'key' => 'lapkem_ringkasan' ],
+					'_lapkem_keywords'       => [ 'label' => 'Keyword (maks 5)', 'type' => 'keywords', 'key' => 'lapkem_keywords' ],
+					'_lapkem_status_artikel' => [
+						'label'   => 'Status Artikel',
+						'type'    => 'select',
+						'key'     => 'lapkem_status_artikel',
+						'options' => [
+							'Submitted'       => 'submitted',
+							'Accept'          => 'accept',
+							'Publish'         => 'publish',
+							'Draft'           => 'draft',
+							'Sedang Direview' => 'sedang_direview',
+						],
+					],
+				],
+				'files'       => [
+					'_lapkem_template_id'      => [ 'url_key' => '_lapkem_template_url', 'label' => 'Template Laporan Kemajuan', 'ext' => 'doc', 'owner' => 'admin', 'param' => 'lapkem_template' ],
+					'_lapkem_laporan_id'       => [ 'url_key' => '_lapkem_laporan_url', 'label' => 'Laporan Kemajuan', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapkem_laporan', 'required' => true ],
+					'_lapkem_artikel_id'       => [ 'url_key' => '_lapkem_artikel_url', 'label' => 'File Artikel', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapkem_artikel' ],
+					'_lapkem_sptb_template_id' => [ 'url_key' => '_lapkem_sptb_template_url', 'label' => 'Template SPTB', 'ext' => 'doc', 'owner' => 'admin', 'param' => 'lapkem_sptb_template' ],
+					'_lapkem_sptb_id'          => [ 'url_key' => '_lapkem_sptb_url', 'label' => 'SPTB', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapkem_sptb' ],
+				],
+			];
+		}
+
+		return [
+			'stage'       => 'akhir',
+			'prefix'      => 'lapakhir',
+			'label'       => 'Laporan Akhir',
+			'status_meta' => '_lapakhir_status',
+			'text'        => [
+				'_lapakhir_ringkasan'   => [ 'label' => 'Ringkasan', 'type' => 'textarea', 'key' => 'lapakhir_ringkasan' ],
+				'_lapakhir_video_url'   => [ 'label' => 'Link Video (URL)', 'type' => 'url', 'key' => 'lapakhir_video_url' ],
+				'_lapakhir_media_massa' => [ 'label' => 'Media Massa', 'type' => 'textarea', 'key' => 'lapakhir_media_massa' ],
+			],
+			'files'       => [
+				'_lapakhir_template_id'          => [ 'url_key' => '_lapakhir_template_url', 'label' => 'Template Laporan Akhir', 'ext' => 'doc', 'owner' => 'admin', 'param' => 'lapakhir_template' ],
+				'_lapakhir_laporan_id'           => [ 'url_key' => '_lapakhir_laporan_url', 'label' => 'Laporan Akhir', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapakhir_laporan', 'required' => true ],
+				'_lapakhir_artikel_id'           => [ 'url_key' => '_lapakhir_artikel_url', 'label' => 'Artikel Jurnal', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapakhir_artikel' ],
+				'_lapakhir_poster_id'            => [ 'url_key' => '_lapakhir_poster_url', 'label' => 'Poster', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapakhir_poster' ],
+				'_lapakhir_hki_id'               => [ 'url_key' => '_lapakhir_hki_url', 'label' => 'HKI', 'ext' => 'any', 'owner' => 'peserta', 'param' => 'lapakhir_hki' ],
+				'_lapakhir_ba_template_id'       => [ 'url_key' => '_lapakhir_ba_template_url', 'label' => 'Template Berita Acara', 'ext' => 'doc', 'owner' => 'admin', 'param' => 'lapakhir_ba_template' ],
+				'_lapakhir_ba_id'                => [ 'url_key' => '_lapakhir_ba_url', 'label' => 'Berita Acara', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapakhir_ba' ],
+				'_lapakhir_bpp_template_id'      => [ 'url_key' => '_lapakhir_bpp_template_url', 'label' => 'Template Berita Penyelesaian Pekerjaan', 'ext' => 'doc', 'owner' => 'admin', 'param' => 'lapakhir_bpp_template' ],
+				'_lapakhir_bpp_id'               => [ 'url_key' => '_lapakhir_bpp_url', 'label' => 'Berita Penyelesaian Pekerjaan', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapakhir_bpp' ],
+				'_lapakhir_anggaran_template_id' => [ 'url_key' => '_lapakhir_anggaran_template_url', 'label' => 'Template Penggunaan Anggaran', 'ext' => 'doc', 'owner' => 'admin', 'param' => 'lapakhir_anggaran_template' ],
+				'_lapakhir_anggaran_id'          => [ 'url_key' => '_lapakhir_anggaran_url', 'label' => 'Penggunaan Anggaran', 'ext' => 'any', 'owner' => 'peserta', 'param' => 'lapakhir_anggaran' ],
+			],
+		];
+	}
+
+	/**
+	 * Aturan format berkas per kode `ext`: ekstensi yang diterima, MIME yang sah,
+	 * dan label format untuk pesan error.
+	 *
+	 * @param string $ext 'pdf' | 'doc' | 'any'.
+	 * @return array{exts:string[],mimes:string[],format:string}
+	 */
+	private function lap_ext_rules( string $ext ): array {
+		$docx = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+		$xlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+		if ( 'pdf' === $ext ) {
+			return [ 'exts' => [ 'pdf' ], 'mimes' => [ 'application/pdf' ], 'format' => 'PDF' ];
+		}
+		if ( 'doc' === $ext ) {
+			return [
+				'exts'   => [ 'doc', 'docx' ],
+				'mimes'  => [ 'application/msword', $docx ],
+				'format' => 'DOC/DOCX',
+			];
+		}
+		return [
+			'exts'   => [ 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv' ],
+			'mimes'  => [ 'application/pdf', 'application/msword', $docx, 'application/vnd.ms-excel', $xlsx, 'text/csv' ],
+			'format' => 'PDF/DOC/DOCX/XLS/XLSX',
+		];
+	}
+
+	/** Normalisasi field teks tahap lap sesuai tipe yang dideklarasikan konfigurasi. */
+	private function sanitize_lap_text( array $field, string $raw ): string {
+		switch ( $field['type'] ?? 'text' ) {
+			case 'url':
+				// esc_url_raw menerima http(s)/relatif dan mengosongkan URL berbahaya.
+				return esc_url_raw( trim( $raw ) );
+			case 'select':
+				$val = sanitize_text_field( $raw );
+				return array_key_exists( $val, array_flip( (array) ( $field['options'] ?? [] ) ) ) ? $val : '';
+			case 'keywords':
+				return $this->limit_keywords( $raw );
+			case 'textarea':
+				return sanitize_textarea_field( $raw );
+			default:
+				return sanitize_text_field( $raw );
+		}
+	}
+
+	/** Potong daftar keyword menjadi maksimal MAX_KEYWORDS item unik, dipisah koma. */
+	private function limit_keywords( string $raw ): string {
+		$parts = array_filter( array_map( 'trim', explode( ',', sanitize_text_field( $raw ) ) ), 'strlen' );
+		return implode( ', ', array_slice( array_values( array_unique( $parts ) ), 0, self::MAX_KEYWORDS ) );
+	}
+
+	/**
+	 * Sinkron field tab "Lap. Kemajuan" & "Lap. Akhir" (metabox TypeRocket).
+	 *
+	 * TypeRocket mengirim field di `$_POST['tr']`:
+	 *  - key TIDAK ikut terkirim → field tidak diedit (mis. quick edit), meta dibiarkan;
+	 *  - key terkirim kosong    → tombol Clear → ID + URL dihapus (file) / kosong (teks);
+	 *  - key terkirim berisi ID → validasi format, lalu simpan ID + URL kanonik.
+	 *
+	 * Field teks dinormalisasi per tipe, status tahap disaring ke whitelist.
+	 */
+	public function sync_lap_files_from_tr( int $post_id ): void {
+		if ( ! $this->is_tr_metabox_save( $post_id ) ) { return; }
+		$tr = $this->posted_tr_fields();
+		if ( empty( $tr ) ) { return; } // bukan penyimpanan metabox → jangan sentuh meta.
+
+		foreach ( self::LAP_STAGES as $stage ) {
+			$cfg = $this->lap_stage_config( $stage );
+
+			// Berkas — map ke bentuk yang dipahami sync_tr_file_fields().
+			$files = [];
+			foreach ( $cfg['files'] as $meta_key => $f ) {
+				$rules                = $this->lap_ext_rules( $f['ext'] );
+				$files[ $meta_key ]   = [
+					'url_key' => $f['url_key'],
+					'label'   => $f['label'],
+					'mimes'   => $rules['mimes'],
+					'format'  => $rules['format'],
+				];
+			}
+			$this->sync_tr_file_fields( $post_id, $files, $tr );
+
+			// Field teks.
+			foreach ( $cfg['text'] as $meta_key => $t ) {
+				if ( ! array_key_exists( $meta_key, $tr ) ) { continue; }
+				update_post_meta( $post_id, $meta_key, $this->sanitize_lap_text( $t, (string) $tr[ $meta_key ] ) );
+			}
+
+			// Status tahap — hanya nilai yang dikenal select admin.
+			$status_meta = $cfg['status_meta'];
+			if ( array_key_exists( $status_meta, $tr ) ) {
+				$val = sanitize_text_field( (string) $tr[ $status_meta ] );
+				update_post_meta(
+					$post_id,
+					$status_meta,
+					in_array( $val, [ '', self::LAP_STATUS_DIBUKA, self::LAP_STATUS_DIKIRIM ], true ) ? $val : ''
+				);
+			}
+		}
+	}
+
+	/* ────────────────────────────────────────────────────────────
+	 *  Helper sinkron field File TypeRocket (dipakai semua tab)
+	 * ──────────────────────────────────────────────────────────── */
+
+	/**
+	 * Apakah request ini penyimpanan metabox TypeRocket untuk pendaftaran hibah?
+	 * Menyaring autosave/revision & post type lain supaya sinkron tidak salah jalan.
+	 */
+	private function is_tr_metabox_save( int $post_id ): bool {
+		if ( wp_is_post_revision( $post_id ) ) { return false; }
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) { return false; }
+		return 'pendaftaran_hibah' === get_post_type( $post_id );
+	}
+
+	/**
+	 * Isi `$_POST['tr']` (prefix TypeRocket) — array kosong bila request ini bukan
+	 * penyimpanan metabox (mis. quick edit, REST, atau save otomatis).
+	 */
+	private function posted_tr_fields(): array {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce formulir ditangani TypeRocket.
+		return isset( $_POST['tr'] ) && is_array( $_POST['tr'] ) ? wp_unslash( $_POST['tr'] ) : [];
+	}
+
+	/**
+	 * Sinkron sekumpulan field File TypeRocket → meta `{id}` + `{url}` kanonik.
+	 *
+	 * Untuk setiap field:
+	 *  - key TIDAK ikut terkirim → field tidak diedit (mis. quick edit), meta dibiarkan;
+	 *  - key terkirim kosong    → tombol Clear → ID + URL dihapus;
+	 *  - key terkirim berisi ID → validasi MIME, lalu simpan ID + URL kanonik.
+	 *
+	 * @param int   $post_id Post ID.
+	 * @param array $files   Map meta_key => [ url_key, label, mimes[], format ].
+	 * @param array $tr      Isi `$_POST['tr']` yang sudah di-unslash.
+	 */
+	private function sync_tr_file_fields( int $post_id, array $files, array $tr ): void {
+		foreach ( $files as $meta_key => $cfg ) {
+			if ( ! array_key_exists( $meta_key, $tr ) ) { continue; } // tidak diedit → jangan sentuh.
+
+			$ids    = function_exists( 'itsi_hibah_attachment_ids' ) ? itsi_hibah_attachment_ids( $tr[ $meta_key ] ) : [];
+			$new_id = $ids ? (int) $ids[0] : 0;
+
+			if ( 0 === $new_id ) {
+				// Dikosongkan / Clear → bersihkan ID + URL.
+				delete_post_meta( $post_id, $meta_key );
+				delete_post_meta( $post_id, $cfg['url_key'] );
+				continue;
+			}
+
+			if ( ! in_array( (string) get_post_mime_type( $new_id ), $cfg['mimes'], true ) ) {
+				delete_post_meta( $post_id, $meta_key );
+				delete_post_meta( $post_id, $cfg['url_key'] );
+				add_action( 'admin_notices', function () use ( $cfg ) {
+					echo '<div class="notice notice-error is-dismissible"><p>' . esc_html( $cfg['label'] . ' harus berformat ' . $cfg['format'] . ' — berkas ditolak.' ) . '</p></div>';
+				} );
+				continue;
+			}
+
+			$url = wp_get_attachment_url( $new_id );
+			if ( $url ) {
+				update_post_meta( $post_id, $meta_key, $new_id );
+				update_post_meta( $post_id, $cfg['url_key'], $url );
 			}
 		}
 	}
