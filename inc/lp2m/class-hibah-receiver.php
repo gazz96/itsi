@@ -57,12 +57,18 @@ class ITSI_LP2M_Hibah_Receiver {
 	public const LAP_STAGES = [ 'kemajuan', 'akhir' ];
 
 	/**
-	 * Status per tahap lap:
-	 *  - `''`        belum dibuka (tidak ada form untuk peserta).
-	 *  - `dibuka`    admin membuka form → token baru + email undangan.
-	 *  - `dikirim`   PESERTA mengirim form (diisi otomatis) → token hangus.
-	 *  - `diterima`  keputusan admin: laporan diterima → token ditutup permanen.
-	 *  - `direvisi`  keputusan admin: perlu perbaikan → token baru + email revisi.
+	 * Status per tahap lap — HANYA tiga yang bisa dipilih admin:
+	 *  - `''`        belum dibuka.
+	 *  - `direvisi`  SATU-SATUNYA pemicu: menyiapkan tautan peserta + mengirim
+	 *                email tahap ini (undangan pertama atau permintaan perbaikan,
+	 *                dibedakan otomatis dari riwayat kirim peserta).
+	 *  - `diterima`  final: laporan disetujui → tautan ditutup permanen, tanpa email.
+	 *
+	 * Dua nilai berikut dipertahankan HANYA untuk kompatibilitas data lama yang
+	 * mungkin sudah tersimpan saat alur berstatus-5 masih dipakai — tidak
+	 * ditawarkan lagi di UI:
+	 *  - `dibuka`    pembukaan form manual (legacy).
+	 *  - `dikirim`   diisi otomatis saat peserta mengirim (legacy).
 	 */
 	public const LAP_STATUS_DIBUKA   = 'dibuka';
 	public const LAP_STATUS_DIKIRIM  = 'dikirim';
@@ -72,11 +78,15 @@ class ITSI_LP2M_Hibah_Receiver {
 	/** Nilai `_lapkem_status` / `_lapakhir_status` yang sah — pakai konstanta ini, jangan literal. */
 	public const LAP_STATUSES = [ '', 'dibuka', 'dikirim', 'diterima', 'direvisi' ];
 
-	/**
-	 * Status yang MENGHIDUPKAN form peserta (token aktif + email).
-	 * Dipakai `ensure_lap_token()`, `apply_lap_status()`, dan guard submit.
-	 */
-	public const LAP_STATUS_OPEN = [ 'dibuka', 'direvisi' ];
+	/** Status yang ditawarkan di metabox admin (urutan = alur kerja). */
+	public const LAP_STATUS_ADMIN_OPTIONS = [ '', 'direvisi', 'diterima' ];
+
+	/** Label opsi metabox untuk `LAP_STATUS_ADMIN_OPTIONS`. */
+	private const LAP_STATUS_OPTION_LABELS = [
+		''         => '— Belum dibuka —',
+		'direvisi' => 'Direvisi (buka form + kirim email)',
+		'diterima' => 'Diterima (tutup tautan)',
+	];
 
 	/** Label manusiawi status tiap tahap lap. */
 	public const LAP_STATUS_LABELS = [
@@ -270,6 +280,26 @@ class ITSI_LP2M_Hibah_Receiver {
 			->setHelp( 'Status tahap 1 (pengajuan) — menentukan tahap proses dan email notifikasi ke pemohon. Tahap revisi diatur di tab Usulan → "Status Tahap 2".' );
 	}
 
+	/**
+	 * Opsi select status tahap lap untuk metabox.
+	 *
+	 * Admin hanya bisa memilih tiga nilai (`''` | `direvisi` | `diterima`).
+	 * Bila status tersimpan adalah nilai OTOMATIS (`dikirim` saat peserta mengirim,
+	 * atau sisa data lama `dibuka`), nilai itu disisipkan sebagai opsi tambahan
+	 * supaya select tidak tampil kosong dan nilai lama tidak hilang saat disimpan.
+	 * Penyelipan hanya muncul pada kondisi itu, jadi pilihan normal tetap ringkas.
+	 */
+	private function lap_status_option_map( string $current ): array {
+		$options = [];
+		foreach ( self::LAP_STATUS_ADMIN_OPTIONS as $value ) {
+			$options[ self::LAP_STATUS_OPTION_LABELS[ $value ] ?? $value ] = $value;
+		}
+		if ( self::LAP_STATUS_DIKIRIM === $current || self::LAP_STATUS_DIBUKA === $current ) {
+			$options[ ( self::LAP_STATUS_LABELS[ $current ] ?? $current ) . ' (otomatis)' ] = $current;
+		}
+		return $options;
+	}
+
 	public function render_tr_metabox(): void {
 		$post_id = (int) get_the_ID();
 		$form    = \TypeRocket\Utility\Helper::form();
@@ -433,16 +463,10 @@ class ITSI_LP2M_Hibah_Receiver {
 			ob_start();
 			echo $form->section( [
 				$form->select( '_lapkem_status' )
-					->setLabel( 'Status Tahap — Buka Form Peserta' )
-					->setOptions( [
-						'— Belum dibuka —'                => '',
-						'Buka Form Peserta (kirim email)' => self::LAP_STATUS_DIBUKA,
-						'Sudah Dikirim Peserta'           => self::LAP_STATUS_DIKIRIM,
-						'Diterima (tutup tautan)'         => self::LAP_STATUS_DITERIMA,
-						'Direvisi (buka ulang + email)'   => self::LAP_STATUS_DIREVISI,
-					] )
+					->setLabel( 'Status Tahap — Keputusan Reviewer' )
+					->setOptions( $this->lap_status_option_map( $get( '_lapkem_status' ) ) )
 					->setAttribute( 'style', 'width:100%' )
-					->setHelp( 'Buka Form Peserta = tautan bertoken + email undangan. Direvisi = peserta boleh memperbaiki: tautan baru dibuat & email permintaan perbaikan dikirim. Diterima = laporan disetujui, tautan ditutup permanen. Status berubah otomatis ke "Sudah Dikirim" setelah peserta mengirim.' ),
+					->setHelp( 'Direvisi = menyiapkan tautan peserta + mengirim email tahap ini (undangan pertama maupun permintaan perbaikan — dibedakan otomatis). Diterima = laporan disetujui, tautan ditutup permanen (tanpa email). Status "Sudah Dikirim" diisi otomatis saat peserta mengirim.' ),
 			] )->setTitle( 'Status Tahap (Laporan Kemajuan)' );
 			// Template dibaca dari event (read-only) — tidak ada upload per pendaftaran.
 			$this->render_tr_lap_templates_note( 'kemajuan' );
@@ -516,16 +540,10 @@ class ITSI_LP2M_Hibah_Receiver {
 			ob_start();
 			echo $form->section( [
 				$form->select( '_lapakhir_status' )
-					->setLabel( 'Status Tahap — Buka Form Peserta' )
-					->setOptions( [
-						'— Belum dibuka —'                => '',
-						'Buka Form Peserta (kirim email)' => self::LAP_STATUS_DIBUKA,
-						'Sudah Dikirim Peserta'           => self::LAP_STATUS_DIKIRIM,
-						'Diterima (tutup tautan)'         => self::LAP_STATUS_DITERIMA,
-						'Direvisi (buka ulang + email)'   => self::LAP_STATUS_DIREVISI,
-					] )
+					->setLabel( 'Status Tahap — Keputusan Reviewer' )
+					->setOptions( $this->lap_status_option_map( $get( '_lapakhir_status' ) ) )
 					->setAttribute( 'style', 'width:100%' )
-					->setHelp( 'Buka Form Peserta = tautan bertoken + email undangan. Direvisi = peserta boleh memperbaiki: tautan baru dibuat & email permintaan perbaikan dikirim. Diterima = laporan disetujui, tautan ditutup permanen. Status berubah otomatis ke "Sudah Dikirim" setelah peserta mengirim.' ),
+					->setHelp( 'Direvisi = menyiapkan tautan peserta + mengirim email tahap ini (undangan pertama maupun permintaan perbaikan — dibedakan otomatis). Diterima = laporan disetujui, tautan ditutup permanen (tanpa email). Status "Sudah Dikirim" diisi otomatis saat peserta mengirim.' ),
 			] )->setTitle( 'Status Tahap (Laporan Akhir)' );
 			// Template dibaca dari event (read-only) — tidak ada upload per pendaftaran.
 			$this->render_tr_lap_templates_note( 'akhir' );
@@ -2303,11 +2321,10 @@ class ITSI_LP2M_Hibah_Receiver {
 	/**
 	 * Buat token privat baru untuk sebuah tahap lap + catat di workflow history.
 	 *
-	 * @param string $reason Status pemicu: `dibuka` (pembukaan form) atau
-	 *                       `direvisi` (permintaan perbaikan). Hanya memengaruhi
-	 *                       label riwayat & status yang tercatat.
+	 * @param string $reason Status pemicu yang dicatat di riwayat — saat ini selalu
+	 *                       `direvisi` (satu-satunya status yang menyiapkan tautan).
 	 */
-	private function open_lap_stage( int $post_id, string $stage, string $reason = self::LAP_STATUS_DIBUKA ): string {
+	private function open_lap_stage( int $post_id, string $stage, string $reason = self::LAP_STATUS_DIREVISI ): string {
 		$cfg   = $this->lap_stage_config( $stage );
 		$token = wp_generate_password( 48, false, false );
 
@@ -2323,9 +2340,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			'stage'  => $cfg['prefix'],
 			'status' => $reason,
 			'date'   => current_time( 'mysql' ),
-			'label'  => $cfg['label'] . ( self::LAP_STATUS_DIREVISI === $reason
-				? ' — revisi diminta, form dibuka ulang'
-				: ' — form dibuka untuk peserta' ),
+			'label'  => $cfg['label'] . ' — tautan peserta dibuat & email dikirim',
 		];
 		update_post_meta( $post_id, '_workflow_history', $history );
 
@@ -2337,7 +2352,7 @@ class ITSI_LP2M_Hibah_Receiver {
 	 * Token aktif yang sudah ada dipakai ulang supaya tautan yang sudah dikirim
 	 * ke email peserta tidak batal.
 	 */
-	private function ensure_lap_token( int $post_id, string $stage, string $reason = self::LAP_STATUS_DIBUKA ): string {
+	private function ensure_lap_token( int $post_id, string $stage, string $reason = self::LAP_STATUS_DIREVISI ): string {
 		$active  = '1' === (string) get_post_meta( $post_id, $this->lap_meta( $stage, 'token_active' ), true );
 		$preview = (string) get_post_meta( $post_id, $this->lap_meta( $stage, 'token_preview' ), true );
 		if ( $active && '' !== $preview ) {
@@ -2372,13 +2387,14 @@ class ITSI_LP2M_Hibah_Receiver {
 	 *
 	 * SATU jalur untuk semua sumber perubahan status (metabox TypeRocket lewat
 	 * `save_post`, quick edit, dan REST admin) supaya perilakunya tidak berbeda:
-	 *  - `dibuka`   → tautan dibuat, email undangan.
-	 *  - `direvisi` → tautan BARU dibuat, email permintaan perbaikan.
+	 *  - `direvisi` → tautan peserta disiapkan + email tahap ini dikirim.
 	 *  - `diterima` → tautan ditutup permanen, tanpa email.
-	 *  - `dikirim` / `''` → penanda email direset agar siklus berikutnya bisa kirim.
+	 *  - lainnya (`''`, legacy `dibuka`/`dikirim`) → hanya penanda email direset;
+	 *    tautan lama TIDAK disentuh agar siklus lama yang belum selesai tidak mati.
 	 *
 	 * Anti-dobel memakai `{prefix}_email_sent_for` (status terakhir yang sudah
-	 * dikirim), sehingga rangkaian `dibuka` → `direvisi` tetap mengirim email kedua.
+	 * dikirim), sehingga rangkaian `direvisi` → (peserta kirim) → `direvisi` lagi
+	 * tetap mengirim email pada setiap keputusan baru.
 	 *
 	 * @return array{email_sent:?bool,email_error:string}
 	 */
@@ -2386,31 +2402,27 @@ class ITSI_LP2M_Hibah_Receiver {
 		$result = [ 'email_sent' => null, 'email_error' => '' ];
 		$marker = 'email_sent_for';
 
-		// `diterima` = final: matikan tautan & reset penanda email.
-		if ( self::LAP_STATUS_DITERIMA === $status ) {
-			update_post_meta( $post_id, $this->lap_meta( $stage, 'token_active' ), '0' );
+		// Hanya `direvisi` yang menyiapkan tautan + mengirim email.
+		if ( self::LAP_STATUS_DIREVISI !== $status ) {
 			delete_post_meta( $post_id, $this->lap_meta( $stage, 'email_sent_at' ) );
 			delete_post_meta( $post_id, $this->lap_meta( $stage, $marker ) );
+			if ( self::LAP_STATUS_DITERIMA === $status ) {
+				// Final: matikan tautan peserta.
+				update_post_meta( $post_id, $this->lap_meta( $stage, 'token_active' ), '0' );
+			}
 			return $result;
 		}
 
-		// Bukan status pembuka form (mis. `dikirim` / kosong) → reset siklus email.
-		if ( ! in_array( $status, self::LAP_STATUS_OPEN, true ) ) {
-			delete_post_meta( $post_id, $this->lap_meta( $stage, 'email_sent_at' ) );
-			delete_post_meta( $post_id, $this->lap_meta( $stage, $marker ) );
-			return $result;
-		}
-
-		// Tautan peserta wajib tersedia selama status membuka form.
+		// Tautan peserta wajib tersedia (token lama yang sudah terpakai → token baru).
 		$this->ensure_lap_token( $post_id, $stage, $status );
 
-		// Sudah pernah kirim email untuk status ini (mis. simpan ulang tanpa ubah
-		// status) → jangan kirim lagi.
+		// Sudah pernah kirim email untuk keputusan ini (mis. simpan ulang tanpa
+		// mengubah status) → jangan kirim lagi.
 		if ( $status === (string) get_post_meta( $post_id, $this->lap_meta( $stage, $marker ), true ) ) {
 			return $result;
 		}
 
-		$mail = $this->send_lap_stage_email( $post_id, $stage, $status );
+		$mail = $this->send_lap_stage_email( $post_id, $stage );
 		if ( is_wp_error( $mail ) ) {
 			$result['email_sent']  = false;
 			$result['email_error'] = $mail->get_error_message();
@@ -2437,20 +2449,21 @@ class ITSI_LP2M_Hibah_Receiver {
 	}
 
 	/**
-	 * Kirim email terkait sebuah tahap lap ke peserta (CC tim LP2M).
+	 * Kirim email tahap lap ke peserta (CC tim LP2M).
 	 *
-	 * Dua mode, dipilih dari `$status`:
-	 *  - `dibuka`   → undangan "Isi Form …".
-	 *  - `direvisi` → permintaan perbaikan "Perbaiki Form …".
+	 * Pesan menyesuaikan riwayat: bila peserta BELUM pernah mengirim form ini
+	 * (belum ada `token_used_at`) → undangan "Isi Form …". Bila sudah pernah
+	 * → permintaan perbaikan "Perbaiki Form …". Penentuan ini otomatis sehingga
+	 * admin hanya perlu memilih satu status (`direvisi`) untuk kedua situasi.
 	 *
 	 * Email memuat tautan bertoken (`?token=…&stage=…`) sehingga peserta langsung
 	 * membuka tab tahap yang sesuai pada halaman Track Status.
-	 *
-	 * @param string $status `dibuka` | `direvisi`.
 	 */
-	private function send_lap_stage_email( int $post_id, string $stage, string $status = self::LAP_STATUS_DIBUKA ): bool|\WP_Error {
-		$cfg         = $this->lap_stage_config( $stage );
-		$is_revision = ( self::LAP_STATUS_DIREVISI === $status );
+	private function send_lap_stage_email( int $post_id, string $stage ): bool|\WP_Error {
+		$cfg = $this->lap_stage_config( $stage );
+
+		// Sudah pernah mengirim → ini siklus perbaikan, bukan undangan pertama.
+		$is_revision = '' !== (string) get_post_meta( $post_id, $this->lap_meta( $stage, 'token_used_at' ), true );
 
 		$email = (string) get_post_meta( $post_id, '_email', true );
 		if ( ! is_email( $email ) ) {
@@ -2461,7 +2474,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		$hibah_id   = (int) get_post_meta( $post_id, '_hibah_id', true );
 		$event_name = $hibah_id ? (string) get_the_title( $hibah_id ) : '';
 
-		$token = $this->ensure_lap_token( $post_id, $stage, $status );
+		$token = $this->ensure_lap_token( $post_id, $stage, self::LAP_STATUS_DIREVISI );
 		$link  = '';
 		if ( '' !== $token ) {
 			$link = $this->frontend_base_url() . '/daftar/status/' . rawurlencode( $reg_no ?: (string) $post_id )
@@ -2480,7 +2493,6 @@ class ITSI_LP2M_Hibah_Receiver {
 			'label' => $cfg['label'],
 			'link'  => $link,
 			'files' => $stage_files,
-			// `revisi` = peserta diminta memperbaiki form yang sudah dikirim.
 			'mode'  => $is_revision ? 'revisi' : 'buka',
 		];
 
