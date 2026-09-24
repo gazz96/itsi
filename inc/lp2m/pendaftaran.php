@@ -212,7 +212,7 @@ function lp2m_pendaftaran_status(WP_REST_Request $request) {
             $template_url = (string) $meta('_surat_kesanggupan_template_url');
         }
 
-        return rest_ensure_response([
+        $out = [
             'success'      => true,
             'reg_no'       => $meta('_reg_no') ?: $no,
             'nama'         => $meta('_nama'),
@@ -255,10 +255,16 @@ function lp2m_pendaftaran_status(WP_REST_Request $request) {
             'lapkem_ringkasan'     => $meta('_lapkem_ringkasan'),
             'lapkem_keywords'      => $meta('_lapkem_keywords'),
             'lapkem_status_artikel' => $meta('_lapkem_status_artikel'),
-            'lapkem_template_url'  => $meta('_lapkem_template_url'),
+            // Template tahap lanjutan (Lap. Kemajuan / Lap. Akhir) bukan milik
+            // pendaftaran — diambil dari EVENT lewat `_hibah_id`.
+            // (Kunci payload: lapkem_template_url, lapakhir_anggaran_template_url, …)
+            'lapkem_status'        => (string) $meta('_lapkem_status'),
+            'lapkem_submitted_at'  => $meta('_lapkem_submitted_at'),
+            'lapkem_ringkasan'     => $meta('_lapkem_ringkasan'),
+            'lapkem_keywords'      => $meta('_lapkem_keywords'),
+            'lapkem_status_artikel' => $meta('_lapkem_status_artikel'),
             'lapkem_laporan_url'   => $meta('_lapkem_laporan_url'),
             'lapkem_artikel_url'   => $meta('_lapkem_artikel_url'),
-            'lapkem_sptb_template_url' => $meta('_lapkem_sptb_template_url'),
             'lapkem_sptb_url'      => $meta('_lapkem_sptb_url'),
 
             'lapakhir_status'      => (string) $meta('_lapakhir_status'),
@@ -266,20 +272,24 @@ function lp2m_pendaftaran_status(WP_REST_Request $request) {
             'lapakhir_ringkasan'   => $meta('_lapakhir_ringkasan'),
             'lapakhir_video_url'   => $meta('_lapakhir_video_url'),
             'lapakhir_media_massa' => $meta('_lapakhir_media_massa'),
-            'lapakhir_template_url' => $meta('_lapakhir_template_url'),
             'lapakhir_laporan_url' => $meta('_lapakhir_laporan_url'),
             'lapakhir_artikel_url' => $meta('_lapakhir_artikel_url'),
             'lapakhir_poster_url'  => $meta('_lapakhir_poster_url'),
             'lapakhir_hki_url'     => $meta('_lapakhir_hki_url'),
-            'lapakhir_ba_template_url' => $meta('_lapakhir_ba_template_url'),
             'lapakhir_ba_url'      => $meta('_lapakhir_ba_url'),
-            'lapakhir_bpp_template_url' => $meta('_lapakhir_bpp_template_url'),
             'lapakhir_bpp_url'     => $meta('_lapakhir_bpp_url'),
-            'lapakhir_anggaran_template_url' => $meta('_lapakhir_anggaran_template_url'),
             'lapakhir_anggaran_url' => $meta('_lapakhir_anggaran_url'),
 
             'history'       => get_post_meta($post->ID, '_workflow_history', true) ?: [],
-        ]);
+        ];
+
+        // Template tahap lanjutan = milik EVENT (CPT hibah). Satu sumber pemetaan
+        // kunci payload → meta event ada di itsi_hibah_lap_template_payload().
+        if (function_exists('itsi_hibah_lap_template_payload')) {
+            $out = array_merge($out, itsi_hibah_lap_template_payload((int) $meta('_hibah_id')));
+        }
+
+        return rest_ensure_response($out);
     }
 
     // ── 2) Fallback legacy: wp_options lp2m_reg_{no} ──

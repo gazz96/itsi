@@ -194,6 +194,42 @@ class ITSI_LP2M_Hibah_Receiver {
 			->setCallback( [ $this, 'render_tr_status_metabox' ] );
 	}
 
+	/**
+	 * Kotak info read-only di tab Lap. Kemajuan / Lap. Akhir: daftar template yang
+	 * tersedia di EVENT, beserta tautan unduh & tautan ke event untuk mengganti.
+	 *
+	 * Template sengaja TIDAK bisa diunggah dari sini agar tidak berulang per
+	 * pendaftaran — unggah sekali di metabox Hibah (level event).
+	 */
+	private function render_tr_lap_templates_note( string $stage ): void {
+		$post_id  = (int) get_the_ID();
+		$hibah_id = (int) get_post_meta( $post_id, '_hibah_id', true );
+		$cfg      = $this->lap_stage_config( $stage );
+
+		$items = '';
+		foreach ( $cfg['files'] as $f ) {
+			if ( 'event' !== $f['owner'] ) { continue; }
+			$url    = $this->event_template_url( $post_id, $f );
+			$items .= '<li style="margin:2px 0">' . esc_html( $f['label'] ) . ': '
+				. ( '' !== $url
+					? '<a href="' . esc_url( $url ) . '" target="_blank" rel="noopener">⬇ Download</a>'
+					: '<em style="color:#996800">belum diunggah di event</em>' )
+				. '</li>';
+		}
+		if ( '' === $items ) { return; }
+
+		echo '<div style="margin:-.5rem 0 1rem;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;font-size:12px">'
+			. '<strong style="display:block;margin-bottom:2px">📑 Template (level event)</strong>'
+			. '<p style="margin:0 0 4px;color:#50575e">Template diunggah SEKALI di event hibah, lalu semua peserta cukup mengunduh — tidak ada unggahan template per pendaftaran.</p>'
+			. '<ul style="margin:0;padding-left:16px">' . $items . '</ul>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — sudah esc per-item.
+		if ( $hibah_id > 0 ) {
+			echo '<p style="margin:6px 0 0"><a href="' . esc_url( (string) get_edit_post_link( $hibah_id ) ) . '">Buka event hibah untuk mengunggah / mengganti template</a></p>';
+		} else {
+			echo '<p style="margin:6px 0 0;color:#996800">Pendaftaran ini belum terhubung ke event hibah — template belum bisa dipastikan.</p>';
+		}
+		echo '</div>';
+	}
+
 	public function render_tr_status_metabox(): void {
 		$labels = [
 			'submitted'          => 'Submitted (baru dikirim)',
@@ -365,11 +401,9 @@ class ITSI_LP2M_Hibah_Receiver {
 		// PESERTA (tautan bertoken + email undangan — lihat lap_stage_config()).
 		$lapkem_tab = function () use ( $form, $get ): string {
 			$saved_files = array_filter( [
-				'Template Laporan Kemajuan' => $get( '_lapkem_template_url' ),
-				'Laporan Kemajuan'          => $get( '_lapkem_laporan_url' ),
-				'File Artikel'              => $get( '_lapkem_artikel_url' ),
-				'Template SPTB'             => $get( '_lapkem_sptb_template_url' ),
-				'SPTB'                      => $get( '_lapkem_sptb_url' ),
+				'Laporan Kemajuan' => $get( '_lapkem_laporan_url' ),
+				'File Artikel'     => $get( '_lapkem_artikel_url' ),
+				'SPTB'             => $get( '_lapkem_sptb_url' ),
 			], static function ( $url ) {
 				return '' !== trim( (string) $url );
 			} );
@@ -388,6 +422,8 @@ class ITSI_LP2M_Hibah_Receiver {
 					->setAttribute( 'style', 'width:100%' )
 					->setHelp( 'Buka Form Peserta = tautan bertoken + email dikirim ke peserta agar mereka mengisi ringkasan & mengunggah berkas tahap ini. Status berubah otomatis ke "Sudah Dikirim" setelah peserta mengirim (tautan lalu mati).' ),
 			] )->setTitle( 'Status Tahap (Laporan Kemajuan)' );
+			// Template dibaca dari event (read-only) — tidak ada upload per pendaftaran.
+			$this->render_tr_lap_templates_note( 'kemajuan' );
 			echo $form->section( [
 				$form->textarea( '_lapkem_ringkasan' )->setLabel( 'Ringkasan' )->setAttribute( 'rows', 4 ),
 				$form->text( '_lapkem_keywords' )
@@ -407,12 +443,10 @@ class ITSI_LP2M_Hibah_Receiver {
 					->setAttribute( 'style', 'width:100%' ),
 			] )->setTitle( 'Ringkasan Laporan Kemajuan' );
 			echo $form->section( [
-				$form->file( '_lapkem_template_id' )->setLabel( 'Template Laporan Kemajuan (DOCX)' )->setHelp( 'Template resmi laporan kemajuan — hanya DOC/DOCX.' ),
 				$form->file( '_lapkem_laporan_id' )->setLabel( 'Laporan Kemajuan (PDF)' )->setHelp( 'Laporan kemajuan yang sudah diisi — hanya PDF.' ),
 				$form->file( '_lapkem_artikel_id' )->setLabel( 'File Artikel (PDF)' )->setHelp( 'Artikel / luaran ilmiah terkait hibah — hanya PDF.' ),
 			] )->setTitle( 'Laporan & Artikel' );
 			echo $form->section( [
-				$form->file( '_lapkem_sptb_template_id' )->setLabel( 'Template SPTB (DOCX)' )->setHelp( 'Template Surat Pernyataan Tanggung Jawab Belanja — hanya DOC/DOCX.' ),
 				$form->file( '_lapkem_sptb_id' )->setLabel( 'SPTB (PDF)' )->setHelp( 'SPTB yang sudah diisi & ditandatangani — hanya PDF.' ),
 			] )->setTitle( 'SPTB' );
 			?>
@@ -444,17 +478,13 @@ class ITSI_LP2M_Hibah_Receiver {
 		// sync_lap_files_from_tr(); status tahap membuka FORM PESERTA bertoken.
 		$lapakhir_tab = function () use ( $form, $get ): string {
 			$saved_files = array_filter( [
-				'Template Laporan Akhir'                 => $get( '_lapakhir_template_url' ),
-				'Laporan Akhir'                          => $get( '_lapakhir_laporan_url' ),
-				'Artikel Jurnal'                         => $get( '_lapakhir_artikel_url' ),
-				'Poster'                                 => $get( '_lapakhir_poster_url' ),
-				'HKI'                                    => $get( '_lapakhir_hki_url' ),
-				'Template Berita Acara'                  => $get( '_lapakhir_ba_template_url' ),
-				'Berita Acara'                           => $get( '_lapakhir_ba_url' ),
-				'Template Berita Penyelesaian Pekerjaan' => $get( '_lapakhir_bpp_template_url' ),
-				'Berita Penyelesaian Pekerjaan'          => $get( '_lapakhir_bpp_url' ),
-				'Template Penggunaan Anggaran'           => $get( '_lapakhir_anggaran_template_url' ),
-				'Penggunaan Anggaran'                    => $get( '_lapakhir_anggaran_url' ),
+				'Laporan Akhir'                 => $get( '_lapakhir_laporan_url' ),
+				'Artikel Jurnal'                => $get( '_lapakhir_artikel_url' ),
+				'Poster'                        => $get( '_lapakhir_poster_url' ),
+				'HKI'                           => $get( '_lapakhir_hki_url' ),
+				'Berita Acara'                  => $get( '_lapakhir_ba_url' ),
+				'Berita Penyelesaian Pekerjaan' => $get( '_lapakhir_bpp_url' ),
+				'Penggunaan Anggaran'           => $get( '_lapakhir_anggaran_url' ),
 			], static function ( $url ) {
 				return '' !== trim( (string) $url );
 			} );
@@ -473,6 +503,8 @@ class ITSI_LP2M_Hibah_Receiver {
 					->setAttribute( 'style', 'width:100%' )
 					->setHelp( 'Buka Form Peserta = tautan bertoken + email dikirim ke peserta agar mereka mengisi ringkasan & mengunggah berkas tahap ini. Status berubah otomatis ke "Sudah Dikirim" setelah peserta mengirim (tautan lalu mati).' ),
 			] )->setTitle( 'Status Tahap (Laporan Akhir)' );
+			// Template dibaca dari event (read-only) — tidak ada upload per pendaftaran.
+			$this->render_tr_lap_templates_note( 'akhir' );
 			echo $form->section( [
 				$form->textarea( '_lapakhir_ringkasan' )->setLabel( 'Ringkasan' )->setAttribute( 'rows', 4 ),
 				$form->text( '_lapakhir_video_url' )
@@ -485,20 +517,16 @@ class ITSI_LP2M_Hibah_Receiver {
 					->setAttribute( 'rows', 3 ),
 			] )->setTitle( 'Ringkasan & Publikasi' );
 			echo $form->section( [
-				$form->file( '_lapakhir_template_id' )->setLabel( 'Template Laporan Akhir' )->setHelp( 'Template resmi laporan akhir — hanya DOC/DOCX.' ),
 				$form->file( '_lapakhir_laporan_id' )->setLabel( 'Laporan Akhir' )->setHelp( 'Laporan akhir yang sudah diisi — hanya PDF.' ),
 				$form->file( '_lapakhir_artikel_id' )->setLabel( 'Artikel Jurnal' )->setHelp( 'Artikel jurnal hasil hibah — hanya PDF.' ),
 				$form->file( '_lapakhir_poster_id' )->setLabel( 'Poster' )->setHelp( 'Poster luaran — hanya PDF.' ),
 				$form->file( '_lapakhir_hki_id' )->setLabel( 'HKI' )->setHelp( 'Dokumen HKI — PDF, DOC/DOCX, atau XLS/XLSX.' ),
 			] )->setTitle( 'Laporan & Luaran' );
 			echo $form->section( [
-				$form->file( '_lapakhir_ba_template_id' )->setLabel( 'Template Berita Acara (DOCX)' )->setHelp( 'Template berita acara — hanya DOC/DOCX.' ),
 				$form->file( '_lapakhir_ba_id' )->setLabel( 'Berita Acara (PDF)' )->setHelp( 'Berita acara terisi & ditandatangani — hanya PDF.' ),
-				$form->file( '_lapakhir_bpp_template_id' )->setLabel( 'Template Berita Penyelesaian Pekerjaan (DOCX)' )->setHelp( 'Template berita penyelesaian pekerjaan — hanya DOC/DOCX.' ),
 				$form->file( '_lapakhir_bpp_id' )->setLabel( 'Berita Penyelesaian Pekerjaan (PDF)' )->setHelp( 'Berita penyelesaian pekerjaan terisi — hanya PDF.' ),
 			] )->setTitle( 'Berita Acara & Penyelesaian' );
 			echo $form->section( [
-				$form->file( '_lapakhir_anggaran_template_id' )->setLabel( 'Template Penggunaan Anggaran (DOCX)' )->setHelp( 'Template laporan penggunaan anggaran — hanya DOC/DOCX.' ),
 				$form->file( '_lapakhir_anggaran_id' )->setLabel( 'Penggunaan Anggaran' )->setHelp( 'Laporan penggunaan anggaran — PDF, DOC/DOCX, atau XLS/XLSX.' ),
 			] )->setTitle( 'Penggunaan Anggaran' );
 			?>
@@ -2051,7 +2079,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			$jml_tim = (string) ( count( $anggota_list ) + 1 );
 		}
 
-		return new \WP_REST_Response( [ 'success' => true, 'data' => [
+		$data = [
 			'id'         => $post->ID,
 			'reg_no'     => get_post_meta( $post->ID, '_reg_no', true ),
 			'hibah_id'   => get_post_meta( $post->ID, '_hibah_id', true ),
@@ -2083,29 +2111,25 @@ class ITSI_LP2M_Hibah_Receiver {
 			'surat_kesanggupan_url' => get_post_meta( $post->ID, '_surat_kesanggupan_url', true ),
 			'revisi_proposal_id'  => get_post_meta( $post->ID, '_revisi_proposal_id', true ),
 			'revisi_proposal_url' => get_post_meta( $post->ID, '_revisi_proposal_url', true ),
-			// Tab "Lap. Kemajuan" — ringkasan, keyword, status artikel & berkas luaran.
+		// Tab "Lap. Kemajuan" — ringkasan, keyword, status artikel & berkas luaran.
+			// (Template *_template_url tidak dibaca di sini: nilai itu berasal dari EVENT
+			//  dan ditambahkan lewat itsi_hibah_lap_template_payload() di bawah.)
 			'lapkem_ringkasan'      => get_post_meta( $post->ID, '_lapkem_ringkasan', true ),
 			'lapkem_keywords'       => get_post_meta( $post->ID, '_lapkem_keywords', true ),
 			'lapkem_status_artikel' => get_post_meta( $post->ID, '_lapkem_status_artikel', true ),
-			'lapkem_template_url'   => get_post_meta( $post->ID, '_lapkem_template_url', true ),
 			'lapkem_laporan_url'    => get_post_meta( $post->ID, '_lapkem_laporan_url', true ),
 			'lapkem_artikel_url'    => get_post_meta( $post->ID, '_lapkem_artikel_url', true ),
-			'lapkem_sptb_template_url' => get_post_meta( $post->ID, '_lapkem_sptb_template_url', true ),
 			'lapkem_sptb_url'       => get_post_meta( $post->ID, '_lapkem_sptb_url', true ),
 			// Tab "Lap. Akhir" — ringkasan, publikasi & dokumen serah terima.
 			'lapakhir_ringkasan'      => get_post_meta( $post->ID, '_lapakhir_ringkasan', true ),
 			'lapakhir_video_url'      => get_post_meta( $post->ID, '_lapakhir_video_url', true ),
 			'lapakhir_media_massa'    => get_post_meta( $post->ID, '_lapakhir_media_massa', true ),
-			'lapakhir_template_url'   => get_post_meta( $post->ID, '_lapakhir_template_url', true ),
 			'lapakhir_laporan_url'    => get_post_meta( $post->ID, '_lapakhir_laporan_url', true ),
 			'lapakhir_artikel_url'    => get_post_meta( $post->ID, '_lapakhir_artikel_url', true ),
 			'lapakhir_poster_url'     => get_post_meta( $post->ID, '_lapakhir_poster_url', true ),
 			'lapakhir_hki_url'        => get_post_meta( $post->ID, '_lapakhir_hki_url', true ),
-			'lapakhir_ba_template_url' => get_post_meta( $post->ID, '_lapakhir_ba_template_url', true ),
 			'lapakhir_ba_url'         => get_post_meta( $post->ID, '_lapakhir_ba_url', true ),
-			'lapakhir_bpp_template_url' => get_post_meta( $post->ID, '_lapakhir_bpp_template_url', true ),
 			'lapakhir_bpp_url'        => get_post_meta( $post->ID, '_lapakhir_bpp_url', true ),
-			'lapakhir_anggaran_template_url' => get_post_meta( $post->ID, '_lapakhir_anggaran_template_url', true ),
 			'lapakhir_anggaran_url'   => get_post_meta( $post->ID, '_lapakhir_anggaran_url', true ),
 			// Status tahap form peserta ('' | dibuka | dikirim) + waktu kirim peserta.
 			'lapkem_status'           => $this->lap_stage_status( (int) $post->ID, 'kemajuan' ),
@@ -2114,7 +2138,18 @@ class ITSI_LP2M_Hibah_Receiver {
 			'lapakhir_submitted_at'   => (string) get_post_meta( $post->ID, '_lapakhir_submitted_at', true ),
 			'workflow_history' => get_post_meta( $post->ID, '_workflow_history', true ) ?: [],
 			'created_at' => $post->post_date,
-		] ], 200 );
+		];
+
+		// Template tahap lanjutan berasal dari EVENT (CPT hibah) — satu sumber pemetaan
+		// kunci payload lewat itsi_hibah_lap_template_payload().
+		if ( function_exists( 'itsi_hibah_lap_template_payload' ) ) {
+			$data = array_merge(
+				$data,
+				itsi_hibah_lap_template_payload( (int) get_post_meta( $post->ID, '_hibah_id', true ) )
+			);
+		}
+
+		return new \WP_REST_Response( [ 'success' => true, 'data' => $data ], 200 );
 	}
 
 	/**
@@ -2368,11 +2403,11 @@ class ITSI_LP2M_Hibah_Receiver {
 				. '?token=' . rawurlencode( $token ) . '&stage=' . rawurlencode( $stage );
 		}
 
-		// Berkas yang harus diunggah peserta (template milik admin dijadikan
-		// tautan unduh, bukan kewajiban unggah).
-		$stage_files = [];
-		foreach ( $cfg['files'] as $f ) {
-			if ( 'admin' === $f['owner'] ) { continue; }
+// Berkas yang harus diunggah peserta (template milik EVENT dijadikan
+				// tautan unduh di halaman Track Status, bukan kewajiban unggah).
+				$stage_files = [];
+				foreach ( $cfg['files'] as $f ) {
+					if ( 'peserta' !== $f['owner'] ) { continue; }
 			$stage_files[] = $f['label'];
 		}
 
@@ -2421,7 +2456,7 @@ class ITSI_LP2M_Hibah_Receiver {
 			'Berkas tersimpan:',
 		];
 		foreach ( $cfg['files'] as $f ) {
-			if ( 'admin' === $f['owner'] ) { continue; }
+			if ( 'peserta' !== $f['owner'] ) { continue; }
 			$url     = (string) get_post_meta( $post_id, $f['url_key'], true );
 			$lines[] = '- ' . $f['label'] . ': ' . ( '' !== $url ? $url : '— belum ada' );
 		}
@@ -2456,6 +2491,24 @@ class ITSI_LP2M_Hibah_Receiver {
 			if ( '' !== $url ) { return $url; }
 		}
 		return (string) get_post_meta( $post_id, '_surat_kesanggupan_template_url', true );
+	}
+
+	/**
+	 * URL template dokumen tahap lanjutan (Lap. Kemajuan / Lap. Akhir) untuk sebuah
+	 * pendaftaran — diambil dari EVENT (CPT `hibah`) lewat `_hibah_id`.
+	 *
+	 * Template sengaja TIDAK disimpan per pendaftaran supaya admin cukup mengunggah
+	 * sekali di event dan berkas tidak berulang untuk setiap peserta.
+	 *
+	 * @param int   $post_id ID pendaftaran.
+	 * @param array $file    Entri `files` dari lap_stage_config() (butuh `event_key`).
+	 * @return string URL, atau '' bila event belum menyediakan template.
+	 */
+	private function event_template_url( int $post_id, array $file ): string {
+		$event_key = (string) ( $file['event_key'] ?? '' );
+		if ( '' === $event_key || ! function_exists( 'itsi_hibah_lap_template_url' ) ) { return ''; }
+		$hibah_id = (int) get_post_meta( $post_id, '_hibah_id', true );
+		return itsi_hibah_lap_template_url( $hibah_id, $event_key );
 	}
 
 	public function handle_revision_access( \WP_REST_Request $request ): \WP_REST_Response {
@@ -2590,9 +2643,18 @@ class ITSI_LP2M_Hibah_Receiver {
 		foreach ( $cfg['text'] as $meta_key => $t ) {
 			$data[ ltrim( $meta_key, '_' ) ] = (string) get_post_meta( $post->ID, $meta_key, true );
 		}
-		// URL berkas (template milik admin maupun berkas peserta).
-		foreach ( $cfg['files'] as $f ) {
-			$data[ ltrim( $f['url_key'], '_' ) ] = (string) get_post_meta( $post->ID, $f['url_key'], true );
+// Template milik EVENT dibaca dari CPT hibah (lihat
+				// itsi_hibah_lap_template_payload()) — tidak ada salinan per pendaftaran.
+				if ( function_exists( 'itsi_hibah_lap_template_payload' ) ) {
+					$data = array_merge(
+						$data,
+						itsi_hibah_lap_template_payload( (int) get_post_meta( $post->ID, '_hibah_id', true ) )
+					);
+				}
+				// Berkas yang diunggah peserta — dibaca dari postmeta pendaftaran.
+				foreach ( $cfg['files'] as $f ) {
+					if ( 'peserta' !== $f['owner'] ) { continue; }
+					$data[ $f['url_key'] ] = (string) get_post_meta( $post->ID, $f['url_key'], true );
 		}
 
 		return new \WP_REST_Response( $data, 200 );
@@ -2626,8 +2688,9 @@ class ITSI_LP2M_Hibah_Receiver {
 		$uploaded = $request->get_file_params();
 
 		// 1) Validasi seluruh berkas peserta sebelum menyimpan apa pun.
+		//    (Template milik event tidak diunggah peserta → dilewati sepenuhnya.)
 		foreach ( $cfg['files'] as $f ) {
-			if ( 'admin' === $f['owner'] ) { continue; }
+			if ( 'peserta' !== $f['owner'] ) { continue; }
 			$file     = $uploaded[ $f['param'] ] ?? null;
 			$has_file = is_array( $file ) && UPLOAD_ERR_NO_FILE !== (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE );
 			if ( ! $has_file ) {
@@ -2645,7 +2708,7 @@ class ITSI_LP2M_Hibah_Receiver {
 		// 2) Simpan berkas (opsional: hanya yang benar-benar dikirim).
 		$urls = [];
 		foreach ( $cfg['files'] as $meta_key => $f ) {
-			if ( 'admin' === $f['owner'] ) { continue; }
+			if ( 'peserta' !== $f['owner'] ) { continue; }
 			$file = $uploaded[ $f['param'] ] ?? null;
 			if ( ! is_array( $file ) || UPLOAD_ERR_NO_FILE === (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE ) ) { continue; }
 
@@ -2927,6 +2990,8 @@ class ITSI_LP2M_Hibah_Receiver {
 			if ( '' === trim( $file_base ) ) { $file_base = (string) $id; }
 
 			foreach ( $cfg['files'] as $meta_key => $f ) {
+				// Template milik event tidak diunggah dari pendaftaran.
+				if ( 'peserta' !== $f['owner'] ) { continue; }
 				$file = $file_params[ $f['param'] ] ?? null;
 				if ( ! is_array( $file ) || UPLOAD_ERR_NO_FILE === (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE ) ) { continue; }
 
@@ -3702,10 +3767,15 @@ class ITSI_LP2M_Hibah_Receiver {
 	 *  - status_meta     : meta select status tahap ('' | dibuka | dikirim).
 	 *  - text            : meta_key => [ label, type, key, options? ].
 	 *                      `key` dipakai sebagai nama param REST (peserta/admin).
-	 *  - files           : meta_id => [ url_key, label, ext, owner, param, required? ].
-	 *                      `owner` = 'admin' (template, hanya diunduh peserta) atau
-	 *                      'peserta' (berkas yang diunggah peserta). `ext` = aturan
-	 *                      format (pdf | doc | any) lewat lap_ext_rules().
+	 *  - files           : key => [ label, ext, owner, param, url_key, event_key?, required? ].
+	 *                      `owner` = 'event' (template milik EVENTS/CPT hibah — peserta
+	 *                      hanya mengunduh, diunggah SEKALI di metabox hibah sehingga
+	 *                      tidak berulang per pendaftaran) atau 'peserta' (berkas yang
+	 *                      diunggah peserta; `required` = wajib saat kirim).
+	 *                      `ext` = aturan format (pdf | doc | any) lewat lap_ext_rules().
+	 *                      `url_key` = kunci pada payload REST; `event_key` = meta file di
+	 *                      CPT hibah (hanya untuk owner 'event', lihat
+	 *                      itsi_hibah_lap_templates_map()).
 	 *
 	 * @param string $stage 'kemajuan' | 'akhir'.
 	 * @return array
@@ -3734,10 +3804,11 @@ class ITSI_LP2M_Hibah_Receiver {
 					],
 				],
 				'files'       => [
-					'_lapkem_template_id'      => [ 'url_key' => '_lapkem_template_url', 'label' => 'Template Laporan Kemajuan', 'ext' => 'doc', 'owner' => 'admin', 'param' => 'lapkem_template' ],
+					// Template milik EVENT (metabox Hibah) — peserta hanya mengunduh.
+					'lapkem_template'          => [ 'label' => 'Template Laporan Kemajuan', 'ext' => 'doc', 'owner' => 'event', 'event_key' => 'file_template_lapkem', 'param' => 'lapkem_template' ],
 					'_lapkem_laporan_id'       => [ 'url_key' => '_lapkem_laporan_url', 'label' => 'Laporan Kemajuan', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapkem_laporan', 'required' => true ],
 					'_lapkem_artikel_id'       => [ 'url_key' => '_lapkem_artikel_url', 'label' => 'File Artikel', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapkem_artikel' ],
-					'_lapkem_sptb_template_id' => [ 'url_key' => '_lapkem_sptb_template_url', 'label' => 'Template SPTB', 'ext' => 'doc', 'owner' => 'admin', 'param' => 'lapkem_sptb_template' ],
+					'lapkem_sptb_template'     => [ 'label' => 'Template SPTB', 'ext' => 'doc', 'owner' => 'event', 'event_key' => 'file_template_sptb', 'param' => 'lapkem_sptb_template' ],
 					'_lapkem_sptb_id'          => [ 'url_key' => '_lapkem_sptb_url', 'label' => 'SPTB', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapkem_sptb' ],
 				],
 			];
@@ -3754,17 +3825,18 @@ class ITSI_LP2M_Hibah_Receiver {
 				'_lapakhir_media_massa' => [ 'label' => 'Media Massa', 'type' => 'textarea', 'key' => 'lapakhir_media_massa' ],
 			],
 			'files'       => [
-				'_lapakhir_template_id'          => [ 'url_key' => '_lapakhir_template_url', 'label' => 'Template Laporan Akhir', 'ext' => 'doc', 'owner' => 'admin', 'param' => 'lapakhir_template' ],
-				'_lapakhir_laporan_id'           => [ 'url_key' => '_lapakhir_laporan_url', 'label' => 'Laporan Akhir', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapakhir_laporan', 'required' => true ],
-				'_lapakhir_artikel_id'           => [ 'url_key' => '_lapakhir_artikel_url', 'label' => 'Artikel Jurnal', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapakhir_artikel' ],
-				'_lapakhir_poster_id'            => [ 'url_key' => '_lapakhir_poster_url', 'label' => 'Poster', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapakhir_poster' ],
-				'_lapakhir_hki_id'               => [ 'url_key' => '_lapakhir_hki_url', 'label' => 'HKI', 'ext' => 'any', 'owner' => 'peserta', 'param' => 'lapakhir_hki' ],
-				'_lapakhir_ba_template_id'       => [ 'url_key' => '_lapakhir_ba_template_url', 'label' => 'Template Berita Acara', 'ext' => 'doc', 'owner' => 'admin', 'param' => 'lapakhir_ba_template' ],
-				'_lapakhir_ba_id'                => [ 'url_key' => '_lapakhir_ba_url', 'label' => 'Berita Acara', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapakhir_ba' ],
-				'_lapakhir_bpp_template_id'      => [ 'url_key' => '_lapakhir_bpp_template_url', 'label' => 'Template Berita Penyelesaian Pekerjaan', 'ext' => 'doc', 'owner' => 'admin', 'param' => 'lapakhir_bpp_template' ],
-				'_lapakhir_bpp_id'               => [ 'url_key' => '_lapakhir_bpp_url', 'label' => 'Berita Penyelesaian Pekerjaan', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapakhir_bpp' ],
-				'_lapakhir_anggaran_template_id' => [ 'url_key' => '_lapakhir_anggaran_template_url', 'label' => 'Template Penggunaan Anggaran', 'ext' => 'doc', 'owner' => 'admin', 'param' => 'lapakhir_anggaran_template' ],
-				'_lapakhir_anggaran_id'          => [ 'url_key' => '_lapakhir_anggaran_url', 'label' => 'Penggunaan Anggaran', 'ext' => 'any', 'owner' => 'peserta', 'param' => 'lapakhir_anggaran' ],
+				// Template milik EVENT (metabox Hibah) — peserta hanya mengunduh.
+				'lapakhir_template'          => [ 'label' => 'Template Laporan Akhir', 'ext' => 'doc', 'owner' => 'event', 'event_key' => 'file_template_lapakhir', 'param' => 'lapakhir_template' ],
+				'_lapakhir_laporan_id'       => [ 'url_key' => '_lapakhir_laporan_url', 'label' => 'Laporan Akhir', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapakhir_laporan', 'required' => true ],
+				'_lapakhir_artikel_id'       => [ 'url_key' => '_lapakhir_artikel_url', 'label' => 'Artikel Jurnal', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapakhir_artikel' ],
+				'_lapakhir_poster_id'        => [ 'url_key' => '_lapakhir_poster_url', 'label' => 'Poster', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapakhir_poster' ],
+				'_lapakhir_hki_id'           => [ 'url_key' => '_lapakhir_hki_url', 'label' => 'HKI', 'ext' => 'any', 'owner' => 'peserta', 'param' => 'lapakhir_hki' ],
+				'lapakhir_ba_template'       => [ 'label' => 'Template Berita Acara', 'ext' => 'doc', 'owner' => 'event', 'event_key' => 'file_template_berita_acara', 'param' => 'lapakhir_ba_template' ],
+				'_lapakhir_ba_id'            => [ 'url_key' => '_lapakhir_ba_url', 'label' => 'Berita Acara', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapakhir_ba' ],
+				'lapakhir_bpp_template'      => [ 'label' => 'Template Berita Penyelesaian Pekerjaan', 'ext' => 'doc', 'owner' => 'event', 'event_key' => 'file_template_bpp', 'param' => 'lapakhir_bpp_template' ],
+				'_lapakhir_bpp_id'           => [ 'url_key' => '_lapakhir_bpp_url', 'label' => 'Berita Penyelesaian Pekerjaan', 'ext' => 'pdf', 'owner' => 'peserta', 'param' => 'lapakhir_bpp' ],
+				'lapakhir_anggaran_template' => [ 'label' => 'Template Penggunaan Anggaran', 'ext' => 'doc', 'owner' => 'event', 'event_key' => 'file_template_anggaran', 'param' => 'lapakhir_anggaran_template' ],
+				'_lapakhir_anggaran_id'      => [ 'url_key' => '_lapakhir_anggaran_url', 'label' => 'Penggunaan Anggaran', 'ext' => 'any', 'owner' => 'peserta', 'param' => 'lapakhir_anggaran' ],
 			],
 		];
 	}
@@ -3840,8 +3912,10 @@ class ITSI_LP2M_Hibah_Receiver {
 			$cfg = $this->lap_stage_config( $stage );
 
 			// Berkas — map ke bentuk yang dipahami sync_tr_file_fields().
+			// Template milik event TIDAK punya field upload di pendaftaran → dilewati.
 			$files = [];
 			foreach ( $cfg['files'] as $meta_key => $f ) {
+				if ( 'peserta' !== $f['owner'] ) { continue; }
 				$rules                = $this->lap_ext_rules( $f['ext'] );
 				$files[ $meta_key ]   = [
 					'url_key' => $f['url_key'],

@@ -197,6 +197,32 @@ function itsi_hibah_register_rest_fields() {
 		'schema' => array( 'type' => 'array', 'description' => 'Template Surat Kesanggupan (URLs)', 'context' => array( 'view', 'edit' ) ),
 	) );
 
+	// ── Template dokumen tahap lanjutan (Lap. Kemajuan & Lap. Akhir) ──
+	// Semua template ini milik EVENT: diunggah sekali di hibah, lalu dipakai
+	// seluruh peserta (tampil sebagai tautan unduh di Track Status). Daftar
+	// key-nya satu sumber di itsi_hibah_lap_templates_map(), sehingga metabox,
+	// REST, dan sync file selalu sinkron.
+	foreach ( array_keys( itsi_hibah_lap_templates_map() ) as $itsi_lap_tpl_key ) {
+		register_rest_field(
+			'hibah',
+			$itsi_lap_tpl_key,
+			array(
+				'get_callback'    => function ( $post ) use ( $itsi_lap_tpl_key ) {
+					return itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $post['id'], $itsi_lap_tpl_key ) );
+				},
+				'update_callback' => function ( $value, $post ) use ( $itsi_lap_tpl_key ) {
+					if ( ! current_user_can( 'edit_post', $post->ID ) ) { return false; }
+					return itsi_hibah_write_file_meta( $post->ID, $itsi_lap_tpl_key, $value );
+				},
+				'schema'          => array(
+					'type'        => 'array',
+					'description' => 'Template dokumen tahap lanjutan (URLs) — level event.',
+					'context'     => array( 'view', 'edit' ),
+				),
+			)
+		);
+	}
+
 	// ── ID media panduan (legacy dashboard form) ──
 	register_rest_field( 'hibah', 'panduan_penulisan_id', array(
 		'get_callback'    => function ( $post ) {
@@ -439,6 +465,9 @@ function itsi_hibah_sync_metabox_files_on_save( $post_id, $post, $update ) {
 	}
 
 	$file_keys = array( 'file_panduan', 'file_template', 'file_kelompok_keahlian', 'file_surat_kesanggupan' );
+	// Template dokumen tahap lanjutan (Lap. Kemajuan & Lap. Akhir) — level EVENT,
+	// lihat itsi_hibah_lap_templates_map().
+	$file_keys = array_merge( $file_keys, array_keys( itsi_hibah_lap_templates_map() ) );
 	foreach ( $file_keys as $key ) {
 		if ( ! array_key_exists( $key, $_POST['tr'] ) ) {
 			continue; // field ini tidak diedit di metabox → jangan sentuh.
@@ -545,6 +574,84 @@ function itsi_hibah_surat_kesanggupan_template_url( $hibah_id ) {
 	}
 
 	return '';
+}
+
+/**
+ * Peta template dokumen tahap lanjutan — milik EVENT (CPT `hibah`).
+ *
+ * Template ini diunggah SEKALI di event hibah lalu dipakai semua peserta
+ * (Lap. Kemajuan & Lap. Akhir) sebagai tautan unduh. Peserta tidak pernah
+ * mengunggah template, sehingga tidak ada duplikasi berkas per pendaftaran.
+ *
+ * key => label (+ ekstensi yang disarankan). Key sengaja tidak diawali `_`
+ * agar konsisten dengan `file_surat_kesanggupan` dan dibaca oleh
+ * `itsi_hibah_read_file_meta()`.
+ *
+ * @return array<string,array{label:string,ext:string[]}>
+ */
+function itsi_hibah_lap_templates_map() {
+	$doc = array( 'doc', 'docx' );
+	return array(
+		'file_template_lapkem'       => array( 'label' => 'Template Laporan Kemajuan', 'ext' => $doc ),
+		'file_template_sptb'         => array( 'label' => 'Template SPTB', 'ext' => $doc ),
+		'file_template_lapakhir'     => array( 'label' => 'Template Laporan Akhir', 'ext' => $doc ),
+		'file_template_berita_acara' => array( 'label' => 'Template Berita Acara', 'ext' => $doc ),
+		'file_template_bpp'          => array( 'label' => 'Template Berita Penyelesaian Pekerjaan', 'ext' => $doc ),
+		'file_template_anggaran'     => array( 'label' => 'Template Penggunaan Anggaran', 'ext' => $doc ),
+	);
+}
+
+/**
+ * URL satu template dokumen EVENT.
+ *
+ * @param int    $hibah_id ID post hibah.
+ * @param string $key      Kunci dari itsi_hibah_lap_templates_map().
+ * @return string URL file pertama, atau '' bila belum ada.
+ */
+function itsi_hibah_lap_template_url( $hibah_id, $key ) {
+	$hibah_id = (int) $hibah_id;
+	if ( $hibah_id <= 0 || '' === (string) $key ) { return ''; }
+
+	$urls = itsi_hibah_attachment_urls( itsi_hibah_read_file_meta( $hibah_id, $key ) );
+	if ( ! empty( $urls ) ) { return (string) $urls[0]; }
+
+	// Fallback: ID/URL tunggal tanpa `_ids` (pola sama dengan surat kesanggupan).
+	$single = get_post_meta( $hibah_id, $key . '_id', true );
+	if ( ! empty( $single ) ) {
+		$urls = itsi_hibah_attachment_urls( $single );
+		if ( ! empty( $urls ) ) { return (string) $urls[0]; }
+	}
+
+	return '';
+}
+
+/**
+ * Semua URL template tahap lanjutan milik sebuah EVENT, dipetakan ke kunci
+ * payload REST pendaftaran.
+ *
+ * SATU-SATUNYA sumber pemetaan `kunci payload` → `meta file di CPT hibah`.
+ * Dipakai oleh `handle_detail()`, `handle_lap_stage_access()`, dan
+ * `lp2m_pendaftaran_status()` supaya nama kunci tidak pernah berbeda antar
+ * endpoint. Sisi Vue memakai nama yang sama di `src/data/lapStages.ts`.
+ *
+ * @param int $hibah_id ID post hibah.
+ * @return array<string,string> payload_key => URL ('' bila belum diunggah).
+ */
+function itsi_hibah_lap_template_payload( $hibah_id ) {
+	$map = array(
+		'lapkem_template_url'            => 'file_template_lapkem',
+		'lapkem_sptb_template_url'       => 'file_template_sptb',
+		'lapakhir_template_url'          => 'file_template_lapakhir',
+		'lapakhir_ba_template_url'       => 'file_template_berita_acara',
+		'lapakhir_bpp_template_url'      => 'file_template_bpp',
+		'lapakhir_anggaran_template_url' => 'file_template_anggaran',
+	);
+
+	$out = array();
+	foreach ( $map as $payload_key => $event_key ) {
+		$out[ $payload_key ] = itsi_hibah_lap_template_url( $hibah_id, $event_key );
+	}
+	return $out;
 }
 
 /**

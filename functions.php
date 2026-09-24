@@ -1556,6 +1556,30 @@ add_action( 'typerocket_loaded', function () {
 						->setHelp( 'File template surat kesanggupan (PDF). Field ini single-file; file tambahan dari dashboard LP2M tetap tersimpan & ditampilkan ke peserta.' )
 					. itsi_hibah_metabox_file_note( 'file_surat_kesanggupan' )
 					. '</div>'
+					. '<div style="margin-bottom:1rem;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px">'
+					. '<h4 style="margin:0 0 .5rem">📑 Template Laporan (Lap. Kemajuan & Lap. Akhir)</h4>'
+					. '<p style="margin:0 0 .5rem;font-size:12px;color:#50575e">Diunggah <strong>sekali di event ini</strong>. Semua peserta cukup mengunduh lewat halaman Track Status (template tampil sebagai tautan unduh) — peserta <strong>tidak</strong> pernah mengunggah template, sehingga berkas tidak berulang per pendaftaran.</p>'
+					. '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">'
+					. '<div>' . $form->file( 'file_template_lapkem' )->setLabel( 'Template Laporan Kemajuan (DOCX)' )
+						->setHelp( 'Template laporan kemajuan. Disarankan DOC/DOCX.' ) . '</div>'
+					. '<div>' . $form->file( 'file_template_sptb' )->setLabel( 'Template SPTB (DOCX)' )
+						->setHelp( 'Template Surat Pernyataan Tanggung Jawab Belanja. Disarankan DOC/DOCX.' ) . '</div>'
+					. '<div>' . $form->file( 'file_template_lapakhir' )->setLabel( 'Template Laporan Akhir (DOCX)' )
+						->setHelp( 'Template laporan akhir. Disarankan DOC/DOCX.' ) . '</div>'
+					. '<div>' . $form->file( 'file_template_berita_acara' )->setLabel( 'Template Berita Acara (DOCX)' )
+						->setHelp( 'Template berita acara. Disarankan DOC/DOCX.' ) . '</div>'
+					. '<div>' . $form->file( 'file_template_bpp' )->setLabel( 'Template Berita Penyelesaian Pekerjaan (DOCX)' )
+						->setHelp( 'Template berita penyelesaian pekerjaan. Disarankan DOC/DOCX.' ) . '</div>'
+					. '<div>' . $form->file( 'file_template_anggaran' )->setLabel( 'Template Penggunaan Anggaran (DOCX)' )
+						->setHelp( 'Template laporan penggunaan anggaran. Disarankan DOC/DOCX.' ) . '</div>'
+					. '</div>'
+					. itsi_hibah_metabox_file_note( 'file_template_lapkem' )
+					. itsi_hibah_metabox_file_note( 'file_template_sptb' )
+					. itsi_hibah_metabox_file_note( 'file_template_lapakhir' )
+					. itsi_hibah_metabox_file_note( 'file_template_berita_acara' )
+					. itsi_hibah_metabox_file_note( 'file_template_bpp' )
+					. itsi_hibah_metabox_file_note( 'file_template_anggaran' )
+					. '</div>'
 				) );
 
 				$tabs->layoutLeftEnclosed()->render();
