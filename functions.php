@@ -25,7 +25,7 @@
  *   inc/theme/         — widgets, menu walker, schema.org JSON-LD
  *   inc/integrations/  — third-party shims (typerocket)
  *   inc/lp2m/ (+pdf/)  — LP2M integration (REST, auth, CORS, SMTP, PDF)
- *   inc/tools/seeders/ — CLI seed scripts (not loaded by the theme)
+ *   inc/tools/seeders/ — 🔒 locked CLI seed scripts (not loaded, not runnable)
  * Docs:            STRUCTURE.md (full tree), inc/README.md, _backups/README.md
  * Unused code archived under _backups/_unused/ (never loaded — keep for ref).
  * ───────────────────────────────────────────────────────────────────────────

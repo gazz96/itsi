@@ -16,6 +16,26 @@
  *   wp eval-file web/app/themes/itsi/inc/tools/seeders/seed-info-publik.php -- --force
  */
 
+/**
+ * ── SEEDER LOCKED (2026-09-29) ─────────────────────────────────────────────
+ * This seeder is disabled. The code below is kept intact but will not run.
+ *
+ * Blocked: `wp eval-file`, direct browser access, and require/include.
+ *
+ * To run it again, add this to wp-config.php:
+ *     define( 'ITSI_ENABLE_SEEDERS', true );
+ * then run it with WP-CLI as usual. Remove the constant afterwards, and never
+ * enable it on a production site.
+ * ───────────────────────────────────────────────────────────────────────────
+ */
+if (!defined('ITSI_ENABLE_SEEDERS') || !ITSI_ENABLE_SEEDERS || PHP_SAPI !== 'cli' || !defined('WP_CLI') || !WP_CLI) {
+    if (PHP_SAPI !== 'cli') {
+        http_response_code(403);
+    }
+    echo "✗ This seeder is locked out (inc/tools/seeders).\n";
+    return;
+}
+
 if (!defined('ABSPATH')) {
     echo "This script must be run via WP-CLI: wp eval-file seed-info-publik.php\n";
     return;

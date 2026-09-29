@@ -115,9 +115,10 @@ inc/
 │       └── fpdf/                  FPDF library (MIT)
 │
 └── tools/
-    └── seeders/                   WP-CLI seed scripts — NOT loaded by the theme
-        ├── seed-info-publik.php   wp eval-file …
-        └── seed-sdgs.php          wp eval-file …
+    └── seeders/                   🔒 LOCKED — see README.md in that folder
+        ├── README.md              Why + how to unlock
+        ├── seed-info-publik.php   Blocked (CLI + HTTP)
+        └── seed-sdgs.php          Blocked (CLI + HTTP)
 ```
 
 ### ⚠ `inc/lp2m/pdf/` — do not separate
@@ -132,7 +133,9 @@ require_once __DIR__ . '/fpdf/fpdf.php';
 `fpdf/fpdf.php` resolves its fonts via `dirname(__FILE__) . '/font/'`.
 
 `inc/tools/seeders/` is also deliberately outside the load chain: those files
-are executed by hand through `wp eval-file`, never `require_once`'d.
+are never `require_once`'d. They are additionally **locked** — they refuse to
+run via WP-CLI, `require`, or a direct browser request. See
+[`inc/tools/seeders/README.md`](inc/tools/seeders/README.md).
 
 ---
 
@@ -204,6 +207,8 @@ Moved to `_backups/` (gitignored, **never loaded**):
 | `_unused/inc/theme-builder.php` + `class-theme-builder-*.php` | Theme Builder feature, never enqueued |
 | `_unused/js/` + `_unused/assets/css/theme-builder.css` | Theme Builder assets |
 | `_unused/js/{navigation,customizer,navbar-hover}.js` | Never enqueued |
+
+Locked but **not** archived: `inc/tools/seeders/` (see §2).
 
 `languages/itsi.pot` was archived because it is still the stock Underscores
 catalog. Regenerate a real one with:

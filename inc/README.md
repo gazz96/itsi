@@ -61,9 +61,10 @@ inc/
 │       └── fpdf/                  FPDF library (MIT)
 │
 └── tools/
-    └── seeders/                   WP-CLI seed scripts — NOT loaded by the theme
-        ├── seed-info-publik.php   wp eval-file …
-        └── seed-sdgs.php          wp eval-file …
+    └── seeders/                   🔒 LOCKED — see README.md in that folder
+        ├── README.md              Why + how to unlock
+        ├── seed-info-publik.php   Blocked (CLI + HTTP)
+        └── seed-sdgs.php          Blocked (CLI + HTTP)
 ```
 
 ## Where files are loaded
@@ -74,12 +75,10 @@ to find its exact position; the include order is deliberate (see
 [`../STRUCTURE.md`](../STRUCTURE.md) §3) and preserves the original hook
 registration order.
 
-`inc/tools/seeders/` is the one exception — nothing requires it. Run those by
-hand:
-
-```bash
-wp eval-file web/app/themes/itsi/inc/tools/seeders/seed-sdgs.php
-```
+`inc/tools/seeders/` is the one exception — nothing requires it, and it is
+**locked**. Those files can no longer be run through WP-CLI, `require`, or a
+browser request; they abort with `403`/an error message. See
+[`tools/seeders/README.md`](tools/seeders/README.md) for the unlock procedure.
 
 ## Editing notes
 
