@@ -6,7 +6,7 @@
  * matching the `sdgsOptions` array in the frontend (lp2m/src/data/content.json).
  *
  * USAGE (from project root):
- *   wp eval-file web/app/themes/itsi/seeders/seed-sdgs.php
+ *   wp eval-file web/app/themes/itsi/inc/tools/seeders/seed-sdgs.php
  *
  * Safe to re-run: existing terms are skipped. To force re-seed, delete the
  * `itsi_sdgs_seeded` option first:

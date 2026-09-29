@@ -6,14 +6,14 @@
  * documents, matching the original `info-publik.html` landing page template.
  *
  * USAGE (from project root):
- *   wp eval-file web/app/themes/itsi/seeders/seed-info-publik.php
+ *   wp eval-file web/app/themes/itsi/inc/tools/seeders/seed-info-publik.php
  *
  * Safe to re-run: existing categories and documents are skipped. To force
  * re-seed, delete the `itsi_info_publik_seeded` option first:
  *   wp option delete itsi_info_publik_seeded
  *
  * To also wipe all existing data and re-seed from scratch:
- *   wp eval-file web/app/themes/itsi/seeders/seed-info-publik.php -- --force
+ *   wp eval-file web/app/themes/itsi/inc/tools/seeders/seed-info-publik.php -- --force
  */
 
 if (!defined('ABSPATH')) {
