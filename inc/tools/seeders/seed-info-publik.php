@@ -6,15 +6,35 @@
  * documents, matching the original `info-publik.html` landing page template.
  *
  * USAGE (from project root):
- *   wp eval-file web/app/themes/itsi/seeders/seed-info-publik.php
+ *   wp eval-file web/app/themes/itsi/inc/tools/seeders/seed-info-publik.php
  *
  * Safe to re-run: existing categories and documents are skipped. To force
  * re-seed, delete the `itsi_info_publik_seeded` option first:
  *   wp option delete itsi_info_publik_seeded
  *
  * To also wipe all existing data and re-seed from scratch:
- *   wp eval-file web/app/themes/itsi/seeders/seed-info-publik.php -- --force
+ *   wp eval-file web/app/themes/itsi/inc/tools/seeders/seed-info-publik.php -- --force
  */
+
+/**
+ * ── SEEDER LOCKED (2026-09-29) ─────────────────────────────────────────────
+ * This seeder is disabled. The code below is kept intact but will not run.
+ *
+ * Blocked: `wp eval-file`, direct browser access, and require/include.
+ *
+ * To run it again, add this to wp-config.php:
+ *     define( 'ITSI_ENABLE_SEEDERS', true );
+ * then run it with WP-CLI as usual. Remove the constant afterwards, and never
+ * enable it on a production site.
+ * ───────────────────────────────────────────────────────────────────────────
+ */
+if (!defined('ITSI_ENABLE_SEEDERS') || !ITSI_ENABLE_SEEDERS || PHP_SAPI !== 'cli' || !defined('WP_CLI') || !WP_CLI) {
+    if (PHP_SAPI !== 'cli') {
+        http_response_code(403);
+    }
+    echo "✗ This seeder is locked out (inc/tools/seeders).\n";
+    return;
+}
 
 if (!defined('ABSPATH')) {
     echo "This script must be run via WP-CLI: wp eval-file seed-info-publik.php\n";

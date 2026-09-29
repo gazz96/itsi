@@ -35,12 +35,12 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return void
  */
 function itsi_typerocket_compat_assets() {
-	$file = get_template_directory() . '/js/typerocket-compat.js';
+	$file = get_template_directory() . '/assets/js/typerocket-compat.js';
 	$ver  = file_exists( $file ) ? (string) filemtime( $file ) : '1.0.0';
 
 	wp_enqueue_script(
 		'itsi-tr-compat',
-		get_template_directory_uri() . '/js/typerocket-compat.js',
+		get_template_directory_uri() . '/assets/js/typerocket-compat.js',
 		array( 'jquery' ),
 		$ver,
 		false // header — must run before TypeRocket core.js (footer).

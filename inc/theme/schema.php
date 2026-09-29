@@ -163,7 +163,7 @@ function itsi_schema_organization_node() {
 		}
 	}
 	if ( '' === $logo_url ) {
-		$logo_url = get_template_directory_uri() . '/assets/logo.svg';
+		$logo_url = get_template_directory_uri() . '/assets/img/logo.svg';
 	}
 	$org['logo'] = array(
 		'@type' => 'ImageObject',
