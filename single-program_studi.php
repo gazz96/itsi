@@ -106,6 +106,9 @@ if ( $profil === '' ) {
 }
 
 $misi_raw = (string) get_post_meta( $post_id, 'misi', true );
+echo "<pre>";
+var_dump($misi_raw);
+echo "</pre>";
 if ( $misi_raw === '' ) {
     $misi_raw = (string) get_post_meta( $post_id, 'prodi_mission', true );
 }
