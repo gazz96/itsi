@@ -554,7 +554,7 @@ unset( $dr );
               <div class="pg-hist-text"><?php echo wpautop( wp_kses_post( $profil ) ); ?></div>
             </div>
             <?php endif; ?>
-            <div class="p-head" style="margin-bottom:1.3rem">
+            <div class="p-head" style="margin-bottom:1.3rem"> 
               <span class="pg-sec-label">Sejarah Singkat</span>
               <h2 class="pg-sec-title">Perjalanan <em>Prodi <?php echo esc_html( $hero_title ); ?></em></h2>
             </div>
