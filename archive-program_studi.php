@@ -47,7 +47,10 @@ $terms = get_terms( array( 'taxonomy' => 'fakultas', 'hide_empty' => false ) );
 					<?php $pi = 0; while ( $prodi_q->have_posts() ) : $prodi_q->the_post();
 						$pi++;
 						$gel      = get_post_meta( get_the_ID(), 'gelar', true );
-						$akr      = get_post_meta( get_the_ID(), 'akreditasi', true );
+						$akr      = get_post_meta( get_the_ID(), 'akreditasi_value', true );
+						if ( ! $akr ) {
+							$akr = get_post_meta( get_the_ID(), 'akreditasi', true ); // legacy key fallback
+						}
 						$fac_objs = get_the_terms( get_the_ID(), 'fakultas' );
 						$fac      = $fac_objs && ! is_wp_error( $fac_objs ) ? $fac_objs[0]->name : 'Fakultas';
 						?>

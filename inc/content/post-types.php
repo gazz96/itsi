@@ -270,12 +270,16 @@ add_action( 'typerocket_loaded', function () {
 
 				/* ─── TAB 1: Statistik ─── */
 							$tabs->tab( 'Statistik', 'dashicons-chart-bar', array(
-								'<div style="margin-bottom:1rem">'
-								. $form->image( 'prodi_icon_image' )->setLabel( 'Icon Program Studi (gambar)' )->setHelp( 'Gambar kecil (~40×40 px) yang ditampilkan di kartu prodi pada section "Program Studi" di homepage. Kosongkan jika tidak ada — slot akan kosong (tanpa emoji fallback).' )
+								'<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">'
+								. '<div>' . $form->image( 'prodi_icon_image' )->setLabel( 'Icon Program Studi (gambar)' )->setHelp( 'Gambar kecil (~40×40 px) yang ditampilkan di kartu prodi pada section "Program Studi" di homepage. Kosongkan jika tidak ada — slot akan kosong (tanpa emoji fallback).' ) . '</div>'
+								. '<div>' . $form->image( 'prodi_hero_image' )->setLabel( 'Gambar Hero / Thumbnail Kartu' )->setHelp( 'Gambar utama kartu prodi di section "Program Studi" homepage. Kosongkan untuk memakai Featured Image.' ) . '</div>'
+								. '</div>'
+								. '<div style="margin-bottom:1rem">'
+								. $form->text( 'hero_title' )->setLabel( 'Nama Program Studi (hero_title)' )->setHelp( 'Dipakai sebagai nama prodi di kartu homepage dan judul hero halaman detail. Kosongkan untuk memakai judul post.' )->setAttribute( 'placeholder', 'mis. Budidaya Perkebunan (BDP)' )
 								. '</div>'
 								. '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">'
 								. '<div>' . $form->text( 'gelar' )->setLabel( 'Gelar' )->setAttribute( 'placeholder', 'mis. S.T., S.P., M.P.' ) . '</div>'
-								. '<div>' . $form->text( 'akreditasi' )->setLabel( 'Akreditasi' )->setAttribute( 'placeholder', 'mis. Unggul / A / B' ) . '</div>'
+								. '<div>' . $form->text( 'akreditasi_value' )->setLabel( 'Akreditasi (akreditasi_value)' )->setHelp( 'Dibaca komponen Prodi di homepage dan sidebar halaman detail.' )->setAttribute( 'placeholder', 'mis. Unggul / A / B' ) . '</div>'
 								. '<div>' . $form->number( 'durasi' )->setLabel( 'Durasi Studi (semester)' )->setAttribute( 'placeholder', '8' ) . '</div>'
 								. '<div>' . $form->number( 'total_sks' )->setLabel( 'Total SKS' )->setAttribute( 'placeholder', '144' ) . '</div>'
 								. '<div>' . $form->number( 'jumlah_dosen' )->setLabel( 'Jumlah Dosen' )->setAttribute( 'placeholder', '22' ) . '</div>'
@@ -309,7 +313,7 @@ add_action( 'typerocket_loaded', function () {
 				$tabs->tab( 'Hero & Sidebar', 'dashicons-cover-image', array(
 					'<div style="padding:1rem;background:#f6f8fc;border-radius:8px;margin-bottom:1rem">'
 					. '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1rem">'
-					. '<div>' . $form->text( 'akreditasi_value' )->setLabel( 'Akreditasi BAN-PT (kode)' )->setAttribute( 'placeholder', 'mis. B / Unggul / A' ) . '</div>'
+					. '<div style="display:flex;align-items:center;font-size:.85em;color:#666">Nilai akreditasi diatur di tab <strong>Statistik</strong> — field <code>akreditasi_value</code> (dipakai komponen Prodi &amp; halaman detail).</div>'
 					. '<div>' . $form->text( 'akreditasi_sub' )->setLabel( 'Status Akreditasi' )->setAttribute( 'placeholder', 'Terakreditasi Baik' ) . '</div>'
 					. '<div>' . $form->text( 'sk_akreditasi' )->setLabel( 'No. SK Akreditasi' )->setAttribute( 'placeholder', 'mis. 5828/D/T/K-I/2011' ) . '</div>'
 					. '<div>' . $form->select( '_use_default_content' )->setLabel( 'Gunakan Konten Default BDP (LEGACY — tidak digunakan lagi)' )->setOptions( array( '1' => 'Ya (fallback BDP)', '0' => 'Tidak (kosong jika belum diisi)' ) )->setAttribute( 'style', 'width:100%' ) . '</div>'
@@ -341,7 +345,7 @@ add_action( 'typerocket_loaded', function () {
 
 				/* ─── TAB 3: Profil & Visi ─── */
 				$tabs->tab( 'Profil & Visi', 'dashicons-text-page', array(
-					'<div style="margin-bottom:.6rem">' . $form->wpEditor( 'profil' )->setLabel( 'Profil Singkat' )->setHelp( 'Tampil di panel Profil Prodi, di atas Sejarah & Timeline.' ) . '</div>'
+					'<div style="margin-bottom:.6rem">' . $form->wpEditor( 'profil_singkat' )->setLabel( 'Profil Singkat' )->setHelp( 'Dibaca komponen Prodi di homepage (kartu prodi) dan panel Profil Prodi di halaman detail.' ) . '</div>'
 					. '<div style="margin-bottom:.6rem">' . $form->wpEditor( 'visi' )->setLabel( 'Visi (rich text)' )->setHelp( 'Tampil di panel Visi & Misi. Boleh pakai bold/paragraf.' ) . '</div>'
 					. '<div style="margin-bottom:.8rem">' . $form->textarea( 'tujuan_text' )->setLabel( 'Tujuan & Kompetensi (LEGACY — tidak dirender, pakai repeater Tujuan di tab Misi & Lulusan)' ) . '</div>'
 				) );
