@@ -23,33 +23,37 @@ if ( $hero_title === '' ) {
     $hero_title = get_the_title();
 }
 
-$prodi_degree          = (string) get_post_meta( $post_id, 'prodi_degree', true );
-if ( $prodi_degree === '' ) {
-    $prodi_degree = (string) get_post_meta( $post_id, 'gelar', true ); // legacy key fallback
-}
+/*
+ * Loader repeater TypeRocket. Nilai bisa tersimpan sebagai:
+ *   - array PHP (WP sudah meng-unserialize otomatis)
+ *   - JSON string
+ *   - array serialized di dalam string
+ * Tanpa ini, cast (string) pada array menghasilkan "Array" dan datanya hilang.
+ */
+$itsi_load_repeater = function ( $key ) use ( $post_id ) {
+    $v = get_post_meta( $post_id, $key, true );
+    if ( is_array( $v ) ) { return $v; }
+    if ( is_string( $v ) && $v !== '' ) {
+        $decoded = json_decode( $v, true );
+        if ( is_array( $decoded ) ) { return $decoded; }
+        $maybe = maybe_unserialize( $v );
+        if ( is_array( $maybe ) ) { return $maybe; }
+    }
+    return array();
+};
+
+/*
+ * Identitas prodi — HANYA dari field admin (tab Pengaturan).
+ * Kunci legacy (prodi_degree, prodi_accreditation, prodi_founding_year,
+ * prodi_duration, prodi_total_credits, prodi_lecturers_count) tidak dibaca
+ * lagi: field-nya tidak ada di admin, jadi isinya tidak bisa ditrace.
+ */
+$prodi_degree          = (string) get_post_meta( $post_id, 'gelar', true );
 $prodi_accreditation   = (string) get_post_meta( $post_id, 'akreditasi_value', true );
-if ( $prodi_accreditation === '' ) {
-    $prodi_accreditation = (string) get_post_meta( $post_id, 'akreditasi', true ); // legacy key fallback
-}
-if ( $prodi_accreditation === '' ) {
-    $prodi_accreditation = (string) get_post_meta( $post_id, 'prodi_accreditation', true ); // legacy key fallback
-}
 $prodi_founding_year   = (string) get_post_meta( $post_id, 'tahun_berdiri', true );
-if ( $prodi_founding_year === '' ) {
-    $prodi_founding_year = (string) get_post_meta( $post_id, 'prodi_founding_year', true ); // legacy key fallback
-}
 $prodi_duration        = (string) get_post_meta( $post_id, 'durasi', true );
-if ( $prodi_duration === '' ) {
-    $prodi_duration = (string) get_post_meta( $post_id, 'prodi_duration', true ); // legacy key fallback
-}
 $prodi_total_credits   = (string) get_post_meta( $post_id, 'total_sks', true );
-if ( $prodi_total_credits === '' ) {
-    $prodi_total_credits = (string) get_post_meta( $post_id, 'prodi_total_credits', true ); // legacy key fallback
-}
 $prodi_lecturers_count = (string) get_post_meta( $post_id, 'jumlah_dosen', true );
-if ( $prodi_lecturers_count === '' ) {
-    $prodi_lecturers_count = (string) get_post_meta( $post_id, 'prodi_lecturers_count', true ); // legacy key fallback
-}
 
 $hero_subtitle   = (string) get_post_meta( $post_id, 'hero_subtitle', true );
 $hero_badge_icon = (string) get_post_meta( $post_id, 'hero_badge_icon', true );
@@ -81,10 +85,6 @@ $is_empty    = false;
 /* ----- Sejarah ----- */
 $sejarah = get_post_meta( $post_id, 'sejarah', true );
 if ( is_array( $sejarah ) || is_object( $sejarah ) ) { $sejarah = ''; }
-if ( $sejarah === '' || $sejarah === null ) {
-    $sejarah = get_post_meta( $post_id, 'prodi_history', true );
-    if ( is_array( $sejarah ) || is_object( $sejarah ) ) { $sejarah = ''; }
-}
 $sejarah = (string) $sejarah;
 
 $timeline_raw = get_post_meta( $post_id, 'timeline', true );
@@ -94,9 +94,6 @@ if ( is_array( $timeline_raw ) || is_object( $timeline_raw ) ) {
     $timeline_raw = ''; // marker
 } else {
     $timeline_raw = (string) $timeline_raw;
-    if ( $timeline_raw === '' ) {
-        $timeline_raw = (string) get_post_meta( $post_id, 'prodi_timeline', true );
-    }
     $timeline = maybe_unserialize( $timeline_raw );
 }
 if ( ! is_array( $timeline ) ) {
@@ -105,70 +102,25 @@ if ( ! is_array( $timeline ) ) {
 
 /* ----- Visi & Misi ----- */
 $visi = (string) get_post_meta( $post_id, 'visi', true );
-if ( $visi === '' ) {
-    $visi = (string) get_post_meta( $post_id, 'prodi_vision', true );
-}
 
 /* ----- Profil Singkat (panel Profil Prodi, di atas Sejarah) ----- */
 $profil = (string) get_post_meta( $post_id, 'profil_singkat', true );
-if ( $profil === '' ) {
-    $profil = (string) get_post_meta( $post_id, 'profil', true ); // legacy key fallback
-}
-if ( $profil === '' ) {
-    $profil = (string) get_post_meta( $post_id, 'prodi_profile', true ); // legacy key fallback
-}
 
-$misi_raw = (string) get_post_meta( $post_id, 'misi', true );
-if ( $misi_raw === '' ) {
-    $misi_raw = (string) get_post_meta( $post_id, 'prodi_mission', true );
-}
-$misi = maybe_unserialize( $misi_raw );
-if ( ! is_array( $misi ) ) {
-    $misi = array();
-}
+$misi = $itsi_load_repeater( 'misi' );
 
 /* ----- Tujuan & Kompetensi ----- */
-$tujuan_raw = (string) get_post_meta( $post_id, 'tujuan', true );
-if ( $tujuan_raw === '' ) {
-    $tujuan_raw = (string) get_post_meta( $post_id, 'prodi_objectives', true );
-}
-$tujuan = maybe_unserialize( $tujuan_raw );
-if ( ! is_array( $tujuan ) ) {
-    $tujuan = array();
-}
+$tujuan = $itsi_load_repeater( 'tujuan' );
 
-$kompetensi_raw = (string) get_post_meta( $post_id, 'kompetensi', true );
-if ( $kompetensi_raw === '' ) {
-    $kompetensi_raw = (string) get_post_meta( $post_id, 'prodi_competencies', true );
-}
-$kompetensi = maybe_unserialize( $kompetensi_raw );
-if ( ! is_array( $kompetensi ) ) {
-    $kompetensi = array();
-}
+$kompetensi = $itsi_load_repeater( 'kompetensi' );
 
 /* ----- Profil Lulusan ----- */
-$lulusan = get_post_meta( $post_id, 'lulusan', true );
-if ( ! is_array( $lulusan ) ) {
-    $lulusan = array();
-}
+$lulusan = $itsi_load_repeater( 'lulusan' );
 
 /* ----- Dosen ----- */
-$dosen = get_post_meta( $post_id, 'dosen', true );
-if ( ! is_array( $dosen ) ) {
-    $dosen = array();
-}
+$dosen = $itsi_load_repeater( 'dosen' );
 
 
 /* ----- Repeater sections (Fasilitas, Mitra, Prestasi, Testimoni) ----- */
-$itsi_load_repeater = function ( $key ) use ( $post_id ) {
-    $v = get_post_meta( $post_id, $key, true );
-    if ( is_array( $v ) ) { return $v; }
-    if ( is_string( $v ) && $v !== '' ) {
-        $decoded = json_decode( $v, true );
-        if ( is_array( $decoded ) ) { return $decoded; }
-    }
-    return array();
-};
 $fasilitas = $itsi_load_repeater( 'fasilitas' );
 $mitra     = $itsi_load_repeater( 'mitra' );
 $prestasi  = $itsi_load_repeater( 'prestasi' );
@@ -484,6 +436,24 @@ unset( $dr );
 </section>
 
 <!-- ══════════════ MAIN ══════════════ -->
+<?php
+/*
+ * Empty-state helper — satu bentuk untuk semua panel.
+ * Dipakai saat field terkait belum diisi di admin, supaya tidak ada lagi
+ * data fallback/hardcoded yang tidak bisa ditrace ke input manapun.
+ */
+if ( ! isset( $itsi_empty_state ) ) {
+    $itsi_empty_state = function ( $icon, $title, $hint = '' ) {
+        echo '<div class="pg-empty pg-empty-state" style="display:flex;align-items:flex-start;gap:.9rem;background:#f6f8fc;border:1px dashed #d5dde8;padding:1.1rem 1.2rem;border-radius:10px;color:var(--tx-mid,#5b6b7f)">';
+        echo '<i class="bi ' . esc_attr( $icon ) . '" aria-hidden="true" style="font-size:1.5rem;line-height:1;color:#BF9B30;flex-shrink:0"></i>';
+        echo '<div><div style="font-weight:600;color:var(--ink,#0f1b2d);margin-bottom:.2rem">' . esc_html( $title ) . '</div>';
+        if ( $hint !== '' ) {
+            echo '<div style="font-size:.9em;font-style:italic">' . esc_html( $hint ) . '</div>';
+        }
+        echo '</div></div>';
+    };
+}
+?>
 <div class="pg-main-bg">
   <div class="pg-container">
     <div class="pg-page-layout">
@@ -566,6 +536,12 @@ unset( $dr );
             <div class="pg-hist-box">
               <div class="pg-hist-text"><?php echo wpautop( wp_kses_post( $profil ) ); ?></div>
             </div>
+            <?php else : ?>
+            <div class="p-head" style="margin-bottom:1.3rem">
+              <span class="pg-sec-label">Profil Singkat</span>
+              <h2 class="pg-sec-title">Profil <em>Prodi <?php echo esc_html( $hero_title ); ?></em></h2>
+            </div>
+            <?php $itsi_empty_state( 'bi-person-badge', 'Belum ada data profil singkat.', 'Lengkapi di admin → Detail Program Studi → Profil Prodi → Profil Singkat.' ); ?>
             <?php endif; ?>
             <div class="p-head" style="margin-bottom:1.3rem"> 
               <span class="pg-sec-label">Sejarah Singkat</span>
@@ -574,16 +550,9 @@ unset( $dr );
             <div class="pg-hist-box">
               <?php if ( $sejarah !== '' ) : ?>
                 <div class="pg-hist-text"><?php echo wpautop( wp_kses_post( $sejarah ) ); ?></div>
-              <?php elseif ( $use_default === '1' ) : ?>
-                <div class="pg-hist-text">
-                  <p>Program Studi Budidaya Perkebunan (BDP) didirikan pada 7 Juli 2005 sebagai bentuk komitmen institusi dalam menyiapkan sumber daya manusia yang kompeten di bidang pengolahan hasil perkebunan, khususnya komoditas strategis kelapa sawit. Pendirian Program Studi BDP secara resmi ditetapkan melalui Surat Keputusan Pendirian Program Studi Nomor 96/D/O/2005.</p>
-                  <p>Dalam rangka penguatan tata kelola dan penyelenggaraan pendidikan tinggi, Program Studi BDP memperoleh legalitas penyelenggaraan melalui Surat Keputusan Penyelenggaraan Program Studi Nomor 5828/D/T/K-I/2011, yang menjadi landasan operasional dalam pelaksanaan kegiatan akademik, pengembangan kurikulum, serta peningkatan mutu tridarma perguruan tinggi.</p>
-                  <p>Seiring dengan dinamika kebijakan pendidikan tinggi dan tuntutan pengembangan institusi, STIPAP kemudian melakukan transformasi kelembagaan menjadi Institut Teknologi Sawit Indonesia (ITSI) pada 15 Desember 2021, berdasarkan Surat Keputusan Nomor 558/E/0/2021. Transformasi ini menjadi momentum strategis bagi Program Studi BDP untuk memperkuat peran dan kontribusinya dalam pengembangan pendidikan vokasi dan akademik berbasis industri sawit yang berkelanjutan.</p>
-                  <p>Hingga saat ini, Program Studi BDP terus berkomitmen untuk menghasilkan lulusan yang unggul, adaptif, dan siap bersaing di dunia industri dan dunia kerja, melalui penguatan kurikulum berbasis Outcome-Based Education (OBE), implementasi Merdeka Belajar Kampus Merdeka (MBKM), serta kolaborasi aktif dengan mitra industri Perkebunan dan pemangku kepentingan.</p>
-                </div>
               <?php else : ?>
                 <div class="pg-hist-text pg-empty">
-                  <p style="font-style:italic;color:var(--tx-mid)">Sejarah program studi belum diisi. Silakan lengkapi di halaman admin → Detail Program Studi → Sejarah &amp; Timeline.</p>
+                  <?php $itsi_empty_state( 'bi-clock-history', 'Belum ada data sejarah prodi.', 'Lengkapi di admin → Detail Program Studi → Profil Prodi → Sejarah.' ); ?>
                 </div>
               <?php endif; ?>
               <?php if ( ! empty( $timeline ) ) : ?>
@@ -625,12 +594,19 @@ unset( $dr );
             <h2 class="pg-sec-title" style="margin-bottom:1.2rem">Visi <em><?php echo esc_html( $hero_title ); ?> 2030</em></h2>
             <div class="pg-visi-card">
               <div class="pg-vc-lbl">Visi</div>
-              <div class="pg-vc-text"><?php echo wpautop( wp_kses_post( $visi ) ); ?></div>
+              <?php if ( trim( wp_strip_all_tags( (string) $visi ) ) !== '' ) : ?>
+                <div class="pg-vc-text"><?php echo wpautop( wp_kses_post( $visi ) ); ?></div>
+              <?php else : ?>
+                <?php $itsi_empty_state( 'bi-eye', 'Belum ada data visi.', 'Lengkapi di admin → Detail Program Studi → Visi & Misi → Visi.' ); ?>
+              <?php endif; ?>
             </div>
           </div>
           <div class="pg-block pg-rv pg-d2">
             <span class="pg-sec-label">Misi Program Studi</span>
             <h2 class="pg-sec-title" style="margin-bottom:1.2rem">Misi <em>Prodi <?php echo esc_html( $hero_title ); ?></em></h2>
+            <?php if ( empty( $misi ) ) : ?>
+              <?php $itsi_empty_state( 'bi-list-check', 'Belum ada data misi.', 'Lengkapi di admin → Detail Program Studi → Visi & Misi → Misi.' ); ?>
+            <?php else : ?>
             <div class="pg-misi-list">
               <?php foreach ( $misi as $i => $m ) :
                 $icon = isset( $m['icon'] ) ? $m['icon'] : 'bi-bullseye';
@@ -646,6 +622,7 @@ unset( $dr );
                 </div>
               <?php endforeach; ?>
             </div>
+            <?php endif; ?>
           </div>
         </div>
 
@@ -654,6 +631,9 @@ unset( $dr );
           <div class="pg-block pg-rv">
             <span class="pg-sec-label">Tujuan Program Studi</span>
             <h2 class="pg-sec-title" style="margin-bottom:1.3rem">Tujuan <em>Prodi <?php echo esc_html( $hero_title ); ?></em></h2>
+            <?php if ( empty( $tujuan ) ) : ?>
+              <?php $itsi_empty_state( 'bi-bullseye', 'Belum ada data tujuan prodi.', 'Lengkapi di admin → Detail Program Studi → Tujuan & Kompetensi → Tujuan.' ); ?>
+            <?php else : ?>
             <div class="pg-tj-grid">
               <?php foreach ( $tujuan as $i => $t ) :
                 $icon = isset( $t['icon'] ) ? $t['icon'] : 'bi-bullseye';
@@ -665,10 +645,14 @@ unset( $dr );
                 </div>
               <?php endforeach; ?>
             </div>
+            <?php endif; ?>
           </div>
           <div class="pg-block pg-rv pg-d2">
             <span class="pg-sec-label">Kompetensi Program Studi</span>
             <h2 class="pg-sec-title" style="margin-bottom:1.3rem"><?php echo count( $kompetensi ); ?> Kompetensi <em>Utama</em></h2>
+            <?php if ( empty( $kompetensi ) ) : ?>
+              <?php $itsi_empty_state( 'bi-patch-check', 'Belum ada data kompetensi.', 'Lengkapi di admin → Detail Program Studi → Tujuan & Kompetensi → Kompetensi Utama.' ); ?>
+            <?php else : ?>
             <div class="pg-km-grid">
               <?php foreach ( $kompetensi as $i => $k ) :
                 $icon = isset( $k['icon'] ) ? $k['icon'] : 'bi-patch-check';
@@ -684,6 +668,7 @@ unset( $dr );
                 </div>
               <?php endforeach; ?>
             </div>
+            <?php endif; ?>
           </div>
         </div>
 
@@ -692,6 +677,9 @@ unset( $dr );
           <div class="pg-block pg-rv">
             <span class="pg-sec-label">Profil Lulusan</span>
             <h2 class="pg-sec-title" style="margin-bottom:.6rem">Karir <em>Lulusan <?php echo esc_html( $hero_title ); ?></em></h2>
+            <?php if ( empty( $lulusan ) ) : ?>
+              <?php $itsi_empty_state( 'bi-briefcase', 'Belum ada data profil lulusan.', 'Lengkapi di admin → Detail Program Studi → Profil Lulusan.' ); ?>
+            <?php else : ?>
             <p style="font-size:.93rem;color:var(--tx-mid);margin-bottom:1.5rem;line-height:1.78">Lulusan <?php echo esc_html( $prodi_degree ); ?> <?php echo esc_html( $hero_title ); ?> ITSI disiapkan untuk berkarir profesional di berbagai sektor industri perkebunan dan agroindustri kelapa sawit nasional maupun internasional.</p>
             <div class="pg-lul-grid">
               <?php foreach ( $lulusan as $i => $l ) :
@@ -706,6 +694,7 @@ unset( $dr );
                 </div>
               <?php endforeach; ?>
             </div>
+            <?php endif; ?>
           </div>
         </div>
 
@@ -714,7 +703,7 @@ unset( $dr );
           <div class="pg-block pg-rv">
             <span class="pg-sec-label">Tata Kelola Prodi</span>
             <h2 class="pg-sec-title" style="margin-bottom:.6rem">Struktur <em>Organisasi</em></h2>
-            <p style="font-size:.93rem;color:var(--tx-mid);margin-bottom:1.6rem;line-height:1.78">Struktur tata kelola Program Studi D4 Budidaya Perkebunan di bawah <?php echo esc_html( $fakultas_name ); ?> ITSI.</p>
+            <p style="font-size:.93rem;color:var(--tx-mid);margin-bottom:1.6rem;line-height:1.78">Struktur tata kelola Program Studi <?php echo esc_html( $prodi_degree !== '' ? $prodi_degree . ' ' : '' ); ?><?php echo esc_html( $hero_title ); ?> di bawah <?php echo esc_html( $fakultas_name ); ?> ITSI.</p>
             <div class="pg-org-wrap">
               <?php if ( $struktur_img_src !== '' ) : ?>
                 <figure class="pg-org-image">
@@ -726,66 +715,7 @@ unset( $dr );
                   <?php endif; ?>
                 </figure>
               <?php else : ?>
-                <div class="pg-org-chart">
-                  <div class="pg-org-row">
-                    <div class="pg-org-col">
-                      <div class="pg-org-box pg-oL0">
-                        <div class="pg-ob-role">Dekan</div>
-                        <div class="pg-ob-name"><?php echo esc_html( $fakultas_name ); ?> ITSI</div>
-                      </div>
-                      <div class="pg-conn-v"></div>
-                    </div>
-                  </div>
-                  <div style="width:62%;height:2px;background:var(--pale);margin-bottom:0"></div>
-                  <div class="pg-org-row" style="gap:2.5rem;width:100%;justify-content:center">
-                    <div class="pg-org-col">
-                      <div class="pg-conn-v" style="height:16px"></div>
-                      <div class="pg-org-box pg-oL1">
-                        <div class="pg-ob-role">Wakil Dekan I</div>
-                        <div class="pg-ob-name">Bidang Akademik</div>
-                      </div>
-                    </div>
-                    <div class="pg-org-col">
-                      <div class="pg-conn-v" style="height:16px"></div>
-                      <div class="pg-org-box pg-oL1b">
-                        <div class="pg-ob-role">Ketua Program Studi</div>
-                        <div class="pg-ob-name">D4 <?php echo esc_html( $hero_title ); ?></div>
-                      </div>
-                      <div class="pg-conn-v"></div>
-                    </div>
-                    <div class="pg-org-col">
-                      <div class="pg-conn-v" style="height:16px"></div>
-                      <div class="pg-org-box pg-oL1">
-                        <div class="pg-ob-role">Wakil Dekan II</div>
-                        <div class="pg-ob-name">Bidang Umum &amp; Keuangan</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div style="width:55%;height:2px;background:var(--pale);margin-bottom:0"></div>
-                  <div class="pg-org-row" style="gap:1.5rem;width:100%;justify-content:center">
-                    <div class="pg-org-col">
-                      <div class="pg-conn-v" style="height:16px"></div>
-                      <div class="pg-org-box pg-oL2">
-                        <div class="pg-ob-role">Sekretaris Prodi</div>
-                        <div class="pg-ob-name">Administrasi &amp; Akademik</div>
-                      </div>
-                    </div>
-                    <div class="pg-org-col">
-                      <div class="pg-conn-v" style="height:16px"></div>
-                      <div class="pg-org-box pg-oL2">
-                        <div class="pg-ob-role">Koordinator Lab</div>
-                        <div class="pg-ob-name">Laboratorium <?php echo esc_html( $hero_title ); ?></div>
-                      </div>
-                    </div>
-                    <div class="pg-org-col">
-                      <div class="pg-conn-v" style="height:16px"></div>
-                      <div class="pg-org-box pg-oL2">
-                        <div class="pg-ob-role">Gugus Kendali Mutu</div>
-                        <div class="pg-ob-name">Penjaminan Mutu</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <?php $itsi_empty_state( 'bi-diagram-3', 'Belum ada gambar struktur organisasi.', 'Lengkapi di admin → Detail Program Studi → Struktur Organisasi.' ); ?>
               <?php endif; ?>
             </div>
             <div class="pg-org-info">
@@ -810,6 +740,9 @@ unset( $dr );
           <div class="pg-block pg-rv">
             <span class="pg-sec-label">Dosen &amp; Tenaga Pengajar</span>
             <h2 class="pg-sec-title" style="margin-bottom:.6rem">Tim <em>Pengajar <?php echo esc_html( $hero_title ); ?></em></h2>
+            <?php if ( empty( $dosen ) ) : ?>
+              <?php $itsi_empty_state( 'bi-people', 'Belum ada data dosen.', 'Lengkapi di admin → Detail Program Studi → Dosen & Tenaga Pengajar.' ); ?>
+            <?php else : ?>
             <p style="font-size:.93rem;color:var(--tx-mid);margin-bottom:1.5rem;line-height:1.78"><?php echo count( $dosen ); ?> dosen berpengalaman berkualifikasi S2 dan S3 dari universitas terkemuka nasional dan internasional.</p>
             <?php
             $cnt_s3 = 0; $cnt_s2 = 0;
@@ -868,6 +801,7 @@ unset( $dr );
                 </div>
               <?php endforeach; ?>
             </div>
+            <?php endif; ?>
           </div>
         </div>
 
@@ -888,7 +822,7 @@ unset( $dr );
                 <?php endforeach; ?>
               </div>
             <?php elseif ( $use_default !== '1' ) : ?>
-              <div class="pg-empty" style="background:#f6f8fc;padding:1rem;border-radius:8px;color:var(--tx-mid);font-style:italic">Belum ada data fasilitas. Silakan lengkapi di admin → Detail Program Studi → Fasilitas.</div>
+              <?php $itsi_empty_state( 'bi-buildings', 'Belum ada data fasilitas.', 'Lengkapi di admin → Detail Program Studi → Fasilitas.' ); ?>
             <?php endif; ?>
           </div>
         </div>
@@ -913,7 +847,7 @@ unset( $dr );
                 <?php endforeach; ?>
               </div>
             <?php elseif ( $use_default !== '1' ) : ?>
-              <div class="pg-empty" style="background:#f6f8fc;padding:1rem;border-radius:8px;color:var(--tx-mid);font-style:italic">Belum ada data mitra. Silakan lengkapi di admin → Detail Program Studi → Mitra Industri.</div>
+              <?php $itsi_empty_state( 'bi-handshake', 'Belum ada data mitra industri.', 'Lengkapi di admin → Detail Program Studi → Mitra Industri.' ); ?>
             <?php endif; ?>
           </div>
         </div>
@@ -921,97 +855,18 @@ unset( $dr );
         <!-- ▌ MATA KULIAH ▌ -->
         <div id="pg-panel-matakuliah" class="pg-panel">
           <div class="pg-block pg-rv">
-            <span class="pg-sec-label">Kurikulum D4 Budidaya Perkebunan</span>
+            <span class="pg-sec-label">Kurikulum <?php echo esc_html( $prodi_degree !== '' ? $prodi_degree . ' ' : '' ); ?><?php echo esc_html( $hero_title ); ?></span>
             <h2 class="pg-sec-title" style="margin-bottom:.6rem">Daftar <em>Mata Kuliah</em></h2>
             <p style="font-size:.93rem;color:var(--tx-mid);margin-bottom:1.6rem;line-height:1.78">Kurikulum berbasis Outcome-Based Education (OBE) dengan total <strong><?php echo esc_html( $prodi_total_credits ); ?> SKS</strong> selama <?php echo esc_html( $prodi_duration ); ?> semester, dirancang untuk menghasilkan lulusan kompeten di industri perkebunan kelapa sawit nasional.</p>
 
+            <?php if ( empty( $mk_semesters_normalized ) ) : ?>
+              <?php $itsi_empty_state( 'bi-journal-x', 'Belum ada data mata kuliah.', 'Lengkapi di admin → Detail Program Studi → Daftar Mata Kuliah.' ); ?>
+            <?php else : ?>
             <div class="pg-mk-tabs">
               <button class="pg-mk-tab on" onclick="pgSwMK('ganjil',this)"><i class="bi bi-book-half" aria-hidden="true"></i> Semester Ganjil (1, 3, 5, 7)</button>
               <button class="pg-mk-tab" onclick="pgSwMK('genap',this)"><i class="bi bi-book" aria-hidden="true"></i> Semester Genap (2, 4, 6, 8)</button>
             </div>
 
-            <?php
-            /* Default BDP curriculum: 8 semesters / 144 SKS.
-               Jika repeater mk_semesters diisi admin, konten di bawah ini diabaikan
-               dan tabel dirender dari data repeater (lihat $mk_semesters_normalized). */
-            $mk_semesters = array(
-                'ganjil' => array(
-                    array( 'no' => 1, 'year' => 1, 'sks' => 20, 'courses' => array(
-                        array( 'kode' => 'MPK101', 'name' => 'Pendidikan Agama & Budi Pekerti',           'sks' => 2, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'MPK102', 'name' => 'Pendidikan Pancasila & Kewarganegaraan',  'sks' => 2, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'MPK103', 'name' => 'Bahasa Indonesia',                        'sks' => 2, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP101', 'name' => 'Biologi Dasar',                           'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP102', 'name' => 'Kimia Dasar',                             'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP103', 'name' => 'Matematika & Statistika Dasar',           'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP104', 'name' => 'Dasar-Dasar Agronomi',                    'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP105', 'name' => 'Pengantar Ilmu Perkebunan',               'sks' => 2, 'jenis' => 'Wajib' ),
-                    ) ),
-                    array( 'no' => 3, 'year' => 2, 'sks' => 21, 'courses' => array(
-                        array( 'kode' => 'BDP301', 'name' => 'Ilmu Tanah & Kesuburan Lahan',            'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP302', 'name' => 'Fisiologi Tanaman Kelapa Sawit',          'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP303', 'name' => 'Budidaya Kelapa Sawit I – Pembibitan',    'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP304', 'name' => 'Pemupukan Tanaman Kelapa Sawit',          'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP305', 'name' => 'Proteksi Tanaman Perkebunan',             'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP306', 'name' => 'Mekanisasi Perkebunan Sawit',             'sks' => 2, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP307', 'name' => 'Aplikasi Komputer Pertanian',             'sks' => 2, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP308P','name' => 'Praktikum Identifikasi & Morfologi Tanaman','sks' => 2, 'jenis' => 'Praktik' ),
-                    ) ),
-                    array( 'no' => 5, 'year' => 3, 'sks' => 20, 'courses' => array(
-                        array( 'kode' => 'BDP501', 'name' => 'Manajemen Kebun Kelapa Sawit',            'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP502', 'name' => 'Pemanenan & Pascapanen Sawit',           'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP503', 'name' => 'Manajemen SDM Perkebunan',                'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP504', 'name' => 'Sistem Informasi Manajemen Perkebunan',  'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP505', 'name' => 'Konservasi Lahan & Lingkungan Perkebunan', 'sks' => 2, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP506P','name' => 'PKL I – Praktik Kerja Lapangan',         'sks' => 4, 'jenis' => 'Praktik' ),
-                        array( 'kode' => 'BDP507P','name' => 'Praktikum Manajemen Kebun',              'sks' => 2, 'jenis' => 'Praktik' ),
-                    ) ),
-                    array( 'no' => 7, 'year' => 4, 'sks' => 19, 'courses' => array(
-                        array( 'kode' => 'BDP701', 'name' => 'Sistem Manajemen Mutu (ISO/ISPO/RSPO)',   'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP702', 'name' => 'Perencanaan Usaha & Investasi Perkebunan','sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP703', 'name' => 'Perkebunan Sawit Berkelanjutan',          'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP704', 'name' => 'Hukum & Regulasi Perkebunan',             'sks' => 2, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP705P','name' => 'PKL II – Magang Industri Perkebunan',    'sks' => 6, 'jenis' => 'Praktik' ),
-                        array( 'kode' => 'BDP706', 'name' => 'Audit Lingkungan Perkebunan',             'sks' => 2, 'jenis' => 'Pilihan' ),
-                    ) ),
-                ),
-                'genap' => array(
-                    array( 'no' => 2, 'year' => 1, 'sks' => 19, 'courses' => array(
-                        array( 'kode' => 'MPK201', 'name' => 'Bahasa Inggris Pertanian',                'sks' => 2, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP201', 'name' => 'Pengantar Ekonomi Pertanian',             'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP202', 'name' => 'Klimatologi & Hidrologi Pertanian',       'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP203', 'name' => 'Botani & Taksonomi Tanaman',              'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP204', 'name' => 'Genetika & Pemuliaan Tanaman Sawit',     'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP205', 'name' => 'Keselamatan & Kesehatan Kerja (K3)',      'sks' => 2, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP206P','name' => 'Praktikum Biologi & Kimia Dasar',        'sks' => 3, 'jenis' => 'Praktik' ),
-                    ) ),
-                    array( 'no' => 4, 'year' => 2, 'sks' => 21, 'courses' => array(
-                        array( 'kode' => 'BDP401', 'name' => 'Budidaya Kelapa Sawit II – TBM & TM',    'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP402', 'name' => 'Teknologi Benih Perkebunan',             'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP403', 'name' => 'Pengelolaan Gulma Perkebunan Sawit',     'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP404', 'name' => 'Survey & Pemetaan Lahan Perkebunan',     'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP405', 'name' => 'Irigasi & Drainase Perkebunan',          'sks' => 2, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP406', 'name' => 'Sosio-Ekonomi Masyarakat Perkebunan',     'sks' => 2, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP407P','name' => 'Praktikum Budidaya Kelapa Sawit',        'sks' => 3, 'jenis' => 'Praktik' ),
-                        array( 'kode' => 'BDP408', 'name' => 'Metodologi Penelitian',                  'sks' => 2, 'jenis' => 'Wajib' ),
-                    ) ),
-                    array( 'no' => 6, 'year' => 3, 'sks' => 20, 'courses' => array(
-                        array( 'kode' => 'BDP601', 'name' => 'Pengelolaan Limbah & Lingkungan Perkebunan','sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP602', 'name' => 'GIS & Remote Sensing Pertanian',         'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP603', 'name' => 'Ekonomi Manajerial Perkebunan',          'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP604', 'name' => 'Anggaran & Biaya Budidaya Kelapa Sawit', 'sks' => 3, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP605P','name' => 'KKN – Pengabdian Masyarakat',            'sks' => 4, 'jenis' => 'Praktik' ),
-                        array( 'kode' => 'BDP606', 'name' => 'Kewirausahaan Perkebunan',               'sks' => 2, 'jenis' => 'Pilihan' ),
-                        array( 'kode' => 'BDP607', 'name' => 'Teknologi Informasi untuk Pertanian',    'sks' => 2, 'jenis' => 'Pilihan' ),
-                    ) ),
-                    array( 'no' => 8, 'year' => 4, 'sks' => 12, 'courses' => array(
-                        array( 'kode' => 'BDP801', 'name' => 'Seminar Proposal Penelitian',            'sks' => 2, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP802', 'name' => 'Kapita Selekta Perkebunan',              'sks' => 2, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP803', 'name' => 'Etika Profesi & Hukum Ketenagakerjaan',  'sks' => 2, 'jenis' => 'Wajib' ),
-                        array( 'kode' => 'BDP804P','name' => 'Skripsi / Tugas Akhir',                  'sks' => 6, 'jenis' => 'Praktik' ),
-                    ) ),
-                ),
-            );
-            ?>
 
             <div id="pg-mk-ganjil" class="pg-mk-panel on">
               <?php if ( $mk_use_repeater && ! empty( $mk_semesters_normalized ) ) : ?>
@@ -1052,36 +907,7 @@ unset( $dr );
                   </div>
                 <?php endforeach; ?>
               <?php else : ?>
-                <?php foreach ( $mk_semesters['ganjil'] as $sem ) : ?>
-                  <div class="pg-mk-sem">
-                    <div class="pg-mk-sem-head pg-msh-g">
-                      <div class="pg-mk-sem-ic"><i class="bi bi-book-half" aria-hidden="true"></i></div>
-                      <div>
-                        <div class="pg-mk-sem-title">Semester <?php echo (int) $sem['no']; ?></div>
-                        <div class="pg-mk-sem-sub">Tahun <?php echo (int) $sem['year']; ?> · Semester Ganjil · <?php echo (int) $sem['sks']; ?> SKS</div>
-                      </div>
-                      <div class="pg-mk-sks-total"><?php echo (int) $sem['sks']; ?> <span>SKS</span></div>
-                    </div>
-                    <div class="pg-mk-tbl-wrap">
-                      <table class="pg-mk-tbl">
-                        <thead><tr><th>Kode</th><th>Mata Kuliah</th><th>SKS</th><th>Jenis</th></tr></thead>
-                        <tbody>
-                          <?php foreach ( $sem['courses'] as $c ) :
-                            $sks_class = ( $sem['no'] % 2 === 1 ) ? 'pg-sks-g' : 'pg-sks-e';
-                            $jenis_class = ( $c['jenis'] === 'Wajib' ) ? 'pg-mkw' : ( ( $c['jenis'] === 'Pilihan' ) ? 'pg-mkp' : 'pg-mkl' );
-                          ?>
-                            <tr>
-                              <td class="pg-mk-kode"><?php echo esc_html( $c['kode'] ); ?></td>
-                              <td><?php echo esc_html( $c['name'] ); ?></td>
-                              <td><div class="pg-sks <?php echo esc_attr( $sks_class ); ?>"><?php echo (int) $c['sks']; ?></div></td>
-                              <td><span class="pg-mk-badge <?php echo esc_attr( $jenis_class ); ?>"><?php echo esc_html( $c['jenis'] ); ?></span></td>
-                            </tr>
-                          <?php endforeach; ?>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                <?php endforeach; ?>
+                <?php $itsi_empty_state( 'bi-journal-x', 'Belum ada data mata kuliah.', 'Lengkapi di admin → Detail Program Studi → Daftar Mata Kuliah.' ); ?>
               <?php endif; ?>
             </div>
 
@@ -1124,36 +950,7 @@ unset( $dr );
                   </div>
                 <?php endforeach; ?>
               <?php else : ?>
-                <?php foreach ( $mk_semesters['genap'] as $sem ) : ?>
-                  <div class="pg-mk-sem">
-                    <div class="pg-mk-sem-head pg-msh-e">
-                      <div class="pg-mk-sem-ic"><i class="bi bi-book" aria-hidden="true"></i></div>
-                      <div>
-                        <div class="pg-mk-sem-title">Semester <?php echo (int) $sem['no']; ?></div>
-                        <div class="pg-mk-sem-sub">Tahun <?php echo (int) $sem['year']; ?> · Semester Genap · <?php echo (int) $sem['sks']; ?> SKS</div>
-                      </div>
-                      <div class="pg-mk-sks-total"><?php echo (int) $sem['sks']; ?> <span>SKS</span></div>
-                    </div>
-                    <div class="pg-mk-tbl-wrap">
-                      <table class="pg-mk-tbl">
-                        <thead><tr><th>Kode</th><th>Mata Kuliah</th><th>SKS</th><th>Jenis</th></tr></thead>
-                        <tbody>
-                          <?php foreach ( $sem['courses'] as $c ) :
-                            $sks_class = ( $sem['no'] % 2 === 0 ) ? 'pg-sks-e' : 'pg-sks-g';
-                            $jenis_class = ( $c['jenis'] === 'Wajib' ) ? 'pg-mkw' : ( ( $c['jenis'] === 'Pilihan' ) ? 'pg-mkp' : 'pg-mkl' );
-                          ?>
-                            <tr>
-                              <td class="pg-mk-kode"><?php echo esc_html( $c['kode'] ); ?></td>
-                              <td><?php echo esc_html( $c['name'] ); ?></td>
-                              <td><div class="pg-sks <?php echo esc_attr( $sks_class ); ?>"><?php echo (int) $c['sks']; ?></div></td>
-                              <td><span class="pg-mk-badge <?php echo esc_attr( $jenis_class ); ?>"><?php echo esc_html( $c['jenis'] ); ?></span></td>
-                            </tr>
-                          <?php endforeach; ?>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                <?php endforeach; ?>
+                <?php $itsi_empty_state( 'bi-journal-x', 'Belum ada data mata kuliah.', 'Lengkapi di admin → Detail Program Studi → Daftar Mata Kuliah.' ); ?>
               <?php endif; ?>
             </div>
 
@@ -1163,6 +960,7 @@ unset( $dr );
               <div class="pg-mk-leg-item"><span class="pg-mk-badge pg-mkl">Praktik</span> Lapangan / PKL / KKN</div>
               <div class="pg-mk-total">Total Kurikulum: <?php echo esc_html( $prodi_total_credits ); ?> SKS / <?php echo esc_html( $prodi_duration ); ?> Semester</div>
             </div>
+            <?php endif; ?>
           </div>
         </div>
 
@@ -1248,7 +1046,7 @@ unset( $dr );
               <?php endwhile; wp_reset_postdata(); ?>
             </div>
             <?php else : ?>
-              <div class="pg-empty" style="background:#f6f8fc;padding:1rem;border-radius:8px;color:var(--tx-mid);font-style:italic">Belum ada berita untuk ditampilkan di panel ini. Silakan tambahkan berita di admin → Post, atau pilih kategori pada Detail Program Studi → Hero &amp; Sidebar.</div>
+              <?php $itsi_empty_state( 'bi-newspaper', 'Belum ada berita untuk ditampilkan.', 'Tambahkan berita di admin → Post, atau pilih kategori pada Detail Program Studi → Berita & Kegiatan.' ); ?>
             <?php endif; ?>
             <div style="text-align:center;margin-top:2rem">
               <a href="<?php echo esc_url( home_url( '/index.php/berita/' ) ); ?>" style="display:inline-flex;align-items:center;gap:.5rem;padding:.75rem 1.6rem;border-radius:11px;border:1.5px solid #CEE2FF;color:var(--royal);font-size:.85rem;font-weight:700;transition:all .25s" onmouseover="this.style.background='var(--frost)';this.style.borderColor='var(--azure)'" onmouseout="this.style.background='';this.style.borderColor='#CEE2FF'">Lihat Semua Berita &amp; Kegiatan →</a>
@@ -1273,7 +1071,7 @@ unset( $dr );
                 <?php endforeach; ?>
               </div>
             <?php elseif ( $use_default !== '1' ) : ?>
-              <div class="pg-empty" style="background:#f6f8fc;padding:1rem;border-radius:8px;color:var(--tx-mid);font-style:italic">Belum ada data prestasi. Silakan lengkapi di admin → Detail Program Studi → Prestasi Mahasiswa.</div>
+              <?php $itsi_empty_state( 'bi-trophy', 'Belum ada data prestasi.', 'Lengkapi di admin → Detail Program Studi → Prestasi Mahasiswa.' ); ?>
             <?php endif; ?>
           </div>
         </div>
@@ -1312,7 +1110,7 @@ unset( $dr );
                 <?php endif; ?>
               </div>
             <?php elseif ( $use_default !== '1' ) : ?>
-              <div class="pg-empty" style="background:#f6f8fc;padding:1rem;border-radius:8px;color:var(--tx-mid);font-style:italic">Belum ada CPL. Silakan lengkapi di admin → Detail Program Studi → Capaian Pembelajaran Lulusan.</div>
+              <?php $itsi_empty_state( 'bi-mortarboard', 'Belum ada data capaian pembelajaran.', 'Lengkapi di admin → Detail Program Studi → Capaian Pembelajaran.' ); ?>
             <?php endif; ?>
           </div>
         </div>
@@ -1337,7 +1135,7 @@ unset( $dr );
                 <?php endforeach; ?>
               </div>
             <?php elseif ( $use_default !== '1' ) : ?>
-              <div class="pg-empty" style="background:#f6f8fc;padding:1rem;border-radius:8px;color:var(--tx-mid);font-style:italic">Belum ada testimoni alumni. Silakan lengkapi di admin → Detail Program Studi → Testimoni Alumni.</div>
+              <?php $itsi_empty_state( 'bi-chat-quote', 'Belum ada testimoni alumni.', 'Lengkapi di admin → Detail Program Studi → Kata Alumni.' ); ?>
             <?php endif; ?>
           </div>
         </div>
