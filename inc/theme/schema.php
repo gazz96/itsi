@@ -423,14 +423,8 @@ function itsi_schema_course_node() {
 		'provider'      => array( '@id' => home_url( '/' ) . '#organization' ),
 	);
 
-	// Akreditasi dari post meta kalau ada (key utama 'akreditasi_value').
-	$akreditasi = (string) get_post_meta( $post_id, 'akreditasi_value', true );
-	if ( '' === $akreditasi ) {
-		$akreditasi = (string) get_post_meta( $post_id, 'akreditasi', true ); // legacy key fallback
-	}
-	if ( '' === $akreditasi ) {
-		$akreditasi = (string) get_post_meta( $post_id, 'prodi_accreditation', true ); // legacy key fallback
-	}
+	// Akreditasi dari post meta kalau ada (key 'akreditasi').
+	$akreditasi = (string) get_post_meta( $post_id, 'akreditasi', true );
 	if ( '' === $akreditasi ) {
 		// Coba variant case.
 		$akreditasi = (string) get_post_meta( $post_id, 'Akreditasi', true );

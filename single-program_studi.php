@@ -27,10 +27,7 @@ $prodi_degree          = (string) get_post_meta( $post_id, 'prodi_degree', true 
 if ( $prodi_degree === '' ) {
     $prodi_degree = (string) get_post_meta( $post_id, 'gelar', true ); // legacy key fallback
 }
-$prodi_accreditation   = (string) get_post_meta( $post_id, 'akreditasi_value', true );
-if ( $prodi_accreditation === '' ) {
-    $prodi_accreditation = (string) get_post_meta( $post_id, 'akreditasi', true ); // legacy key fallback
-}
+$prodi_accreditation   = (string) get_post_meta( $post_id, 'akreditasi', true );
 if ( $prodi_accreditation === '' ) {
     $prodi_accreditation = (string) get_post_meta( $post_id, 'prodi_accreditation', true ); // legacy key fallback
 }
@@ -55,15 +52,8 @@ $hero_subtitle   = (string) get_post_meta( $post_id, 'hero_subtitle', true );
 $hero_badge_icon = (string) get_post_meta( $post_id, 'hero_badge_icon', true );
 $hero_badge_text = (string) get_post_meta( $post_id, 'hero_badge_text', true );
 
-// Hero background = prodi_hero_image (field theme) > featured image; fallback gradient navy.
-$pg_hero_img = '';
-$pg_hero_img_id = (int) get_post_meta( $post_id, 'prodi_hero_image', true );
-if ( $pg_hero_img_id > 0 ) {
-    $pg_hero_img = (string) wp_get_attachment_image_url( $pg_hero_img_id, 'large' );
-}
-if ( $pg_hero_img === '' && has_post_thumbnail( $post_id ) ) {
-    $pg_hero_img = (string) get_the_post_thumbnail_url( $post_id, 'large' );
-}
+// Hero background = featured image (thumbnail) bila tersedia; fallback gradient navy.
+$pg_hero_img = has_post_thumbnail( $post_id ) ? (string) get_the_post_thumbnail_url( $post_id, 'large' ) : '';
 
 $faks = wp_get_post_terms( $post_id, 'fakultas', array( 'fields' => 'all' ) );
 $fakultas_name = ( ! empty( $faks ) && ! is_wp_error( $faks ) ) ? $faks[0]->name : 'Fakultas Vokasi';
@@ -110,10 +100,7 @@ if ( $visi === '' ) {
 }
 
 /* ----- Profil Singkat (panel Profil Prodi, di atas Sejarah) ----- */
-$profil = (string) get_post_meta( $post_id, 'profil_singkat', true );
-if ( $profil === '' ) {
-    $profil = (string) get_post_meta( $post_id, 'profil', true ); // legacy key fallback
-}
+$profil = (string) get_post_meta( $post_id, 'profil', true );
 if ( $profil === '' ) {
     $profil = (string) get_post_meta( $post_id, 'prodi_profile', true ); // legacy key fallback
 }
