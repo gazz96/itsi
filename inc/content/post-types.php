@@ -315,12 +315,12 @@ add_action( 'typerocket_loaded', function () {
 				);
 				$dosen = $form->repeater( 'dosen' )->setFields(
 					array(
-						$form->text( 'Inisial (2 huruf)' )->setAttribute( 'placeholder', 'AF' )->setAttribute( 'maxlength', 3 ),
+						$form->text( 'Inisial (2 huruf)' )->setLabel( 'Inisial' )->setAttribute( 'placeholder', 'AF' )->setAttribute( 'maxlength', 3 ),
 						$form->text( 'Nama Lengkap + Gelar' )->setAttribute( 'placeholder', 'Dr. Ahmad Fauzi' ),
 						$form->text( 'NIDN' )->setAttribute( 'placeholder', '0117128903' ),
 						$form->text( 'Bidang Keilmuan' )->setAttribute( 'placeholder', 'Pertanian' ),
 						$form->select( 'Jenjang' )->setOptions( array( 's3' => 'S3 — Doktor', 's2' => 'S2 — Magister' ) )->setAttribute( 'style', 'width:100%' ),
-						$form->image( 'Foto Dosen' )->setLabel( 'Foto Dosen (opsional)' )->setHelp( 'Pilih/upload foto dari Media Library. Jika kosong, kartu dosen menampilkan avatar inisial otomatis.' ),
+						$form->image( 'Foto Dosen' )->setLabel( 'Foto Dosen' )->setHelp( 'Pilih/upload foto dari Media Library. Jika kosong, kartu dosen menampilkan avatar inisial otomatis.' ),
 					)
 				);
 				$fas = $form->repeater( 'fasilitas' )->setFields(
@@ -369,36 +369,31 @@ add_action( 'typerocket_loaded', function () {
 
 				/* ─── TAB 1: Profil Prodi (panel "Profil Prodi") ─── */
 				$tabs->tab( 'Profil Prodi', 'dashicons-id', array(
-					'<p style="margin-top:0;color:#666;font-size:.9em">Panel <strong>Profil Prodi</strong> di halaman prodi: profil singkat, sejarah, dan timeline perjalanan prodi.</p>'
-					. '<div style="margin-bottom:.6rem">' . $form->wpEditor( 'profil_singkat' )->setLabel( 'Profil Singkat' )->setHelp( 'Tampil di panel Profil Prodi dan dipakai sebagai deskripsi kartu prodi di homepage.' ) . '</div>'
-					. '<div style="margin-bottom:.6rem">' . $form->wpEditor( 'sejarah' )->setLabel( 'Sejarah (rich text)' )->setHelp( 'Tampil di panel Profil Prodi, bagian Sejarah Singkat.' ) . '</div>'
-					. '<h4 style="margin:1rem 0 .5rem">⏳ Timeline Sejarah (tahun + judul + deskripsi)</h4>' . $timeline
+					'<div style="margin-bottom:.6rem">' . $form->wpEditor( 'profil_singkat' )->setLabel( 'Profil Singkat' )->setHelp( 'Tampil di panel Profil Prodi dan dipakai sebagai deskripsi kartu prodi di homepage.' ) . '</div>'
+					. '<div style="margin-bottom:.6rem">' . $form->wpEditor( 'sejarah' )->setLabel( 'Sejarah' )->setHelp( 'Tampil di panel Profil Prodi, bagian Sejarah Singkat.' ) . '</div>'
+					. '<h4 style="margin:1rem 0 .5rem">⏳ Timeline Sejarah</h4>' . $timeline
 				) );
 
 				/* ─── TAB 2: Visi & Misi (panel "Visi & Misi") ─── */
 				$tabs->tab( 'Visi & Misi', 'dashicons-visibility', array(
-					'<p style="margin-top:0;color:#666;font-size:.9em">Panel <strong>Visi &amp; Misi</strong> di halaman prodi.</p>'
-					. '<div style="margin-bottom:.6rem">' . $form->wpEditor( 'visi' )->setLabel( 'Visi (rich text)' )->setHelp( 'Boleh pakai bold/paragraf.' ) . '</div>'
-					. '<h4 style="margin:1rem 0 .5rem">📜 Misi (poin per item)</h4>' . $misi
+					'<div style="margin-bottom:.6rem">' . $form->wpEditor( 'visi' )->setLabel( 'Visi' )->setHelp( 'Boleh pakai bold/paragraf.' ) . '</div>'
+					. '<h4 style="margin:1rem 0 .5rem">📜 Misi</h4>' . $misi
 				) );
 
 				/* ─── TAB 3: Tujuan & Kompetensi (panel "Tujuan & Kompetensi") ─── */
 				$tabs->tab( 'Tujuan & Kompetensi', 'dashicons-yes-alt', array(
-					'<p style="margin-top:0;color:#666;font-size:.9em">Panel <strong>Tujuan &amp; Kompetensi</strong> di halaman prodi.</p>'
-					. '<h4 style="margin:.4rem 0 .5rem">🎯 Tujuan Program Studi (icon + text)</h4>' . $tujuan
-					. '<h4 style="margin:1.2rem 0 .5rem">✅ Kompetensi Utama (icon + nama)</h4>' . $kompetensi
+					'<h4 style="margin:.4rem 0 .5rem">🎯 Tujuan Program Studi</h4>' . $tujuan
+					. '<h4 style="margin:1.2rem 0 .5rem">✅ Kompetensi Utama</h4>' . $kompetensi
 				) );
 
 				/* ─── TAB 4: Profil Lulusan (panel "Profil Lulusan") ─── */
 				$tabs->tab( 'Profil Lulusan', 'dashicons-businessman', array(
-					'<p style="margin-top:0;color:#666;font-size:.9em">Panel <strong>Profil Lulusan</strong> di halaman prodi: kartu karir lulusan.</p>'
-					. '<h4 style="margin:.4rem 0 .5rem">🎓 Profil Lulusan / Karir (icon + nama + deskripsi)</h4>' . $lulusan
+					'<h4 style="margin:.4rem 0 .5rem">🎓 Profil Lulusan / Karir</h4>' . $lulusan
 				) );
 
 				/* ─── TAB 5: Struktur Organisasi (panel "Struktur Organisasi") ─── */
 				$tabs->tab( 'Struktur Organisasi', 'dashicons-networking', array(
-					'<p style="margin-top:0;color:#666;font-size:.9em">Panel <strong>Struktur Organisasi</strong> di halaman prodi.</p>'
-					. '<div style="padding:1rem;background:#fff8e1;border-radius:8px;border-left:3px solid #f0b429">'
+					'<div style="padding:1rem;background:#fff8e1;border-radius:8px;border-left:3px solid #f0b429">'
 					. '<h4 style="margin:.2rem 0 .6rem">🏛️ Gambar Struktur Organisasi</h4>'
 					. '<p style="margin:0 0 .8rem;font-size:.85em;color:#666">Upload bagan struktur organisasi dari Media Library. <strong>Jika kosong, panel menampilkan status "belum ada data"</strong> — tidak ada bagan default.</p>'
 					. $form->image( 'struktur_organisasi_image' )->setLabel( 'Gambar Struktur Organisasi' )->setHelp( 'Format: PNG / JPG / SVG. Disarankan rasio landscape & lebar minimal 1000 px agar tajam.' )
@@ -407,33 +402,28 @@ add_action( 'typerocket_loaded', function () {
 
 				/* ─── TAB 6: Dosen & Tenaga Pengajar (panel "Dosen & Tenaga Pengajar") ─── */
 				$tabs->tab( 'Dosen & Tenaga Pengajar', 'dashicons-groups', array(
-					'<p style="margin-top:0;color:#666;font-size:.9em">Panel <strong>Dosen &amp; Tenaga Pengajar</strong> di halaman prodi.</p>'
-					. '<h4 style="margin:.4rem 0 .5rem">👨‍🏫 Daftar Dosen</h4>' . $dosen
+					'<h4 style="margin:.4rem 0 .5rem">👨‍🏫 Daftar Dosen</h4>' . $dosen
 				) );
 
 				/* ─── TAB 7: Fasilitas (panel "Fasilitas") ─── */
 				$tabs->tab( 'Fasilitas', 'dashicons-building', array(
-					'<p style="margin-top:0;color:#666;font-size:.9em">Panel <strong>Fasilitas</strong> di halaman prodi.</p>'
-					. '<h4 style="margin:.4rem 0 .5rem">🏢 Fasilitas (icon + nama + deskripsi)</h4>' . $fas
+					'<h4 style="margin:.4rem 0 .5rem">🏢 Fasilitas</h4>' . $fas
 				) );
 
 				/* ─── TAB 8: Mitra Industri (panel "Mitra Industri") ─── */
 				$tabs->tab( 'Mitra Industri', 'dashicons-admin-multisite', array(
-					'<p style="margin-top:0;color:#666;font-size:.9em">Panel <strong>Mitra Industri</strong> di halaman prodi.</p>'
-					. '<h4 style="margin:.4rem 0 .5rem">🤝 Mitra Industri / Kerjasama</h4>' . $mit
+					'<h4 style="margin:.4rem 0 .5rem">🤝 Mitra Industri / Kerjasama</h4>' . $mit
 				) );
 
 				/* ─── TAB 9: Daftar Mata Kuliah (panel "Daftar Mata Kuliah") ─── */
 				$tabs->tab( 'Daftar Mata Kuliah', 'dashicons-book', array(
-					'<p style="margin-top:0;color:#666;font-size:.9em">Panel <strong>Daftar Mata Kuliah</strong> di halaman prodi.</p>'
-					. '<h4 style="margin:.4rem 0 .5rem">📚 Mata Kuliah per Semester</h4>' . $mk
+					'<h4 style="margin:.4rem 0 .5rem">📚 Mata Kuliah per Semester</h4>' . $mk
 					. '<p style="font-size:.85em;color:#666;margin-top:.6rem"><em>Isi per semester: No, Tipe Ganjil/Genap, Total SKS, lalu daftar Kode/Nama/SKS/Jenis. Bila repeater <strong>kosong</strong>, panel menampilkan status "belum ada data" — tidak ada kurikulum default.</em></p>'
 				) );
 
 				/* ─── TAB 10: Berita & Kegiatan (panel "Berita & Kegiatan") ─── */
 				$tabs->tab( 'Berita & Kegiatan', 'dashicons-megaphone', array(
-					'<p style="margin-top:0;color:#666;font-size:.9em">Panel <strong>Berita &amp; Kegiatan</strong> di halaman prodi.</p>'
-					. '<div style="padding:1rem;background:#eef7ff;border-radius:8px;border-left:3px solid #0d6efd">'
+					'<div style="padding:1rem;background:#eef7ff;border-radius:8px;border-left:3px solid #0d6efd">'
 					. '<p style="margin:0 0 .8rem;font-size:.85em;color:#666">Pilih kategori berita (taxonomy <strong>Kategori</strong> dari post type <strong>Post</strong>). Ketik untuk mencari, klik hasilnya untuk menambah (bisa lebih dari satu). <strong>Kosongkan = 3 berita terbaru</strong> tanpa filter kategori.</p>'
 					. '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">'
 					. '<div>' . $form->search( 'berita_kategori' )->setLabel( 'Kategori Berita' )->multiple()->setTaxonomyOptions( 'category' ) . '</div>'
@@ -444,40 +434,35 @@ add_action( 'typerocket_loaded', function () {
 
 				/* ─── TAB 11: Capaian Pembelajaran (panel "Capaian Pembelajaran") ─── */
 				$tabs->tab( 'Capaian Pembelajaran', 'dashicons-welcome-learn-more', array(
-					'<p style="margin-top:0;color:#666;font-size:.9em">Panel <strong>Capaian Pembelajaran</strong> di halaman prodi. Kompetensi lulusan sesuai standar KKNI level 6 &amp; OBE.</p>'
-					. '<div style="margin-bottom:.6rem">' . $form->wpEditor( 'cpl_pengetahuan' )->setLabel( '📚 Pengetahuan' ) . '</div>'
+					'<div style="margin-bottom:.6rem">' . $form->wpEditor( 'cpl_pengetahuan' )->setLabel( '📚 Pengetahuan' ) . '</div>'
 					. '<div style="margin-bottom:.6rem">' . $form->wpEditor( 'cpl_keterampilan' )->setLabel( '🛠️ Keterampilan Khusus' ) . '</div>'
 					. '<div style="margin-bottom:.6rem">' . $form->wpEditor( 'cpl_sikap' )->setLabel( '🌟 Sikap &amp; Tanggung Jawab' ) . '</div>'
 				) );
 
 				/* ─── TAB 12: Kata Alumni (panel "Kata Alumni") ─── */
 				$tabs->tab( 'Kata Alumni', 'dashicons-format-quote', array(
-					'<p style="margin-top:0;color:#666;font-size:.9em">Panel <strong>Kata Alumni</strong> di halaman prodi.</p>'
-					. '<h4 style="margin:.4rem 0 .5rem">💬 Testimoni Alumni (nama + angkatan + quote)</h4>' . $test
+					'<h4 style="margin:.4rem 0 .5rem">💬 Testimoni Alumni</h4>' . $test
 				) );
 
 				/* ─── TAB 13: Prestasi Mahasiswa (panel "Prestasi Mahasiswa") ─── */
 				$tabs->tab( 'Prestasi Mahasiswa', 'dashicons-star-filled', array(
-					'<p style="margin-top:0;color:#666;font-size:.9em">Panel <strong>Prestasi Mahasiswa</strong> di halaman prodi.</p>'
-					. '<h4 style="margin:.4rem 0 .5rem">🏆 Prestasi Mahasiswa (tahun + judul + deskripsi)</h4>' . $pres
+					'<h4 style="margin:.4rem 0 .5rem">🏆 Prestasi Mahasiswa</h4>' . $pres
 				) );
 
 				/* ─── TAB 14: Pengaturan (bukan panel — dipakai di hero, kartu, sidebar) ─── */
 				$tabs->tab( 'Pengaturan', 'dashicons-admin-settings', array(
-					'<p style="margin-top:0;color:#666;font-size:.9em">Pengaturan halaman: judul hero, badge, identitas prodi, akreditasi, PMB, dan chip. <strong>Tidak tampil sebagai panel navigasi</strong> di halaman prodi.</p>'
-
-					. '<div style="padding:1rem;background:#f6f8fc;border-radius:8px;border-left:3px solid #2271b3;margin-bottom:1rem">'
+					'<div style="padding:1rem;background:#f6f8fc;border-radius:8px;border-left:3px solid #2271b3;margin-bottom:1rem">'
 					. '<h4 style="margin:.2rem 0 .6rem">🖼️ Hero &amp; Kartu Prodi</h4>'
 					. '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">'
-					. '<div>' . $form->image( 'prodi_icon_image' )->setLabel( 'Icon Program Studi (gambar)' )->setHelp( 'Gambar kecil (~40×40 px) di kartu prodi pada section "Program Studi" homepage. Kosongkan jika tidak ada.' ) . '</div>'
+					. '<div>' . $form->image( 'prodi_icon_image' )->setLabel( 'Icon Program Studi' )->setHelp( 'Gambar kecil (~40×40 px) di kartu prodi pada section "Program Studi" homepage. Kosongkan jika tidak ada.' ) . '</div>'
 					. '<div>' . $form->image( 'prodi_hero_image' )->setLabel( 'Gambar Hero / Thumbnail Kartu' )->setHelp( 'Gambar utama hero halaman prodi dan thumbnail kartu di homepage. Kosongkan untuk memakai Featured Image.' ) . '</div>'
 					. '</div>'
 					. '<div style="margin-bottom:1rem">'
-					. $form->text( 'hero_title' )->setLabel( 'Nama Program Studi (hero_title)' )->setHelp( 'Judul hero halaman prodi dan nama di kartu homepage. Kosongkan untuk memakai judul post.' )->setAttribute( 'placeholder', 'mis. Budidaya Perkebunan (BDP)' )
+					. $form->text( 'hero_title' )->setLabel( 'Nama Program Studi' )->setHelp( 'Judul hero halaman prodi dan nama di kartu homepage. Kosongkan untuk memakai judul post.' )->setAttribute( 'placeholder', 'mis. Budidaya Perkebunan (BDP)' )
 					. '</div>'
 					. '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem">'
 					. '<div>' . $form->textarea( 'hero_subtitle' )->setLabel( 'Hero Subtitle' )->setAttribute( 'rows', 3 )->setAttribute( 'placeholder', 'Mencetak Sarjana Terapan…' ) . '</div>'
-					. '<div>' . $form->text( 'hero_badge_icon' )->setLabel( 'Hero Badge Icon (bi-* atau emoji)' )->setHelp( 'Isi class Bootstrap Icons (mis. bi-tree) atau emoji legacy.' )->setAttribute( 'placeholder', 'bi-tree' ) . '</div>'
+					. '<div>' . $form->text( 'hero_badge_icon' )->setLabel( 'Hero Badge Icon' )->setHelp( 'Isi class Bootstrap Icons (mis. bi-tree) atau emoji legacy.' )->setAttribute( 'placeholder', 'bi-tree' ) . '</div>'
 					. '<div>' . $form->text( 'hero_badge_text' )->setLabel( 'Hero Badge Text' )->setAttribute( 'placeholder', 'D4 · Fakultas Vokasi' ) . '</div>'
 					. '</div>'
 					. '</div>'
@@ -494,7 +479,7 @@ add_action( 'typerocket_loaded', function () {
 						'S3 — Doktor'                     => 'S3',
 						'Profesi — Pendidikan Profesi'    => 'Profesi',
 					) )->setAttribute( 'style', 'width:100%' ) . '</div>'
-					. '<div>' . $form->number( 'durasi' )->setLabel( 'Durasi Studi (semester)' )->setAttribute( 'placeholder', '8' ) . '</div>'
+					. '<div>' . $form->number( 'durasi' )->setLabel( 'Durasi Studi' )->setAttribute( 'placeholder', '8' ) . '</div>'
 					. '<div>' . $form->number( 'total_sks' )->setLabel( 'Total SKS' )->setAttribute( 'placeholder', '144' ) . '</div>'
 					. '<div>' . $form->number( 'jumlah_dosen' )->setLabel( 'Jumlah Dosen' )->setAttribute( 'placeholder', '22' ) . '</div>'
 					. '<div>' . $form->number( 'tahun_berdiri' )->setLabel( 'Tahun Berdiri' )->setAttribute( 'placeholder', '2005' ) . '</div>'
@@ -504,14 +489,14 @@ add_action( 'typerocket_loaded', function () {
 					. '<div style="padding:1rem;background:#f6f8fc;border-radius:8px;border-left:3px solid #2271b3;margin-bottom:1rem">'
 					. '<h4 style="margin:.2rem 0 .6rem">🏅 Akreditasi</h4>'
 					. '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem">'
-					. '<div>' . $form->text( 'akreditasi_value' )->setLabel( 'Nilai Akreditasi (akreditasi_value)' )->setHelp( 'Tampil di sidebar halaman prodi dan dipakai komponen Prodi di homepage.' )->setAttribute( 'placeholder', 'mis. B / Unggul / A' ) . '</div>'
+					. '<div>' . $form->text( 'akreditasi_value' )->setLabel( 'Nilai Akreditasi' )->setHelp( 'Tampil di sidebar halaman prodi dan dipakai komponen Prodi di homepage.' )->setAttribute( 'placeholder', 'mis. B / Unggul / A' ) . '</div>'
 					. '<div>' . $form->text( 'akreditasi_sub' )->setLabel( 'Status Akreditasi' )->setAttribute( 'placeholder', 'Terakreditasi Baik' ) . '</div>'
 					. '<div>' . $form->text( 'sk_akreditasi' )->setLabel( 'No. SK Akreditasi' )->setAttribute( 'placeholder', 'mis. 5828/D/T/K-I/2011' ) . '</div>'
 					. '</div>'
 					. '</div>'
 
 					. '<div style="padding:1rem;background:#f6f8fc;border-radius:8px;border-left:3px solid #2271b3;margin-bottom:1rem">'
-					. '<h4 style="margin:.2rem 0 .6rem">📄 PMB (Brosur / Formulir)</h4>'
+					. '<h4 style="margin:.2rem 0 .6rem">📄 PMB</h4>'
 					. '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">'
 					. '<div>' . $form->text( 'pmb_label' )->setLabel( 'PMB — Label' )->setAttribute( 'placeholder', 'Brosur / Formulir PMB' ) . '</div>'
 					. '<div>' . $form->file( 'pmb_url' )->setLabel( 'PMB — File Brosur/Formulir' )->setHelp( 'PDF, gambar, atau dokumen. Disarankan PDF.' ) . '</div>'
@@ -519,7 +504,7 @@ add_action( 'typerocket_loaded', function () {
 					. '</div>'
 
 					. '<div style="padding:1rem;background:#f6f8fc;border-radius:8px;border-left:3px solid #2271b3;margin-bottom:1rem">'
-					. '<h4 style="margin:.2rem 0 .6rem">🏷️ Chip Hero (Override Manual)</h4>'
+					. '<h4 style="margin:.2rem 0 .6rem">🏷️ Chip Hero</h4>'
 					. '<p style="margin:0 0 .8rem;font-size:.85em;color:#666">5 chip di baris badge bawah judul hero. <strong>Kosongkan semua untuk tidak menampilkan chip</strong> — tidak ada fallback otomatis. Setiap field adalah string lengkap (sudah termasuk emoji + label).</p>'
 					. '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">'
 					. '<div>' . $form->text( 'chip_gelar' )->setLabel( 'Chip — Gelar / S.Tr.P' )->setAttribute( 'placeholder', 'mis. 🎓 S.Tr.P' ) . '</div>'
@@ -531,11 +516,11 @@ add_action( 'typerocket_loaded', function () {
 					. '</div>'
 
 					. '<div style="padding:1rem;background:#fff4f4;border-radius:8px;border-left:3px solid #d63638">'
-					. '<h4 style="margin:.2rem 0 .6rem">🗄️ Field Legacy (tidak dirender)</h4>'
+					. '<h4 style="margin:.2rem 0 .6rem">🗄️ Field Legacy</h4>'
 					. '<p style="margin:0 0 .8rem;font-size:.85em;color:#666">Disimpan untuk kompatibilitas data lama. Tidak dipakai template maupun komponen.</p>'
 					. '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">'
-					. '<div>' . $form->select( '_use_default_content' )->setLabel( 'Gunakan Konten Default BDP (LEGACY)' )->setOptions( array( '1' => 'Ya (fallback BDP)', '0' => 'Tidak (kosong jika belum diisi)' ) )->setAttribute( 'style', 'width:100%' ) . '</div>'
-					. '<div>' . $form->textarea( 'tujuan_text' )->setLabel( 'Tujuan & Kompetensi teks bebas (LEGACY)' )->setAttribute( 'rows', 2 ) . '</div>'
+					. '<div>' . $form->select( '_use_default_content' )->setLabel( 'Gunakan Konten Default BDP' )->setOptions( array( '1' => 'Ya (fallback BDP)', '0' => 'Tidak (kosong jika belum diisi)' ) )->setAttribute( 'style', 'width:100%' ) . '</div>'
+					. '<div>' . $form->textarea( 'tujuan_text' )->setLabel( 'Tujuan & Kompetensi' )->setAttribute( 'rows', 2 ) . '</div>'
 					. '</div>'
 					. '</div>'
 				) );
