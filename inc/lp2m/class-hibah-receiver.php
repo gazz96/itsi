@@ -1169,13 +1169,13 @@ class ITSI_LP2M_Hibah_Receiver {
 		register_rest_route( 'lp2m/v1', '/hibah', [
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'handle_list' ],
-			'permission_callback' => [ $this, 'check_rate_limit_read' ],
+			'permission_callback' => [ $this, 'check_private_read' ],
 		] );
 
 		register_rest_route( 'lp2m/v1', '/hibah/(?P<id>\d+)', [
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'handle_detail' ],
-			'permission_callback' => [ $this, 'check_rate_limit_read' ],
+			'permission_callback' => [ $this, 'check_private_read' ],
 			'args'                => [
 				'id' => [
 					'required'          => true,
@@ -1306,6 +1306,25 @@ class ITSI_LP2M_Hibah_Receiver {
 			return true;
 		}
 		return new \WP_Error( 'forbidden', 'Anda tidak memiliki akses.', [ 'status' => 403 ] );
+	}
+
+	/**
+	 * Permission GET list/detail pendaftaran: wajib login (editor ke atas).
+	 *
+	 * Endpoint ini mengembalikan PII pendaftar (nama, NIP, email, HP, anggota
+	 * tim) dari CPT `pendaftaran_hibah` yang berstatus private, jadi tidak boleh
+	 * publik. Sebelumnya memakai `check_rate_limit_read` (publik + 120 req/10
+	 * menit) sehingga siapa pun bisa membaca seluruh data pendaftar.
+	 *
+	 * Rate limit baca tetap dipasang SETELAH auth lolos: dashboard yang error
+	 * loop tidak boleh menghajar DB, tapi admin yang sah tidak boleh kena 403.
+	 */
+	public function check_private_read( \WP_REST_Request $request ): bool|\WP_Error {
+		$auth = $this->check_admin();
+		if ( true !== $auth ) {
+			return $auth;
+		}
+		return $this->check_rate_limit_read( $request );
 	}
 
 	/**

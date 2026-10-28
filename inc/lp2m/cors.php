@@ -23,6 +23,8 @@ defined( 'ABSPATH' ) || exit;
 function itsi_lp2m_cors_allowed_origins() {
 	return array(
 		'https://lp2m.itsi.ac.id',
+		'https://lp2m.bagistudio.com',
+		'https://lp2m.pages.dev',
 		'https://lp2m-102.pages.dev',
 		'http://localhost:5173',
 		'https://localhost:5173',
