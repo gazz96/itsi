@@ -258,6 +258,19 @@ function lp2m_render() {
 			->setAttribute( 'rows', 2 ),
 	) );
 
+	// ── REWARD PUBLIKASI ────────────────────────────────────────────
+	$tabs->tab( __( 'Reward Publikasi', 'itsi' ), 'dashicons-awards', array(
+		'<p style="margin:0 0 1rem;padding:.9rem 1rem;background:#f0fdf4;border-radius:8px;border-left:3px solid #16a34a">'
+		. esc_html__( 'Jendela waktu pengajuan Reward Publikasi Dosen (formulir reward-publikasi-dosenITSI-2026). Kosongkan salah satu atau keduanya bila tidak ingin dibatasi.', 'itsi' )
+		. '</p>',
+		\TypeRocket\Utility\Helper::form()->date( 'lp2m_reward_period_start' )
+			->setLabel( __( 'Dibuka Sejak (Tanggal Mulai)', 'itsi' ) )
+			->setHelp( __( 'Kosongkan bila tidak ada batas mulai.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()->date( 'lp2m_reward_period_end' )
+			->setLabel( __( 'Ditutup Sampai (Tanggal Berakhir)', 'itsi' ) )
+			->setHelp( __( 'Kosongkan bila tidak ada batas akhir.', 'itsi' ) ),
+	) );
+
 	// ── SMTP ────────────────────────────────────────────────────────
 	$tabs->tab( __( 'SMTP', 'itsi' ), 'dashicons-email', array(
 		'<p style="margin:0 0 1rem;padding:.9rem 1rem;background:#f6f8fc;border-radius:8px;border-left:3px solid #2271b3">'
@@ -408,6 +421,7 @@ function lp2m_handle_settings_save() {
 		'lp2m_footer_tagline', 'lp2m_footer_copyright', 'lp2m_footer_credit',
 		'lp2m_home_bidang_title', 'lp2m_home_bidang_desc', 'lp2m_home_mitra_title',
 		'lp2m_home_cta_title', 'lp2m_home_cta_desc', 'lp2m_home_footer_tagline',
+		'lp2m_reward_period_start', 'lp2m_reward_period_end',
 	);
 	$email_keys = array( 'lp2m_site_email', 'lp2m_site_admin_email', 'lp2m_smtp_username', 'lp2m_smtp_from' );
 	$url_keys   = array(

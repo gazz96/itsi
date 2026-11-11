@@ -51,6 +51,16 @@ class ITSI_LP2M_Reward_Receiver {
 				'permission_callback' => '__return_true',
 			)
 		);
+
+		register_rest_route(
+			'lp2m/v1',
+			'/reward-jurnal/period',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'handle_period' ),
+				'permission_callback' => '__return_true',
+			)
+		);
 	}
 
 	/** Rate limit sederhana per IP lewat transient. */
@@ -104,7 +114,51 @@ class ITSI_LP2M_Reward_Receiver {
 		return new \WP_REST_Response( $out, 200 );
 	}
 
+	/** Periode pengajuan (open/closed) — dipakai wizard SPA & enforcement submit. */
+	public function handle_period(): \WP_REST_Response {
+		return new \WP_REST_Response( $this->period_status(), 200 );
+	}
+
+	/**
+	 * Hitung status periode dari option `lp2m_reward_period_start` / `_end`
+	 * (format Y-m-d, diatur di LP2M → Settings → Reward).
+	 * Kosong = tidak dibatasi (selalu terbuka).
+	 */
+	private function period_status(): array {
+		$start = trim( (string) get_option( 'lp2m_reward_period_start', '' ) );
+		$end   = trim( (string) get_option( 'lp2m_reward_period_end', '' ) );
+		$today = wp_date( 'Y-m-d' );
+
+		$open    = true;
+		$message = 'Masa pengajuan sedang dibuka.';
+
+		if ( '' !== $start && $today < $start ) {
+			$open    = false;
+			$message = 'Masa pengajuan belum dibuka. Pengajuan dibuka mulai tanggal ' . $start . '.';
+		} elseif ( '' !== $end && $today > $end ) {
+			$open    = false;
+			$message = 'Masa pengajuan telah berakhir pada tanggal ' . $end . '.';
+		}
+
+		return array(
+			'success' => true,
+			'open'    => $open,
+			'start'   => $start,
+			'end'     => $end,
+			'message' => $message,
+		);
+	}
+
 	public function handle_submit( \WP_REST_Request $request ): \WP_REST_Response {
+		// Periode pengajuan — tolak bila di luar jendela yang diatur admin.
+		$period = $this->period_status();
+		if ( ! $period['open'] ) {
+			return new \WP_REST_Response(
+				array( 'success' => false, 'closed' => true, 'message' => $period['message'] ),
+				403
+			);
+		}
+
 		$params = $this->sanitize_input( $request->get_params() );
 		$errors = $this->validate( $params );
 
