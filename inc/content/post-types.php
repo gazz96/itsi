@@ -86,7 +86,7 @@ add_action( 'typerocket_loaded', function () {
 	// meta boxes render properly. Gutenberg hides all classic meta boxes.
 	add_filter( 'use_block_editor_for_post', function ( $use, $post ) {
 		if ( $post instanceof \WP_Post && isset( $post->post_type )
-			&& in_array( $post->post_type, array( 'hibah', 'pendaftaran_hibah' ), true ) ) {
+			&& in_array( $post->post_type, array( 'hibah', 'pendaftaran_hibah', 'reward_jurnal' ), true ) ) {
 			return false;
 		}
 		return $use;
@@ -113,6 +113,26 @@ add_action( 'typerocket_loaded', function () {
 	$pendaftaran_hibah->setArgument( 'exclude_from_search', true );
 	$pendaftaran_hibah->setArgument( 'show_in_rest', false );
 	$pendaftaran_hibah->setArchivePostsPerPage( 20 );
+
+	// ═══ REWARD JURNAL / PUBLIKASI DOSEN (LP2M) ═════════════════
+	// CPT untuk pengajuan reward publikasi dosen (artikel/jurnal, buku,
+	// HAKI, seminar). Metabox + REST fields ada di inc/lp2m/reward-jurnal.php.
+	$reward_jurnal = tr_post_type( 'Reward Jurnal', 'Reward Jurnal' );
+	$reward_jurnal->setId( 'reward_jurnal' );
+	$reward_jurnal->setSlug( 'reward-jurnal' );
+	$reward_jurnal->setIcon( 'dashicons-awards' );
+	$reward_jurnal->setPosition( 12 );
+	$reward_jurnal->setSupports( array( 'title', 'editor' ) );
+	$reward_jurnal->setTitlePlaceholder( 'Nama dosen — jenis karya' );
+	$reward_jurnal->setArgument( 'public', false );
+	$reward_jurnal->setArgument( 'publicly_queryable', false );
+	$reward_jurnal->setArgument( 'has_archive', false );
+	$reward_jurnal->setArgument( 'show_ui', true );
+	$reward_jurnal->setArgument( 'show_in_menu', true );
+	$reward_jurnal->setArgument( 'show_in_admin_bar', true );
+	$reward_jurnal->setArgument( 'exclude_from_search', true );
+	$reward_jurnal->setRest( 'reward_jurnal' );
+	$reward_jurnal->setArchivePostsPerPage( 20 );
 
 	// ═══ TAXONOMIES ════════════════════════════════════════════
 	// (Kategori Pengumuman uses the standard `category` taxonomy.
@@ -168,6 +188,75 @@ add_action( 'typerocket_loaded', function () {
 	$kelompok_keahlian->setHierarchical( true );
 	$kelompok_keahlian->setRest( 'kelompok_keahlian' );
 	$kelompok_keahlian->addPostType( 'hibah' );
+
+	// ═══ REWARD JURNAL — kategori sebagai taxonomy (dinamis) ═══
+	// kategori_jurnal / kategori_buku / kategori_haki / kategori_seminar
+	// dijadikan taxonomy agar admin bisa menambah/mengubah pilihan sendiri.
+	$kategori_jurnal = tr_taxonomy( 'Kategori Jurnal', 'Kategori Jurnal' );
+	$kategori_jurnal->setId( 'kategori_jurnal' );
+	$kategori_jurnal->setSlug( 'kategori-jurnal' );
+	$kategori_jurnal->setHierarchical( true );
+	$kategori_jurnal->setRest( 'kategori_jurnal' );
+	$kategori_jurnal->addPostType( 'reward_jurnal' );
+
+	$kategori_buku = tr_taxonomy( 'Kategori Buku', 'Kategori Buku' );
+	$kategori_buku->setId( 'kategori_buku' );
+	$kategori_buku->setSlug( 'kategori-buku' );
+	$kategori_buku->setHierarchical( true );
+	$kategori_buku->setRest( 'kategori_buku' );
+	$kategori_buku->addPostType( 'reward_jurnal' );
+
+	$kategori_haki = tr_taxonomy( 'Kategori HAKI', 'Kategori HAKI' );
+	$kategori_haki->setId( 'kategori_haki' );
+	$kategori_haki->setSlug( 'kategori-haki' );
+	$kategori_haki->setHierarchical( true );
+	$kategori_haki->setRest( 'kategori_haki' );
+	$kategori_haki->addPostType( 'reward_jurnal' );
+
+	$kategori_seminar = tr_taxonomy( 'Kategori Seminar', 'Kategori Seminar' );
+	$kategori_seminar->setId( 'kategori_seminar' );
+	$kategori_seminar->setSlug( 'kategori-seminar' );
+	$kategori_seminar->setHierarchical( true );
+	$kategori_seminar->setRest( 'kategori_seminar' );
+	$kategori_seminar->addPostType( 'reward_jurnal' );
+
+	// ── Seed term awal kategori reward (sekali lewat option flag) ──
+	add_action( 'init', function () {
+		if ( get_option( 'itsi_reward_cats_seeded' ) ) { return; }
+
+		// Pastikan keempat taxonomy sudah terdaftar (TypeRocket register di init)
+		// sebelum menyemai term; kalau belum, batal dulu & coba lagi request berikut.
+		foreach ( array( 'kategori_jurnal', 'kategori_buku', 'kategori_haki', 'kategori_seminar' ) as $tax_check ) {
+			if ( ! taxonomy_exists( $tax_check ) ) { return; }
+		}
+
+		$terms = array(
+			'kategori_jurnal'  => array(
+				'Sinta 1', 'Sinta 2', 'Sinta 3', 'Sinta 4', 'Sinta 5', 'Sinta 6',
+				'Scopus Q-1', 'Scopus Q-2', 'Scopus Q-3', 'Scopus Q-4',
+				'Jurnal Terindeks WoS', 'Prosiding Nasional', 'Prosiding Scopus',
+			),
+			'kategori_buku'    => array( 'Buku Referensi', 'Buku Ajar', 'Buku Monograf', 'Book Chapter' ),
+			'kategori_haki'    => array(
+				'Hak Cipta', 'Paten', 'Merek', 'Desain Industri', 'Rahasia Dagang',
+				'DTLST (Desain Tata Letak Sirkuit Terpadu)', 'PVT (Perlindungan Varietas Tanaman)',
+			),
+			'kategori_seminar' => array( 'Nasional', 'Internasional' ),
+		);
+
+		foreach ( $terms as $tax => $names ) {
+			if ( ! taxonomy_exists( $tax ) ) { continue; }
+			$existing = get_terms( array( 'taxonomy' => $tax, 'hide_empty' => false, 'fields' => 'names' ) );
+			$existing = is_wp_error( $existing ) ? array() : $existing;
+			foreach ( $names as $name ) {
+				if ( ! in_array( $name, $existing, true ) ) {
+					wp_insert_term( $name, $tax, array( 'slug' => sanitize_title( $name ) ) );
+				}
+			}
+		}
+
+		update_option( 'itsi_reward_cats_seeded', 1 );
+	}, 20 );
 
 	// ── Migrasi & seed: skema_hibah → model_hibah + default SDGs ──
 	add_action( 'init', function () {

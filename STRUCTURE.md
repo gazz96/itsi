@@ -110,6 +110,8 @@ inc/
 │   ├── auth.php                   REST auth fallback (username + password)
 │   ├── class-user-password.php    REST: change account password
 │   ├── class-hibah-receiver.php   Hibah submit/validate/store + emails
+│   ├── reward-jurnal.php          Reward Jurnal CPT metabox + REST fields
+│   ├── class-reward-receiver.php  Reward Jurnal public submit endpoint
 │   └── pdf/
 │       ├── class-lp2m-pdf.php     PDF generator wrapper
 │       └── fpdf/                  FPDF library (MIT)
@@ -156,6 +158,8 @@ original 2 537-line `functions.php`, so hook registration order is unchanged:
 | 13 | `lp2m/auth.php` |
 | 14 | `lp2m/class-user-password.php` |
 | 15–16 | `lp2m/class-hibah-receiver.php`, `lp2m/pdf/class-lp2m-pdf.php` |
+| 16b  | `lp2m/reward-jurnal.php` (Reward Jurnal CPT metabox + REST) |
+| 16c  | `lp2m/class-reward-receiver.php` (public submit endpoint) |
 | 17 | `content/footer-layout.php` |
 | 18 | `content/info-publik.php` |
 | 19 | `theme/widget-areas.php` |

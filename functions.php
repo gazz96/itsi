@@ -124,6 +124,24 @@ require_once get_template_directory() . '/inc/lp2m/class-user-password.php';
 require_once get_template_directory() . '/inc/lp2m/class-hibah-receiver.php';
 require_once get_template_directory() . '/inc/lp2m/pdf/class-lp2m-pdf.php';
 
+/**
+ * LP2M Reward Jurnal (publikasi dosen) — CPT metabox + REST fields.
+ *
+ * Mendaftarkan metabox TypeRocket untuk CPT `reward_jurnal` (artikel/jurnal,
+ * buku, HAKI, seminar) dan mengekspos seluruh meta field ke REST agar SPA LP2M
+ * bisa mengelola pengajuan reward publikasi dosen.
+ */
+require_once get_template_directory() . '/inc/lp2m/reward-jurnal.php';
+
+/**
+ * LP2M Reward Receiver — public submission endpoint for Reward Jurnal.
+ *
+ * POST /lp2m/v1/reward-jurnal menyimpan pengajuan publikasi dosen (artikel/buku/
+ * HAKI/seminar) ke CPT `reward_jurnal` + taxonomy kategori dinamis + file upload.
+ * GET /lp2m/v1/reward-jurnal/categories dipakai wizard SPA untuk opsi kategori.
+ */
+require_once get_template_directory() . '/inc/lp2m/class-reward-receiver.php';
+
 /* ── Content helpers ───────────────────────────────────────────────────────── */
 
 // Footer layout definition + accessors.
