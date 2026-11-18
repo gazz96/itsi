@@ -72,6 +72,9 @@ function lp2m_render() {
 		\TypeRocket\Utility\Helper::form()->file( 'lp2m_dok_template_id' )
 			->setLabel( __( 'Template Dokumen (PDF)', 'itsi' ) )
 			->setHelp( __( 'Template dokumen proposal. Format PDF.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()->file( 'lp2m_dok_pengumuman_id' )
+			->setLabel( __( 'File Pengumuman (PDF)', 'itsi' ) )
+			->setHelp( __( 'File pengumuman yang bisa didownload dari homepage. Format PDF.', 'itsi' ) ),
 	) );
 
 	// ── HERO ────────────────────────────────────────────────────────
@@ -428,7 +431,7 @@ function lp2m_handle_settings_save() {
 		'lp2m_hero_btn_primary_url', 'lp2m_hero_btn_secondary_url',
 		'lp2m_site_frontend_url',
 	);
-	$id_keys    = array( 'lp2m_site_logo_id', 'lp2m_site_favicon_id', 'lp2m_dok_panduan_id', 'lp2m_dok_template_id' );
+	$id_keys    = array( 'lp2m_site_logo_id', 'lp2m_site_favicon_id', 'lp2m_dok_panduan_id', 'lp2m_dok_template_id', 'lp2m_dok_pengumuman_id' );
 	$json_keys  = array( 'lp2m_hero_infografis', 'lp2m_about_pillars', 'lp2m_about_leadership', 'lp2m_bidang_items', 'lp2m_mitra_items', 'lp2m_footer_tautan', 'lp2m_footer_layanan' );
 
 	// SMTP: host/port/secure/from_name = text; password disimpan apa adanya (tidak di-escape, tidak diekspos REST).
@@ -771,6 +774,9 @@ function lp2m_dok_data() {
 		'panduan_url'  => lp2m_url( lp2m_opt( 'dok_panduan_id' ) ),
 		'template_id'  => lp2m_opt( 'dok_template_id' ),
 		'template_url' => lp2m_url( lp2m_opt( 'dok_template_id' ) ),
+		// File pengumuman pengusulan reward — tombol download di section Reward homepage.
+		'pengumuman_id'   => lp2m_opt( 'dok_pengumuman_id' ),
+		'pengumuman_url'  => lp2m_url( lp2m_opt( 'dok_pengumuman_id' ) ),
 	);
 }
 function lp2m_hero_data() {

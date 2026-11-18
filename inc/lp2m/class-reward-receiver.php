@@ -237,6 +237,7 @@ class ITSI_LP2M_Reward_Receiver {
 		$text    = array( 'nama_dosen', 'no_whatsapp', 'judul_artikel', 'judul_buku', 'judul_haki', 'nomor_dokumen_haki', 'penyelenggara_seminar', 'judul_paper_seminar' );
 		$urls    = array( 'url_artikel', 'url_buku' );
 		$term_ids = array( 'kategori_jurnal_id', 'kategori_buku_id', 'kategori_haki_id', 'kategori_seminar_id' );
+		$term_new = array( 'kategori_jurnal_new', 'kategori_buku_new', 'kategori_haki_new', 'kategori_seminar_new' );
 
 		$out = array();
 		foreach ( $text as $k ) {
@@ -248,6 +249,9 @@ class ITSI_LP2M_Reward_Receiver {
 		foreach ( $term_ids as $k ) {
 			$out[ $k ] = isset( $params[ $k ] ) ? absint( $params[ $k ] ) : 0;
 		}
+		foreach ( $term_new as $k ) {
+			$out[ $k ] = isset( $params[ $k ] ) && is_string( $params[ $k ] ) ? sanitize_text_field( $params[ $k ] ) : '';
+		}
 		$jenis = isset( $params['jenis_reward'] ) ? sanitize_text_field( $params['jenis_reward'] ) : '';
 		$out['jenis_reward'] = in_array( $jenis, self::JENIS_REWARD, true ) ? $jenis : '';
 
@@ -256,6 +260,19 @@ class ITSI_LP2M_Reward_Receiver {
 
 	private function validate( array $params ): array {
 		$errors = array();
+
+		// Kategori wajib: terima ID taxonomy ATAU nama baru yang diketik manual.
+		$kat_pairs = array(
+			'kategori_jurnal'  => array( $params['kategori_jurnal_id'] ?? 0, $params['kategori_jurnal_new'] ?? '' ),
+			'kategori_buku'    => array( $params['kategori_buku_id'] ?? 0, $params['kategori_buku_new'] ?? '' ),
+			'kategori_haki'    => array( $params['kategori_haki_id'] ?? 0, $params['kategori_haki_new'] ?? '' ),
+			//'kategori_seminar' => opsional.
+		);
+		foreach ( $kat_pairs as $base => $pair ) {
+			if ( empty( $pair[0] ) && '' === trim( (string) $pair[1] ) ) {
+				$errors[ $base . '_id' ] = 'Kategori ' . str_replace( 'kategori_', '', $base ) . ' wajib dipilih atau diisi.';
+			}
+		}
 
 		// Data diri (wajib).
 		if ( '' === $params['nama_dosen'] ) {
@@ -268,17 +285,17 @@ class ITSI_LP2M_Reward_Receiver {
 		// Artikel / Jurnal (wajib).
 		if ( '' === $params['judul_artikel'] ) { $errors['judul_artikel'] = 'Judul artikel wajib diisi.'; }
 		if ( '' === $params['url_artikel'] ) { $errors['url_artikel'] = 'URL artikel wajib diisi.'; }
-		if ( empty( $params['kategori_jurnal_id'] ) ) { $errors['kategori_jurnal_id'] = 'Kategori jurnal wajib dipilih.'; }
+		// (kategori jurnal/buku/haki dicek via $kat_pairs di atas)
 
 		// Buku (wajib).
 		if ( '' === $params['judul_buku'] ) { $errors['judul_buku'] = 'Judul buku wajib diisi.'; }
 		if ( '' === $params['url_buku'] ) { $errors['url_buku'] = 'URL buku wajib diisi.'; }
-		if ( empty( $params['kategori_buku_id'] ) ) { $errors['kategori_buku_id'] = 'Kategori buku wajib dipilih.'; }
+		// (dicek via $kat_pairs)
 
 		// HAKI (wajib).
 		if ( '' === $params['judul_haki'] ) { $errors['judul_haki'] = 'Judul HAKI wajib diisi.'; }
 		if ( '' === $params['nomor_dokumen_haki'] ) { $errors['nomor_dokumen_haki'] = 'Nomor dokumen/sertifikat HAKI wajib diisi.'; }
-		if ( empty( $params['kategori_haki_id'] ) ) { $errors['kategori_haki_id'] = 'Kategori HAKI wajib dipilih.'; }
+		// (dicek via $kat_pairs)
 
 		// Seminar = opsional (tidak ada field wajib).
 
@@ -465,16 +482,22 @@ class ITSI_LP2M_Reward_Receiver {
 	 * selector jenis). Prioritas: artikel → buku → HAKI → seminar.
 	 */
 	private function derive_jenis( array $params ): string {
-		if ( '' !== $params['judul_artikel'] ) {
+		$judul_artikel = (string) ( $params['judul_artikel'] ?? '' );
+		$judul_buku    = (string) ( $params['judul_buku'] ?? '' );
+		$judul_haki    = (string) ( $params['judul_haki'] ?? '' );
+		$penyel        = (string) ( $params['penyelenggara_seminar'] ?? '' );
+		$judul_paper   = (string) ( $params['judul_paper_seminar'] ?? '' );
+
+		if ( '' !== $judul_artikel ) {
 			return 'artikel';
 		}
-		if ( '' !== $params['judul_buku'] ) {
+		if ( '' !== $judul_buku ) {
 			return 'buku';
 		}
-		if ( '' !== $params['judul_haki'] ) {
+		if ( '' !== $judul_haki ) {
 			return 'haki';
 		}
-		if ( '' !== $params['penyelenggara_seminar'] || '' !== $params['judul_paper_seminar'] ) {
+		if ( '' !== $penyel || '' !== $judul_paper ) {
 			return 'seminar';
 		}
 		return '';
@@ -482,6 +505,32 @@ class ITSI_LP2M_Reward_Receiver {
 
 	private function save_submission( array $params, array $uploads ): int|\WP_Error {
 		$jenis = $this->derive_jenis( $params );
+
+		// Kategori diketik manual (nama baru) → resolve ke term id.
+		// Idempotent: nama yang sudah ada (slug sama) dipakai, jangan diduplikat.
+		foreach ( array( 'kategori_jurnal', 'kategori_buku', 'kategori_haki', 'kategori_seminar' ) as $tax ) {
+			$new_name = trim( (string) ( $params[ $tax . '_new' ] ?? '' ) );
+			if ( '' === $new_name || ( $params[ $tax . '_id' ] ?? 0 ) > 0 ) {
+				continue;
+			}
+			$existing = get_term_by( 'name', $new_name, $tax );
+			if ( $existing && ! is_wp_error( $existing ) ) {
+				$params[ $tax . '_id' ] = (int) $existing->term_id;
+				continue;
+			}
+			$created = wp_insert_term( $new_name, $tax );
+			if ( is_wp_error( $created ) ) {
+				// Term_exists (race dalam satu request) → ambil term yang ada.
+				$term_id = (int) ( $created->get_error_data()['term_id'] ?? 0 );
+				if ( ! $term_id ) {
+					$existing = get_term_by( 'name', $new_name, $tax );
+					$term_id  = $existing && ! is_wp_error( $existing ) ? (int) $existing->term_id : 0;
+				}
+				$params[ $tax . '_id' ] = $term_id;
+			} else {
+				$params[ $tax . '_id' ] = (int) $created['term_id'];
+			}
+		}
 
 		$title = trim( 'Pengajuan Reward — ' . $params['nama_dosen'] );
 

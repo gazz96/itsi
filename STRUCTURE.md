@@ -112,6 +112,7 @@ inc/
 │   ├── class-hibah-receiver.php   Hibah submit/validate/store + emails
 │   ├── reward-jurnal.php          Reward Jurnal CPT metabox + REST fields
 │   ├── class-reward-receiver.php  Reward Jurnal public submit endpoint
+│   ├── reward-report.php          Reward Jurnal report endpoints (JSON + PDF)
 │   └── pdf/
 │       ├── class-lp2m-pdf.php     PDF generator wrapper
 │       └── fpdf/                  FPDF library (MIT)
@@ -160,6 +161,7 @@ original 2 537-line `functions.php`, so hook registration order is unchanged:
 | 15–16 | `lp2m/class-hibah-receiver.php`, `lp2m/pdf/class-lp2m-pdf.php` |
 | 16b  | `lp2m/reward-jurnal.php` (Reward Jurnal CPT metabox + REST) |
 | 16c  | `lp2m/class-reward-receiver.php` (public submit endpoint) |
+| 16d  | `lp2m/reward-report.php` (report JSON + PDF endpoints) |
 | 17 | `content/footer-layout.php` |
 | 18 | `content/info-publik.php` |
 | 19 | `theme/widget-areas.php` |

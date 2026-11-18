@@ -142,6 +142,14 @@ require_once get_template_directory() . '/inc/lp2m/reward-jurnal.php';
  */
 require_once get_template_directory() . '/inc/lp2m/class-reward-receiver.php';
 
+/**
+ * LP2M Reward Report — laporan pengajuan Reward Jurnal untuk dashboard SPA.
+ *
+ * GET /lp2m/v1/reward-jurnal/report (JSON) + /report/pdf (binary PDF via FPDF),
+ * keduanya admin-only. Dipakai halaman Laporan Reward Jurnal di dashboard SPA.
+ */
+require_once get_template_directory() . '/inc/lp2m/reward-report.php';
+
 /* ── Content helpers ───────────────────────────────────────────────────────── */
 
 // Footer layout definition + accessors.
