@@ -72,9 +72,6 @@ function lp2m_render() {
 		\TypeRocket\Utility\Helper::form()->file( 'lp2m_dok_template_id' )
 			->setLabel( __( 'Template Dokumen (PDF)', 'itsi' ) )
 			->setHelp( __( 'Template dokumen proposal. Format PDF.', 'itsi' ) ),
-		\TypeRocket\Utility\Helper::form()->file( 'lp2m_dok_pengumuman_id' )
-			->setLabel( __( 'File Pengumuman (PDF)', 'itsi' ) )
-			->setHelp( __( 'File pengumuman yang bisa didownload dari homepage. Format PDF.', 'itsi' ) ),
 	) );
 
 	// ── HERO ────────────────────────────────────────────────────────
@@ -272,6 +269,9 @@ function lp2m_render() {
 		\TypeRocket\Utility\Helper::form()->date( 'lp2m_reward_period_end' )
 			->setLabel( __( 'Ditutup Sampai (Tanggal Berakhir)', 'itsi' ) )
 			->setHelp( __( 'Kosongkan bila tidak ada batas akhir.', 'itsi' ) ),
+		\TypeRocket\Utility\Helper::form()->file( 'lp2m_dok_pengumuman_id' )
+			->setLabel( __( 'File Pengumuman Pengusulan Reward (PDF)', 'itsi' ) )
+			->setHelp( __( 'Setelah diunggah, tombol "Download Pengumuman" muncul di section Reward Publikasi Dosen pada homepage. Format PDF.', 'itsi' ) ),
 	) );
 
 	// ── SMTP ────────────────────────────────────────────────────────
