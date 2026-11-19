@@ -408,6 +408,11 @@ function itsi_reward_report_handle_pdf( \WP_REST_Request $request ) {
 	$filename = 'LP2M-Reward-Jurnal_' . $stamp . '.pdf';
 
 	// Binary keluar langsung (REST akan membungkus string jadi JSON kalau di-return).
+	// PENTING: echo + exit di sini menghentikan request SEBELUM filter
+	// rest_pre_serve_request (tempat header CORS dikirim) berjalan — akibatnya
+	// response 200 tanpa Access-Control-Allow-Origin dan browser memblokir body
+	// ("failed to load response data"). Kirim header CORS eksplisit sekarang.
+	itsi_lp2m_send_cors_headers( isset( $_SERVER['HTTP_ORIGIN'] ) ? (string) $_SERVER['HTTP_ORIGIN'] : '' );
 	header( 'Content-Type: application/pdf' );
 	header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
 	header( 'Content-Length: ' . strlen( $content ) );
