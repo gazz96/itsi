@@ -194,6 +194,16 @@ function itsi_reward_register_rest_fields() {
 			'schema' => array( 'type' => 'array', 'description' => $desc . ' (names)', 'context' => array( 'view' ) ),
 		) );
 	}
+
+	// Nomor registrasi + status alur — read-only untuk halaman detail SPA.
+	register_rest_field( 'reward_jurnal', 'reg_no', array(
+		'get_callback' => fn( $post ) => (string) get_post_meta( $post['id'], '_reg_no', true ),
+		'schema'       => array( 'type' => 'string', 'description' => 'Meta: _reg_no', 'context' => array( 'view' ) ),
+	) );
+	register_rest_field( 'reward_jurnal', 'alur_status', array(
+		'get_callback' => fn( $post ) => (string) get_post_meta( $post['id'], '_status', true ),
+		'schema'       => array( 'type' => 'string', 'description' => 'Meta: _status', 'context' => array( 'view' ) ),
+	) );
 }
 
 /* ════════════════════════════════════════════════════════════
