@@ -51,7 +51,7 @@ function itsi_reward_report_register_routes() {
  * Hanya admin (kelola opsi) boleh melihat laporan semua pengaju.
  */
 function itsi_reward_report_check_permission() {
-	if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
+	if ( ! is_user_logged_in() || ! current_user_can( 'edit_posts' ) ) {
 		return new \WP_Error(
 			'rest_forbidden',
 			'Anda tidak punya akses ke laporan reward jurnal.',
