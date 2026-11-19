@@ -312,16 +312,16 @@ function itsi_reward_report_handle_pdf( \WP_REST_Request $request ) {
 
 	/* ── Tabel ── */
 	$cols = array(
-		'no'      => array( 'label' => 'No',         'w' => 9 ),
+		'no'      => array( 'label' => 'No',         'w' => 9  ),
 		'tanggal' => array( 'label' => 'Tanggal',    'w' => 26 ),
-		'reg'     => array( 'label' => 'No. Reg',    'w' => 26 ),
-		'nama'    => array( 'label' => 'Nama Dosen', 'w' => 52 ),
-		'wa'      => array( 'label' => 'WhatsApp',   'w' => 27 ),
+		'reg'     => array( 'label' => 'No. Reg',    'w' => 30 ),
+		'nama'    => array( 'label' => 'Nama Dosen', 'w' => 46, 'wrap' => true ),
+		'wa'      => array( 'label' => 'WhatsApp',   'w' => 24 ),
 		'jenis'   => array( 'label' => 'Jenis',      'w' => 22 ),
-		'kat'     => array( 'label' => 'Kategori',   'w' => 40 ),
-		'judul'   => array( 'label' => 'Judul Karya','w' => 60 ),
-		'status'  => array( 'label' => 'Status',     'w' => 15 ),
-	);
+		'kat'     => array( 'label' => 'Kategori',   'w' => 36, 'wrap' => true ),
+		'judul'   => array( 'label' => 'Judul Karya','w' => 64, 'wrap' => true ),
+		'status'  => array( 'label' => 'Status',     'w' => 19, 'wrap' => true ),
+		);
 
 	$pdf->SetFillColor( 37, 99, 235 );
 	$pdf->SetTextColor( 255, 255, 255 );
@@ -334,22 +334,15 @@ function itsi_reward_report_handle_pdf( \WP_REST_Request $request ) {
 
 	$pdf->SetTextColor( 17, 24, 39 );
 	$pdf->SetFont( 'helvetica', '', 7.5 );
-	$fill  = false;
-	$no    = 0;
-	$judul_rows = array( 'judul' ); // kolom yang boleh wrap.
+	$fill = false;
+	$no   = 0;
 
 	foreach ( $built['rows'] as $row ) {
 		++$no;
 
-		// Hitung tinggi baris: kolom judul boleh wrap (MultiCell), lainnya 1 baris.
-		$judul_text = itsi_reward_report_pdf_text( (string) $row['judul'] );
-		$judul_w    = $cols['judul']['w'] - 2;
-		$nlines     = max( 1, (int) ceil( $pdf->GetStringWidth( $judul_text ) / max( $judul_w, 1 ) ) );
-		$row_h      = max( 6, $nlines * 4.2 + 1.4 );
-
 		$pdf->SetFillColor( $fill ? 241 : 255, $fill ? 245 : 255, $fill ? 249 : 255 );
 
-		$x = $pdf->GetX();
+		$x = 10.0; // margin kiri, selalu eksplisit.
 		$y = $pdf->GetY();
 
 		$cells = array(
@@ -360,22 +353,38 @@ function itsi_reward_report_handle_pdf( \WP_REST_Request $request ) {
 			'wa'      => (string) $row['whatsapp'],
 			'jenis'   => (string) $row['jenis_label'],
 			'kat'     => (string) $row['kategori'],
-			'judul'   => '', // dirender manual pakai MultiCell.
 			'status'  => (string) $row['status'],
 		);
 
+		// Pass 1 - hitung tinggi baris: kolom dengan wrap dihitung dari perkiraan
+		// jumlah baris (GetStringWidth / lebar kolom).
+		$row_h = 6;
 		foreach ( $cols as $key => $col ) {
-			if ( in_array( $key, $judul_rows, true ) ) {
-				$pdf->SetXY( $x, $y );
-				$pdf->MultiCell( $col['w'], $row_h, $judul_text, 1, 'L', $fill );
-				continue;
+			$val  = itsi_reward_report_pdf_text( 'judul' === $key ? (string) $row['judul'] : $cells[ $key ] );
+			$wrap = ! empty( $col['wrap'] ) || 'judul' === $key;
+			if ( $wrap ) {
+				$lines = max( 1, (int) ceil( $pdf->GetStringWidth( $val ) / max( $col['w'] - 2, 1 ) ) );
+				$row_h = max( $row_h, $lines * 4.2 + 1.2 );
 			}
+			$cols[ $key ]['_val']  = $val;
+			$cols[ $key ]['_wrap'] = $wrap;
+		}
+
+		// Pass 2 - render semua sel pada koordinat eksplisit. MultiCell dipakai
+		// untuk kolom wrap; tinggi per baris = tinggi baris / jumlah baris.
+		$x = 10.0;
+		foreach ( $cols as $key => $col ) {
 			$pdf->SetXY( $x, $y );
-			$pdf->Cell( $col['w'], $row_h, itsi_reward_report_pdf_text( $cells[ $key ] ), 1, 0, 'L', $fill );
+			if ( ! empty( $col['_wrap'] ) ) {
+				$lines = max( 1, (int) ceil( $pdf->GetStringWidth( $col['_val'] ) / max( $col['w'] - 2, 1 ) ) );
+				$pdf->MultiCell( $col['w'], $row_h / $lines, $col['_val'], 1, 'L', $fill );
+			} else {
+				$pdf->Cell( $col['w'], $row_h, $col['_val'], 1, 0, 'L', $fill );
+			}
 			$x += $col['w'];
 		}
 
-		$pdf->SetXY( 10, $pdf->GetY() ); // kembali ke margin kiri.
+		$pdf->SetXY( 10.0, $y + $row_h ); // baris berikut tepat di bawah baris ini.
 		$fill = ! $fill;
 	}
 
