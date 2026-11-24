@@ -1136,8 +1136,37 @@ class ITSI_LP2M_Hibah_Receiver {
 			];
 		}
 
+		// Bila ada tahap form peserta (Lap. Kemajuan / Lap. Akhir) yang sedang
+		// dibuka dengan tautan aktif, email status ini ikut memuat tautan
+		// bertoken-nya sebagai tombol utama — supaya tautan di email mana pun
+		// membuka form yang BISA diedit, bukan halaman baca tanpa token.
+		$stage_block = [];
+		if ( ! $is_revision_email ) {
+			foreach ( self::LAP_STAGES as $lap_stage ) {
+				$lap_status = $this->lap_stage_status( $post_id, $lap_stage );
+				if ( ! in_array( $lap_status, [ self::LAP_STATUS_DIREVISI, self::LAP_STATUS_DIBUKA ], true ) ) { continue; }
+				if ( '1' !== (string) get_post_meta( $post_id, $this->lap_meta( $lap_stage, 'token_active' ), true ) ) { continue; }
+				$lap_token = (string) get_post_meta( $post_id, $this->lap_meta( $lap_stage, 'token_preview' ), true );
+				if ( '' === $lap_token ) { continue; }
+
+				$cfg         = $this->lap_stage_config( $lap_stage );
+				$stage_files = [];
+				foreach ( $cfg['files'] as $f ) {
+					if ( 'peserta' === $f['owner'] ) { $stage_files[] = $f['label']; }
+				}
+				$stage_block = [
+					'label' => $cfg['label'],
+					'link'  => $this->frontend_base_url() . '/daftar/status/' . rawurlencode( $reg_no ?: (string) $post_id )
+						. '?token=' . rawurlencode( $lap_token ) . '&stage=' . rawurlencode( $lap_stage ),
+					'files' => $stage_files,
+					'mode'  => self::LAP_STATUS_DIREVISI === $lap_status ? 'revisi' : 'buka',
+				];
+				break;
+			}
+		}
+
 		$subject = sprintf( '[LP2M] %s — %s', $reg_no ?: ( 'Pendaftaran #' . $post_id ), $subject_note ? $subject_note : ( 'Status: ' . ucfirst( $status ) ) );
-		$body = $this->email_html( $params, $reg_no ?: (string) $post_id, $event_name, '', [], $revision );
+		$body = $this->email_html( $params, $reg_no ?: (string) $post_id, $event_name, '', [], $revision, $stage_block );
 		if ( '' !== trim( $subject_note ) ) {
 			$body = '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;margin-bottom:16px;color:#92400e;font-size:13px"><strong>Catatan:</strong> ' . esc_html( $subject_note ) . '</div>' . $body;
 		}
@@ -2919,8 +2948,14 @@ class ITSI_LP2M_Hibah_Receiver {
 				return new \WP_REST_Response( [ 'success' => false, 'message' => 'Status tidak valid.' ], 400 );
 			}
 			update_post_meta( $id, '_status', $status );
-			$status_to_notify = $status;
-			$status_changed   = ( $old_status !== $status );
+			$status_changed = ( $old_status !== $status );
+			// Email pemohon HANYA saat status benar-benar berubah. Dashboard SPA
+			// selalu mengirim `status` di setiap simpan, sehingga tanpa syarat ini
+			// setiap "Simpan Perubahan" mengirim email "Status: …" tanpa tautan
+			// bertoken — email yang tautannya tidak bisa dipakai mengedit.
+			if ( $status_changed ) {
+				$status_to_notify = $status;
+			}
 		}
 
 		// ── Status Tahap 2 (Revisi) ── satu-satunya pemicu email + tautan revisi.
@@ -3114,9 +3149,24 @@ class ITSI_LP2M_Hibah_Receiver {
 				update_post_meta( $id, $meta_key, $this->sanitize_lap_text( $t, (string) $params[ $t['key'] ] ) );
 			}
 
-			$status_meta = $cfg['status_meta'];
+			// Status tahap — terima DUA bentuk nama param:
+			//  - `_lapkem_status`  (metabox TypeRocket / wp-admin)
+			//  - `lapkem_status`   (Dashboard SPA; meta key tanpa garis bawah awal,
+			//    sama dengan yang dibaca endpoint status publik)
+			// Sebelumnya hanya bentuk bergaris bawah yang dibaca, sehingga status
+			// "Direvisi" yang dikirim Dashboard diabaikan: meta tetap nilai lama
+			// (dropdown kembali ke data sebelumnya), token peserta tidak dibuat,
+			// dan email tautan form tidak pernah terkirim.
+			$status_meta  = $cfg['status_meta'];
+			$status_alias = ltrim( $status_meta, '_' );
+			$status_input = null;
 			if ( array_key_exists( $status_meta, $params ) ) {
-				$new_status = sanitize_text_field( (string) $params[ $status_meta ] );
+				$status_input = (string) $params[ $status_meta ];
+			} elseif ( array_key_exists( $status_alias, $params ) ) {
+				$status_input = (string) $params[ $status_alias ];
+			}
+			if ( null !== $status_input ) {
+				$new_status = sanitize_text_field( $status_input );
 				if ( ! in_array( $new_status, self::LAP_STATUSES, true ) ) {
 					return new \WP_REST_Response( [ 'success' => false, 'message' => 'Status tahap ' . $cfg['label'] . ' tidak valid.' ], 400 );
 				}
